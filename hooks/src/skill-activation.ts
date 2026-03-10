@@ -20,24 +20,47 @@ export function formatOutput(matches: MatchResult[]): string {
   if (matches.length === 0) return '';
 
   const top = matches.slice(0, MAX_SUGGESTIONS);
-  const lines: string[] = [
-    '',
-    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-    '  SKILL ACTIVATION CHECK',
-    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-    '',
-    'RECOMMENDED SKILLS:',
-  ];
+  const primary = top[0];
+  const lines: string[] = [];
+
+  // Determine action strength from enforcement + priority
+  const isStrong = primary.rule.priority === 'critical' || primary.rule.priority === 'high';
+  const isBlock = primary.rule.enforcement === 'block';
+
+  lines.push('');
+  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  lines.push('  SKILL ACTIVATION');
+  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  lines.push('');
 
   for (const m of top) {
     const tags: string[] = [];
     if (m.matchedKeywords.length > 0) tags.push(`keywords: ${m.matchedKeywords.join(', ')}`);
     if (m.matchedIntents.length > 0) tags.push(`intents: ${m.matchedIntents.length}`);
     lines.push(`  → ${m.skillName} [${m.rule.priority}] (${tags.join('; ')})`);
+    if (m.rule.description) {
+      lines.push(`    ${m.rule.description}`);
+    }
   }
 
   lines.push('');
-  lines.push('ACTION: Consider using the Skill tool for the above skill(s) if relevant.');
+
+  if (isBlock) {
+    lines.push(`BLOCKED: You must use the "${primary.skillName}" skill for this task.`);
+    if (primary.rule.blockMessage) {
+      lines.push(primary.rule.blockMessage);
+    }
+    lines.push(`Invoke it now: use the Skill tool with skill="${primary.skillName}".`);
+    lines.push('Do not proceed without invoking this skill.');
+  } else if (isStrong) {
+    lines.push(`IMPORTANT: This task requires the "${primary.skillName}" skill.`);
+    lines.push(`You MUST invoke it using the Skill tool (skill: "${primary.skillName}") BEFORE doing any other work.`);
+    lines.push('Do not analyze, implement, or modify code directly — the skill handles the full workflow.');
+  } else {
+    lines.push(`SUGGESTED: Use the "${primary.skillName}" skill for better results.`);
+    lines.push(`Invoke with the Skill tool (skill: "${primary.skillName}") before proceeding.`);
+  }
+
   lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   lines.push('');
 
