@@ -151,13 +151,15 @@ echo '{"session_id":"test","prompt":"기능 구현 해줘"}' | node hooks/dist/s
 Expected output:
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  SKILL ACTIVATION CHECK
+  SKILL ACTIVATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-RECOMMENDED SKILLS:
   → forge [high] (keywords: 기능 구현; intents: 1)
+    Autonomous execution engine for complex development tasks
 
-ACTION: Consider using the Skill tool for the above skill(s) if relevant.
+IMPORTANT: This task requires the "forge" skill.
+You MUST invoke it using the Skill tool (skill: "forge") BEFORE doing any other work.
+Do not analyze, implement, or modify code directly — the skill handles the full workflow.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -243,7 +245,7 @@ Edit `hooks/skill-rules.json` (or `~/.claude/skills/skill-rules.json` after inst
 | Field | Values | Description |
 |---|---|---|
 | `type` | `domain` / `guardrail` | Skill category |
-| `enforcement` | `suggest` / `block` / `warn` | How aggressively to recommend |
+| `enforcement` | `suggest` / `block` / `warn` | Message strength: `block` → BLOCKED (mandatory), `suggest`+high → IMPORTANT/MUST, `suggest`+low → SUGGESTED |
 | `priority` | `critical` / `high` / `medium` / `low` | Ranking when multiple skills match |
 | `keywords` | string[] | Substring match (case-insensitive) |
 | `intentPatterns` | string[] | Regex patterns (case-insensitive) |
@@ -391,13 +393,15 @@ echo '{"session_id":"test","prompt":"기능 구현 해줘"}' | node hooks/dist/s
 예상 출력:
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  SKILL ACTIVATION CHECK
+  SKILL ACTIVATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-RECOMMENDED SKILLS:
   → forge [high] (keywords: 기능 구현; intents: 1)
+    Autonomous execution engine for complex development tasks
 
-ACTION: Consider using the Skill tool for the above skill(s) if relevant.
+IMPORTANT: This task requires the "forge" skill.
+You MUST invoke it using the Skill tool (skill: "forge") BEFORE doing any other work.
+Do not analyze, implement, or modify code directly — the skill handles the full workflow.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -480,7 +484,7 @@ mkdir -p ~/.claude/hooks/state
 | 필드 | 값 | 설명 |
 |---|---|---|
 | `type` | `domain` / `guardrail` | 스킬 분류 |
-| `enforcement` | `suggest` / `block` / `warn` | 제안 강도 |
+| `enforcement` | `suggest` / `block` / `warn` | 메시지 강도: `block` → BLOCKED (필수), `suggest`+high → IMPORTANT/MUST, `suggest`+low → SUGGESTED |
 | `priority` | `critical` / `high` / `medium` / `low` | 복수 매칭 시 우선순위 |
 | `keywords` | string[] | 부분 문자열 매칭 (대소문자 무시) |
 | `intentPatterns` | string[] | 정규식 패턴 (대소문자 무시) |
