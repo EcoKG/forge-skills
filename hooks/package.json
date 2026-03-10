@@ -1,0 +1,15 @@
+{
+  "name": "claude-skill-hooks",
+  "version": "1.0.0",
+  "description": "Claude Code hook auto-activation system for skill suggestions",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/tests/*.test.js",
+    "test:all": "npm run build && npm run test"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}

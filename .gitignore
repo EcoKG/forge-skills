@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+hooks/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Forge artifacts (session-specific)
+.claude/artifacts/
+
+# Forge workspace (old sub-skills backup)
+forge-skill-workspace/
+
+# Session state
+.claude/hooks/
+
+# Project profile cache
+.claude/project-profile.json
+
+# Root-level copies (canonical versions in .claude/artifacts/)
+/research.md
+/plan.md
+/report.md
