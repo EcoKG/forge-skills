@@ -71,7 +71,7 @@
         ]
       },
       "skipConditions": {
-        "sessionSkillUsed": true
+        "sessionSkillUsed": false
       }
     }
   }
