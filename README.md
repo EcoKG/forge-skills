@@ -10,6 +10,7 @@ Claude Code skills and hooks for autonomous development workflow.
 
 ```
 forge-skills/
+├── install.sh              # One-command installer (installs everything)
 ├── forge/                  # Forge skill — autonomous execution engine
 │   ├── SKILL.md            # Main skill definition (install to ~/.claude/skills/forge/)
 │   ├── checklists/         # Language-specific code review checklists
@@ -127,43 +128,21 @@ User types prompt → Claude Code triggers UserPromptSubmit hook
 ```bash
 git clone https://github.com/EcoKG/forge-skills.git
 cd forge-skills
+bash install.sh
 ```
 
-#### 1. Install the Forge skill
+That's it. The installer automatically:
 
-Copy the entire `forge/` directory to your Claude Code skills location:
-
-```bash
-# Create skills directory if it doesn't exist
-mkdir -p ~/.claude/skills/forge
-
-# Copy all forge files
-cp -r forge/* ~/.claude/skills/forge/
-```
-
-Verify the skill is loaded by starting Claude Code — you should see `forge` in the available skills list.
-
-#### 2. Install the Hook Auto-Activation system
-
-Run the installer script:
-
-```bash
-bash hooks/install.sh
-```
-
-The installer will:
-
-1. **Check Node.js** — detects system Node.js or nvm
-2. **Build TypeScript** — compiles `hooks/src/` to `hooks/dist/` via `tsc`
-3. **Copy skill-rules.json** — deploys trigger rules to `~/.claude/skills/`
-4. **Create state directory** — `~/.claude/hooks/state/` for session tracking
-5. **Register the hook** — adds `UserPromptSubmit` entry to `~/.claude/settings.json`
+1. **Checks Node.js** — detects system Node.js or nvm
+2. **Installs skills** — copies `forge/` and `creatework/` to `~/.claude/skills/`
+3. **Builds hook** — compiles TypeScript to `hooks/dist/`
+4. **Deploys rules** — copies `skill-rules.json` to `~/.claude/skills/`
+5. **Creates state dir** — `~/.claude/hooks/state/` for session tracking
+6. **Registers hook** — adds `UserPromptSubmit` entry to `~/.claude/settings.json`
 
 > The installer merges into your existing `settings.json` — it will not overwrite your current settings.
 
-#### 3. Verify installation
-
-Test the hook manually:
+### Verify
 
 ```bash
 echo '{"session_id":"test","prompt":"기능 구현 해줘"}' | node hooks/dist/src/skill-activation.js
@@ -389,37 +368,21 @@ cp creatework/SKILL.md ~/.claude/skills/creatework/
 ```bash
 git clone https://github.com/EcoKG/forge-skills.git
 cd forge-skills
+bash install.sh
 ```
 
-**1단계: Forge 스킬 설치**
-
-```bash
-# 스킬 디렉토리 생성
-mkdir -p ~/.claude/skills/forge
-
-# forge 파일 전체 복사
-cp -r forge/* ~/.claude/skills/forge/
-```
-
-Claude Code를 시작하면 사용 가능한 스킬 목록에 `forge`가 표시됩니다.
-
-**2단계: Hook 자동 활성화 설치**
-
-```bash
-bash hooks/install.sh
-```
-
-설치 스크립트가 수행하는 작업:
+끝입니다. 설치 스크립트가 자동으로 수행하는 작업:
 
 1. **Node.js 확인** — 시스템 Node.js 또는 nvm 감지
-2. **TypeScript 빌드** — `hooks/src/`를 `hooks/dist/`로 컴파일
-3. **skill-rules.json 복사** — 트리거 규칙을 `~/.claude/skills/`에 배포
-4. **상태 디렉토리 생성** — `~/.claude/hooks/state/` (세션 추적용)
-5. **Hook 등록** — `~/.claude/settings.json`에 `UserPromptSubmit` 항목 추가
+2. **스킬 설치** — `forge/`, `creatework/`를 `~/.claude/skills/`에 복사
+3. **Hook 빌드** — TypeScript를 `hooks/dist/`로 컴파일
+4. **규칙 배포** — `skill-rules.json`을 `~/.claude/skills/`에 복사
+5. **상태 디렉토리 생성** — `~/.claude/hooks/state/` (세션 추적용)
+6. **Hook 등록** — `~/.claude/settings.json`에 `UserPromptSubmit` 항목 추가
 
 > 기존 `settings.json` 설정을 덮어쓰지 않고 병합합니다.
 
-**3단계: 설치 확인**
+#### 설치 확인
 
 ```bash
 echo '{"session_id":"test","prompt":"기능 구현 해줘"}' | node hooks/dist/src/skill-activation.js
