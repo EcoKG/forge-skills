@@ -1,22 +1,22 @@
 ---
 name: forge
 description: |
-  Use this skill whenever a user wants to implement a feature, fix a non-trivial bug, refactor code, build something new, or make any change touching multiple files or modules. When in doubt, use forge — research + planning prevents costly mistakes.
+  Use forge whenever a user wants to implement a feature, fix a non-trivial bug, refactor code, or make changes across multiple files. When in doubt, use forge — research + planning prevents costly mistakes.
 
   ALWAYS use forge for:
-  - Feature implementation (기능 구현, 추가, 개발, 만들어줘, 구현해줘, implement, build, add)
-  - Bug fixes needing root cause analysis (버그, 에러, 안 됨, 크래시, 실패, bug, crash, broken)
-  - Refactoring or code quality improvements (리팩토링, 분리, 개선, SRP, SOLID, refactor, split, clean up)
-  - Security audits, code analysis, OWASP (보안, 취약점, 감사, 분석, security, audit, OWASP)
-  - Architecture, schema, API design (설계, 아키텍처, 스키마, design, schema, API)
-  - CI/CD, Docker, deployment, infra setup (배포, 파이프라인, Docker, CI/CD, deploy)
+  - Feature implementation (기능 구현, 만들어줘, 구현해줘, implement, build, add)
+  - Bug fixes needing root cause analysis (버그, 에러, 안 됨, 크래시, bug, crash, broken)
+  - Refactoring / code quality (리팩토링, 분리, SRP, SOLID, refactor, split)
+  - Security audits, OWASP analysis (보안, 취약점, security, audit)
+  - Architecture, schema, API design (설계, 아키텍처, design, schema)
+  - CI/CD, Docker, deployment (배포, Docker, CI/CD, deploy)
   - Migrations, framework upgrades, large-scale changes
-  - /forge or 포지 explicitly invoked
+  - /forge or 포지 invoked
 
   DO NOT use forge for:
-  - Single-line edits with no ripple effect (one typo, one env var, one import)
-  - Pure code explanation or questions requiring no code change
-  - Simple read/search/run commands (git log, cat, npm install)
+  - Single-line edits (one typo, one env var, one import)
+  - Pure code explanation or questions with no code change
+  - Simple commands (git log, cat, npm install)
 ---
 
 # Forge
