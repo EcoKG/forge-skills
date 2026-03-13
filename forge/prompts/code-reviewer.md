@@ -58,17 +58,26 @@ Verdict: PASS / NEEDS_REVISION(minor) / NEEDS_REVISION(major) / REJECT
 
 > **NOTE TO PM**: Replace `{GENERAL_CHECKLIST}` with `checklists/general.md` contents.
 
-## Mandatory SOLID/TDD Checklist (check every review — violation = REJECT)
+## Design Principles Checklist (paradigm-aware — check items matching the project paradigm)
 
-1. **SRP:** Does each modified class/method have exactly one reason to change? Multiple responsibilities in one class?
-2. **OCP:** Are changes extending behavior without modifying existing working code? Or patching existing logic directly?
-3. **LSP:** If inheritance used, can subtypes fully substitute base types without breaking behavior?
+**OOP/SOLID (paradigm: `oop` or `mixed` only — skip for `functional`/`script`):**
+1. **SRP:** Does each modified class/method have exactly one reason to change?
+2. **OCP:** Are changes extending behavior without modifying existing working code?
+3. **LSP:** If inheritance used, can subtypes fully substitute base types?
 4. **ISP:** Are clients forced to depend on interfaces they don't use?
-5. **DIP:** Does high-level module depend on low-level module directly (instead of abstraction)?
-6. **TDD:** Were tests written/updated BEFORE implementation? If no tests, is skip reason documented in plan.md?
-7. **DDD (if applicable):** Does new code respect existing Aggregate/Entity/Value Object boundaries? Domain logic in domain layer?
+5. **DIP:** Does high-level module depend on low-level module directly?
 
-Report: OK / N/A / VIOLATION for each item. Any VIOLATION → REJECT verdict.
+**FP (paradigm: `functional` or `mixed`):**
+1. **Purity:** Are functions pure where possible? Side effects isolated?
+2. **Immutability:** Are data structures immutable by default?
+
+**TDD (when enabled — skip if `--skip-tests` or paradigm `script`):**
+1. Were tests written/updated BEFORE implementation? If skipped, is reason documented?
+
+**DDD (if applicable, any paradigm):**
+1. Does new code respect existing domain boundaries?
+
+Report: OK / N/A / VIOLATION for each applicable item. Architecture-level VIOLATION → REJECT. Minor VIOLATION → NEEDS_REVISION.
 
 ## Communication
 

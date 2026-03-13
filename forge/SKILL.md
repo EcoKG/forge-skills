@@ -1,35 +1,28 @@
 ---
 name: forge
 description: |
-  Autonomous execution engine for complex development tasks.
-  Manages the full lifecycle: research → plan → implement → review → QA.
-  Task types: code (feature, bug fix, refactoring), docs, analysis (code review, security audit), infra (CI/CD, Docker), design (architecture, schema, API).
+  Use this skill whenever a user wants to implement a feature, fix a non-trivial bug, refactor code, build something new, or make any change touching multiple files or modules. When in doubt, use forge — research + planning prevents costly mistakes.
 
-  Keywords: forge, 포지, 기능 구현, feature implementation, 버그 수정, bug fix, 리팩토링, refactoring, 코드 리뷰, code review, 보안 감사, security audit, 아키텍처 설계, architecture design, DB 스키마, API 설계, 문서화, documentation, CI/CD, Docker, 배포, deployment, 기술 부채, technical debt, OWASP, 취약점 분석, 성능 최적화, performance optimization.
+  ALWAYS use forge for:
+  - Feature implementation (기능 구현, 추가, 개발, 만들어줘, 구현해줘, implement, build, add)
+  - Bug fixes needing root cause analysis (버그, 에러, 안 됨, 크래시, 실패, bug, crash, broken)
+  - Refactoring or code quality improvements (리팩토링, 분리, 개선, SRP, SOLID, refactor, split, clean up)
+  - Security audits, code analysis, OWASP (보안, 취약점, 감사, 분석, security, audit, OWASP)
+  - Architecture, schema, API design (설계, 아키텍처, 스키마, design, schema, API)
+  - CI/CD, Docker, deployment, infra setup (배포, 파이프라인, Docker, CI/CD, deploy)
+  - Migrations, framework upgrades, large-scale changes
+  - /forge or 포지 explicitly invoked
 
-  TRIGGER when (code volume ≠ complexity — use if ANY apply):
-  - /forge command is invoked
-  - Changes ripple across other modules/systems (state flow, event chains, UI integration)
-  - Domain logic understanding required (business rules, game mechanics)
-  - Unclear why target code/constraints exist (Chesterton's Fence)
-  - Change target is connected to config/settings files
-  - Cost of incorrect modification > cost of research + plan + implement
-  - Multi-file feature implementation, refactoring, app building
-  - Bug fixes requiring root cause analysis across modules
-  - Systematic code review, security audit, performance analysis
-  - API/architecture/schema design, systematic documentation, infra (Docker, CI/CD)
-
-  DO NOT TRIGGER when:
-  - Typo fixes, log additions, comment changes — independent changes with no system dependencies
-  - Simple code questions, explanations, debugging hints (no code change needed)
-  - File moves/renames, adding one env var — changes with no ripple effect
+  DO NOT use forge for:
+  - Single-line edits with no ripple effect (one typo, one env var, one import)
+  - Pure code explanation or questions requiring no code change
+  - Simple read/search/run commands (git log, cat, npm install)
 ---
 
 # Forge
 
 > Autonomous execution engine. All requests → research → plan → execute → deliver.
-> Base path: `~/.claude/skills/forge/`
-> **On context loss, re-read `~/.claude/skills/forge/SKILL.md`.**
+> **On context loss, re-read this SKILL.md from the skill's installed location.**
 
 ---
 
@@ -47,7 +40,7 @@ description: |
 
 ### 컨텍스트 자가 복구
 
-컴팩트 등으로 이 스킬의 내용이 불완전하다고 판단되면, 각 Step 진입 시 `~/.claude/skills/forge/SKILL.md`를 다시 읽어 플로우를 복구하라. 판단 기준: 현재 Step의 세부 지시사항이 기억나지 않거나, 다음에 무엇을 해야 하는지 불확실할 때.
+컴팩트 등으로 이 스킬의 내용이 불완전하다고 판단되면, 각 Step 진입 시 이 SKILL.md를 다시 읽어 플로우를 복구하라. 판단 기준: 현재 Step의 세부 지시사항이 기억나지 않거나, 다음에 무엇을 해야 하는지 불확실할 때.
 
 ---
 
@@ -63,29 +56,33 @@ description: |
 
 이 스킬 파일의 모든 지시는 반드시 충실히 따라야 한다. 모드 플래그(`--direct`, `--cost low`, `--scale small`)는 *어떤* 단계가 적용되는지를 제어하지만, 단계가 *어떻게* 실행되는지는 절대 변경하지 않는다. 단계를 건너뛰면 품질 저하가 페이즈를 거치며 누적된다 — 일관성이 중요한 이유다. "템플릿 X를 읽어라"라고 되어 있으면 읽어야 한다. "산출물 Y를 생성하라"라고 되어 있으면 생성해야 한다.
 
-### 설계 원칙 (모든 code 유형 작업에 필수 적용)
+### 설계 원칙 (패러다임에 따라 적용)
 
-아래 원칙은 forge 실행 전체에서 반드시 준수해야 한다. 리서치·계획·구현·리뷰 모든 단계에 적용된다.
+프로젝트의 패러다임을 감지하여 적절한 원칙을 적용한다. `--paradigm`으로 명시하거나, 프로젝트 파일에서 자동 감지한다.
 
-**TDD (Test-Driven Development) — 필수:**
+**패러다임 감지 (`--paradigm auto`):**
+- `oop`: 클래스 기반 언어/패턴 중심 (Java, C#, TypeScript class-heavy)
+- `functional`: 함수형 언어/패턴 중심 (Haskell, Elixir, Clojure, Scala, FP-heavy TS/JS)
+- `script`: 셸 스크립트, 설정 파일, 단발성 자동화 스크립트, CLI 도구
+- `mixed` (기본값): OOP + FP 혼합 — 대부분의 현대 프로젝트
+
+**TDD — `script` 패러다임이 아닐 때 기본 적용:**
 - Red → Green → Refactor 사이클을 따른다
-- 테스트 작업은 반드시 구현 작업보다 **앞에** 배치한다
-- 테스트 없이 구현하면 REJECT. 생략은 plan.md에 명시적 사유가 있을 때만 허용 (예: 런타임 미지원)
+- 테스트 작업은 구현 작업보다 앞에 배치한다
+- 생략 조건: `--skip-tests` 플래그, 프로젝트에 테스트 인프라 미존재, 또는 plan.md에 명시적 사유 기록
+- `script` 패러다임: TDD 의무 없음 — 단, 핵심 로직에 대한 수동 검증은 권장
 
-**OOP — 필수:**
-- Encapsulation: 내부 상태를 숨기고 인터페이스로 접근
-- Inheritance: 필요할 때만 사용, 조합(Composition)을 우선
-- Polymorphism: 인터페이스/추상 타입으로 프로그래밍
-- Abstraction: 필요한 것만 노출
+**OOP + SOLID — `oop` 또는 `mixed` 패러다임에만 적용:**
+- SRP, OCP, LSP, ISP, DIP
+- 위반 시 리뷰에서 NEEDS_REVISION (단, 아키텍처 수준 위반은 REJECT)
+- `functional`/`script` 패러다임에서는 적용하지 않는다
 
-**SOLID — 필수 (위반 시 리뷰에서 REJECT):**
-- **SRP**: 클래스/메서드는 하나의 변경 사유만 가진다
-- **OCP**: 확장에 열려있고 수정에 닫혀있다
-- **LSP**: 하위 타입은 상위 타입을 대체할 수 있어야 한다
-- **ISP**: 사용하지 않는 메서드에 의존하지 않는다
-- **DIP**: 구체가 아닌 추상에 의존한다
+**FP 원칙 — `functional` 또는 `mixed` 패러다임에 적용:**
+- Pure functions 우선 (부작용 최소화)
+- Immutable data 구조 활용
+- 합성(composition)으로 복잡도 관리
 
-**DDD (Domain-Driven Design) — 해당 시 필수:**
+**DDD (Domain-Driven Design) — 해당 시 적용 (패러다임 무관):**
 - 기존 Aggregate, Entity, Value Object, Repository, Domain Service 경계를 존중한다
 - 새 코드는 기존 도메인 경계를 따른다
 - 도메인 로직은 도메인 계층에, 인프라 로직은 인프라 계층에 분리한다
@@ -150,6 +147,8 @@ Forge는 두 가지 방식으로 활성화된다:
 | `--exec` | `auto`/`subagent`/`team` | auto | 실행 전략 |
 | `--lang` | `ko`/`en`/… | auto | 출력 언어 (입력에서 자동 감지) |
 | `--cost` | `low`/`medium`/`high` | medium | 비용 등급 |
+| `--paradigm` | `oop`/`functional`/`script`/`mixed`/`auto` | auto | 설계 패러다임 (프로젝트에서 자동 감지) |
+| `--skip-tests` | 플래그 | off | TDD 단계 생략 (테스트 인프라 없는 프로젝트용) |
 | `--resume` | slug | — | 중단된 산출물 재개 |
 | `--init` | 플래그 | off | 프로젝트 초기화 모드 |
 
@@ -235,8 +234,8 @@ Forge는 두 가지 방식으로 활성화된다:
    - `templates/output.md` — 진행 출력 형식, 세션 전체에서 사용
    - `.claude/forge-rules.md` (프로젝트 루트) — 프로젝트 수준 규칙, 있으면
    - `.claude/settings.local.json` — 권한 부트스트랩 (아래 4c 참조)
-   - 4c. `permissions.allow`에 `.claude/artifacts/**`에 대한 Write/Edit 항목이 없으면, 프로젝트의 절대 경로를 사용해 추가한다 (예: `Write(/absolute/project/path/.claude/artifacts/**)`, `Edit(/absolute/project/path/.claude/artifacts/**)`). 파일이 없으면 `{"permissions":{"allow":[...]}}` 형태로 생성한다. 일회성 설정 — 사용자가 한 번 승인하면 이후 모든 산출물 파일 작업이 자동 승인된다.
-5. 프로젝트 언어/프레임워크를 감지한다 → `.claude/project-profile.json`에 캐시
+   - 4c. 산출물 디렉토리에 파일을 생성할 때 권한 프롬프트가 뜨면 사용자가 직접 승인한다. `.claude/settings.local.json`을 자동 수정하지 않는다.
+5. 프로젝트 언어/프레임워크 + **패러다임**을 감지한다 → `.claude/project-profile.json`에 캐시. 패러다임 감지 기준: 클래스 파일 비율, import 패턴, 프레임워크 종류, 파일 확장자.
 6. slug + 타임스탬프를 생성한다 → `.claude/artifacts/{date}/{slug}-{HHMM}/` 생성 → meta.json 초기화 + index.json 업데이트 (`path` 필드 포함)
 
 산출물 디렉토리는 리서치나 분석이 시작되기 전에 반드시 존재해야 한다 — 모든 출력이 거기에 저장되며, 늦게 생성하면 작업이 유실될 위험이 있다.
@@ -281,8 +280,10 @@ Forge는 두 가지 방식으로 활성화된다:
 - 총 페이즈 수 / 총 작업 수
 - 예상 모델 배분 (예: "구현: sonnet ×12, 리뷰: opus ×12, QA: sonnet ×3")
 - 실행 전략: subagent 또는 team
+- 적용 패러다임: `{paradigm}` (TDD: 적용/생략, SOLID: 적용/생략)
 
-AskUserQuestion (single_select): "실행" / "수정 후 실행" / "취소"
+**small 규모**: 요약 표시 후 자동 진행 (사용자 확인 생략). 사용자가 계획을 수정할 필요가 있으면 Step 3 리뷰에서 이미 반영되었다.
+**medium/large 규모**: AskUserQuestion (single_select): "실행" / "수정 후 실행" / "취소"
 취소 → meta.json 상태 "cancelled", 종료. 수정 → 피드백 수집 → 계획 수정 → 재체크포인트.
 
 ### Step 5: Git 브랜치
@@ -340,7 +341,8 @@ AskUserQuestion (single_select): "실행" / "수정 후 실행" / "취소"
 
 > **진입 조건**: Step 7 완료
 
-**TDD (code 유형):** 테스트 작업을 구현 작업보다 먼저 실행한다. 테스트를 먼저 작성하면 더 명확한 인터페이스 설계가 강제되고 회귀를 즉시 포착한다. 계획에 반드시 테스트 작업이 포함되어야 한다. 명시적 사유가 plan.md에 기록된 경우에만 생략할 수 있다 (예: 현재 플랫폼에서 런타임 사용 불가). OOP/SOLID 준수는 필수다 — 위반 시 REJECT 판정, 유지보수 부담을 야기하기 때문이다.
+**TDD (패러다임이 `script`가 아니고 `--skip-tests`가 아닐 때):** 테스트 작업을 구현 작업보다 먼저 실행한다. 테스트를 먼저 작성하면 더 명확한 인터페이스 설계가 강제되고 회귀를 즉시 포착한다. 생략 조건: `--skip-tests`, 패러다임 `script`, 테스트 인프라 미존재 (사유를 plan.md에 기록).
+**설계 원칙 준수:** 감지된 패러다임에 따라 적용한다 — `oop`/`mixed`: OOP+SOLID 검증, `functional`: FP 원칙 검증, `script`: 가독성+안전성 중심 검증. 아키텍처 수준 위반만 REJECT.
 
 ```
 FOR EACH task (차단 해제됨, ID 오름차순):
@@ -369,6 +371,20 @@ FOR EACH task (차단 해제됨, ID 오름차순):
 **안전:** DB/설정/보안/API/의존성 변경 → 실행 전 사용자 확인 필수.
 **병렬:** 같은 페이즈의 독립 작업은 동시 실행 (subagent: 병렬 Agent 호출). 같은 파일을 수정하는 작업은 충돌 방지를 위해 순차 실행.
 **적응형:** 수정 3회 이상 → 모델 업그레이드 제안. subagent 수정 빈발 → team 전환 제안.
+
+### 에러 복구 전략
+
+에이전트 실행 중 실패가 발생하면 다음 전략을 순서대로 적용한다:
+
+| 실패 유형 | 1차 대응 | 2차 대응 | 에스컬레이션 |
+|---|---|---|---|
+| 에이전트 타임아웃 | 동일 모델로 1회 재생성 | 하위 모델로 작업 분할 | AskUserQuestion: 건너뛰기/수동 처리/중단 |
+| 빌드 실패 | 에러 분석 → 자동 수정 시도 | 관련 파일 재탐색 후 재시도 | AskUserQuestion: 에러 로그 제공 + 방향 선택 |
+| 테스트 실패 | 실패 테스트 분석 → 구현 수정 | 테스트 범위 축소 후 재시도 | AskUserQuestion: 테스트 수정/생략/중단 |
+| 리뷰 REJECT | 피드백 반영 → 재구현 | 모델 업그레이드 (sonnet→opus) | AskUserQuestion: 요구사항 재확인 |
+| 연속 3회 동일 실패 | 근본 원인 분석 (5 Whys) | 접근 방식 전환 제안 | 사용자에게 상세 보고 + 대안 제시 |
+
+**핵심 원칙:** 같은 실패를 같은 방법으로 반복하지 않는다. 1차 대응이 실패하면 반드시 다른 접근을 시도한다.
 
 ### Step 9: 마무리
 

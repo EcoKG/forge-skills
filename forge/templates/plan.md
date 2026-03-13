@@ -70,8 +70,9 @@ Patterns applied and why:
 - Granularity: each task completable and verifiable independently
 - Minimums: small ≥3, medium ≥8, large ≥20 tasks
 - Per phase: 3–10 tasks (avoid oversized phases)
-- **TDD (MANDATORY)**: test tasks MUST be placed before implementation tasks. Skip only with explicit justification in plan (e.g., platform runtime unavailable)
-- **OOP/SOLID (MANDATORY)**: all code changes must comply with SRP, OCP, LSP, ISP, DIP. Violations cause REJECT
+- **TDD (paradigm `oop`/`mixed`/`functional`, unless `--skip-tests`)**: test tasks placed before implementation tasks. Skip with justification (e.g., no test infra, script paradigm)
+- **OOP/SOLID (paradigm `oop`/`mixed` only)**: code changes comply with SRP, OCP, LSP, ISP, DIP. Architecture-level violations cause REJECT
+- **FP (paradigm `functional`/`mixed`)**: pure functions, immutability, composition
 - Phase goals: each phase has explicit goal and completion criteria
 
 ## Traceability Verification

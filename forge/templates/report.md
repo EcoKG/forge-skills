@@ -1,4 +1,4 @@
-# 📊 Final Report Template
+# Final Report Template
 
 Use this structure when generating the completion report in Step 9.
 This is a FILE artifact (saved to disk) — use rich markdown formatting.
@@ -11,58 +11,59 @@ This is a FILE artifact (saved to disk) — use rich markdown formatting.
 ---
 
 ```markdown
-# 📊 Forge Report — [{slug}]
+# Forge Report — [{slug}]
 
-> 🗓️ {date} · ⏱️ {HHMM} · 📁 `.claude/artifacts/{date}/{slug}-{HHMM}/`
+> {date} · {HHMM} · `.claude/artifacts/{date}/{slug}-{HHMM}/`
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+---
 
-## 🎯 Overview
+## Overview
 
 | | |
 |---|---|
-| **🏷️ Issue** | {issue description} |
-| **📂 Type** | `{code/docs/analysis/infra/design}` |
-| **📐 Scale** | `{small/medium/large}` |
-| **⚙️ Mode** | `{standard/direct}` |
-| **🤖 Execution** | `{subagent/team}` |
+| **Issue** | {issue description} |
+| **Type** | `{code/docs/analysis/infra/design}` |
+| **Scale** | `{small/medium/large}` |
+| **Paradigm** | `{oop/functional/script/mixed}` |
+| **Mode** | `{standard/direct}` |
+| **Execution** | `{subagent/team}` |
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+---
 
-## 📋 Task Statistics
+## Task Statistics
 
 ```
- ✅ Completed  {N}  ████████████████░░░░  {P}%
- ⏭️ Skipped    {N}  █░░░░░░░░░░░░░░░░░░░  {P}%
- 🚨 Escalated  {N}  ░░░░░░░░░░░░░░░░░░░░  {P}%
+ Completed  {N}  ████████████████░░░░  {P}%
+ Skipped    {N}  █░░░░░░░░░░░░░░░░░░░  {P}%
+ Escalated  {N}  ░░░░░░░░░░░░░░░░░░░░  {P}%
  ─────────────────────────────────────────
- 📊 Total      {N}  ████████████████████  100%
+ Total      {N}  ████████████████████  100%
 ```
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+---
 
-## 📦 Phase Results
+## Phase Results
 
-### 📦 Phase 1: {title}
+### Phase 1: {title}
 | Status | Tasks | QA Verdict |
 |---|---|---|
-| ✅ Completed | `{X}/{Y}` | 🟢 `PASS` |
+| Completed | `{X}/{Y}` | `PASS` |
 
-### 📦 Phase 2: {title}
+### Phase 2: {title}
 | Status | Tasks | QA Verdict |
 |---|---|---|
-| ✅ Completed | `{X}/{Y}` | 🟢 `PASS` |
+| Completed | `{X}/{Y}` | `PASS` |
 
-### 📦 Phase 3: {title}
+### Phase 3: {title}
 | Status | Tasks | QA Verdict |
 |---|---|---|
-| ⚠️ Partial | `{X}/{Y}` | 🟡 `GAPS_FOUND` |
+| Partial | `{X}/{Y}` | `GAPS_FOUND` |
 
-> 💡 Use ✅ Completed / ⚠️ Partial / ❌ Failed. Add/remove phases as needed.
+> Status values: Completed / Partial / Failed. Add/remove phases as needed.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+---
 
-## 📝 Changed Files
+## Changed Files
 
 | # | File | Change |
 |---|---|---|
@@ -70,39 +71,39 @@ This is a FILE artifact (saved to disk) — use rich markdown formatting.
 | 2 | `{file path}` | {brief description} |
 | 3 | `{file path}` | {brief description} |
 
-> 📊 Total: **{N} files** modified
+> Total: **{N} files** modified
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+---
 
-## 🔍 Review Summary
+## Review Summary
 
-| | 🟢 PASS | 🟡 REVISION | 🔴 REJECT |
+| | PASS | REVISION | REJECT |
 |---|---|---|---|
-| **🔍 Code Review** | {N} | {N} | {N} |
-| **✅ QA Inspect** | {N} | {N} | {N} |
+| **Code Review** | {N} | {N} | {N} |
+| **QA Inspect** | {N} | {N} | {N} |
 
 <details>
-<summary>📌 Notable review findings (click to expand)</summary>
+<summary>Notable review findings (click to expand)</summary>
 
 | # | Finding | Severity | Resolution |
 |---|---|---|---|
-| 1 | {description} | 🟡 minor | {how it was resolved} |
-| 2 | {description} | 🟠 major | {how it was resolved} |
+| 1 | {description} | minor | {how it was resolved} |
+| 2 | {description} | major | {how it was resolved} |
 
 </details>
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+---
 
-## 🔗 Traceability
+## Traceability
 
 | Severity | Coverage | Status |
 |---|---|---|
-| 🔴 HIGH | `{N}/{N}` covered | ✅ |
-| 🟡 MEDIUM | `{N}/{N}` covered | ✅ |
-| 🟢 LOW | `{N}/{N}` covered | ⚠️ {N} deferred |
+| HIGH | `{N}/{N}` covered | OK |
+| MEDIUM | `{N}/{N}` covered | OK |
+| LOW | `{N}/{N}` covered | {N} deferred |
 
 <details>
-<summary>📌 Unaddressed findings (if any)</summary>
+<summary>Unaddressed findings (if any)</summary>
 
 | Finding ID | Reason |
 |---|---|
@@ -110,63 +111,63 @@ This is a FILE artifact (saved to disk) — use rich markdown formatting.
 
 </details>
 
-> If all addressed: **✅ Full coverage — no unaddressed findings.**
+> If all addressed: **Full coverage — no unaddressed findings.**
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+---
 
-## 🤖 Models Used
+## Models Used
 
 | Stage | Model | Notes |
 |---|---|---|
-| 🔬 Research | `{model}` | |
-| 📋 Plan | `{model}` | |
-| 🛠️ Implement | `{model}` | {adaptive upgrades if any} |
-| 🔍 Review | `{model}` | {downgraded after 3+ PASS if applicable} |
-| ✅ QA | `{model}` | |
+| Research | `{model}` | |
+| Plan | `{model}` | |
+| Implement | `{model}` | {adaptive upgrades if any} |
+| Review | `{model}` | {downgraded after 3+ PASS if applicable} |
+| QA | `{model}` | |
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+---
 
-## 💰 Token/Cost Estimation
+## Token/Cost Estimation
 
 | Stage | Model | Estimated Tokens | Cost Tier |
 |---|---|---|---|
-| 🔬 Research | `{model}` | ~{N}k | {low/medium/high} |
-| 📋 Plan + Review | `{model}` | ~{N}k | {low/medium/high} |
-| 🛠️ Implement ({N} tasks) | `{model}` | ~{N}k | {low/medium/high} |
-| 🔍 Code Review ({N} tasks) | `{model}` | ~{N}k | {low/medium/high} |
-| ✅ QA ({N} phases) | `{model}` | ~{N}k | {low/medium/high} |
+| Research | `{model}` | ~{N}k | {low/medium/high} |
+| Plan + Review | `{model}` | ~{N}k | {low/medium/high} |
+| Implement ({N} tasks) | `{model}` | ~{N}k | {low/medium/high} |
+| Code Review ({N} tasks) | `{model}` | ~{N}k | {low/medium/high} |
+| QA ({N} phases) | `{model}` | ~{N}k | {low/medium/high} |
 | **Total** | | **~{N}k** | |
 
 > Estimates are approximate. Actual usage depends on revision loops and code complexity.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+---
 
-## 💡 Lessons Learned
+## Lessons Learned
 
 > Auto-populated if revision patterns were detected 3+ times.
 
 | Pattern | Count | Action |
 |---|---|---|
-| {pattern description} | {N}× | ➡️ Added to `forge-rules.md` |
+| {pattern description} | {N}x | Added to `forge-rules.md` |
 
-> If none: **✅ No recurring patterns detected.**
+> If none: **No recurring patterns detected.**
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+---
 
 <div align="center">
 
-### 🏁 Forge Complete
+### Forge Complete
 
 **`{slug}`** · `{type}` · `{scale}` · **{N}/{N} tasks**
 
-🗓️ {date} ⏱️ {HHMM}
+{date} {HHMM}
 
 </div>
 ```
 
 ---
 
-## 📝 Guidelines
+## Guidelines
 
 - **Progress bar:** Fill `█` per completed %, `░` for remaining (20 chars total = 5% each)
 - **Phase sections:** Add/remove based on actual count
@@ -174,4 +175,3 @@ This is a FILE artifact (saved to disk) — use rich markdown formatting.
 - **Review findings:** Use `<details>` collapse for 3+ items
 - **Traceability:** Match H1/M1/L1 IDs from research.md
 - **Lessons Learned:** Only populate if forge-rules.md was updated
-- **Status icons:** 🟢 pass · 🟡 minor/partial · 🟠 major · 🔴 reject/fail
