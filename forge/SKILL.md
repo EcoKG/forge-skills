@@ -1,190 +1,498 @@
 ---
 name: forge
 description: |
-  Use forge for feature implementation, non-trivial bug fixes, refactoring, or multi-file changes. Research + planning prevents costly mistakes.
+  Context-Engineered Autonomous Development System.
+  Single /forge command for feature implementation, bug fixes, refactoring, analysis, infrastructure, and design tasks.
+  Research + plan + execute + verify pipeline with file-based agent communication and goal-backward verification.
 
-  ALWAYS: feature impl (기능 구현, 만들어줘, implement, build, add feature), bug fixes (버그, 에러, 안 됨, 크래시, bug, crash, broken, fix this), refactoring (리팩토링, SOLID, refactor, clean up), perf/code analysis (성능 분석, 최적화, 코드 분석, profiling, optimize, analyze), security (보안, 취약점, audit, OWASP), architecture (설계, 아키텍처, schema, API), CI/CD Docker deploy (배포, pipeline, infrastructure), env setup (환경 세팅, 개발환경, configure), migrations (마이그레이션, upgrade), multi-file ripple effects, /forge or 포지
+  ALWAYS: feature impl (implement, build, add feature), bug fixes (bug, crash, broken, fix this), refactoring (refactor, clean up, SOLID), perf/code analysis (profiling, optimize, analyze), security (audit, OWASP), architecture (schema, API, design), CI/CD Docker deploy (pipeline, infrastructure), env setup (configure), migrations (upgrade), multi-file ripple effects, /forge
 
-  DO NOT (overrides above): trivial single-line edits (오타, typo, 변수명 하나, one import, one env var), code explanation only, simple commands (git log, npm install), new standalone files from scratch
+  DO NOT (overrides above): trivial single-line edits (typo, rename one variable, one import), code explanation only, simple commands (git log, npm install), new standalone files from scratch (no integration needed)
 ---
 
-# Forge
+# Forge v2
 
-> Autonomous execution engine: research → plan → execute → deliver.
-> **컨텍스트가 불완전하면 이 SKILL.md를 다시 읽어 플로우를 복구하라.**
+> Context-Engineered Autonomous Development System.
+> Single entry point. File-based agent communication. Goal-backward verification.
+> **If context feels incomplete, re-read this SKILL.md to restore the flow.**
 
 ---
 
-## 핵심 규칙
+## 1. Activation Rules
 
-1. **코드 전 이해**: Step 1~4 완료 전에 구현 코드를 작성하지 않는다 (`--direct` 제외).
-2. **단계 순서 준수**: 필수 단계는 순서대로 실행. 이전 단계 미완료 시 다음 진행 불가.
-3. **자동 트리거 시 확인**: 복잡한 요청 자동 감지 시 사용자 확인 후 Step 1 진입.
-4. **`--direct` 자가 선택 금지**: 사용자가 `/forge --direct`를 명시한 경우에만 허용.
-5. **산출물 필수**: 모든 실행은 최소 `meta.json` + `research.md` + `report.md` 생성.
+### 1.1 Always Trigger
 
-## 컨텍스트 엔지니어링 — 최우선 원칙
+**Keywords (EN):**
+implement, build, add feature, bug, crash, broken, fix this, refactor, clean up, profiling, optimize, analyze, audit, OWASP, schema, API, infrastructure, configure, upgrade, /forge
 
-forge는 컨텍스트 윈도우를 적극적으로 관리한다. 모든 중간 결과와 상태는 **파일에 외부화**하고, 컨텍스트에는 **현재 단계에 필요한 최소 정보만** 유지한다.
+**Keywords (KO):**
+implement, build, add feature, bug, crash, broken, fix this, refactor, clean up, profiling, optimize, analyze, audit, OWASP, schema, API, infrastructure, configure, upgrade, /forge
 
-**원칙:**
-- **상태는 파일에**: research.md, plan.md, meta.json이 기억 역할. 컨텍스트에 누적하지 않는다.
-- **단계별 로딩**: 각 Step 진입 시 해당 참조 파일만 읽는다. 미리 읽지 않는다.
-- **execution-flow.md 섹션별 읽기**: `references/execution-flow.md`는 전체를 한 번에 읽지 않는다. 현재 Step의 `## Step N:` 헤더부터 다음 `---` 구분선까지만 읽는다. (예: Step 2 진입 시 `## Step 2: 리서치` ~ 다음 `---`까지만 참조)
-- **작업 단위 원자화**: 각 작업이 컨텍스트의 50%를 넘지 않도록 분할한다.
-- **결과 요약 후 폐기**: 에이전트 출력은 핵심만 요약 → 다음 단계에 전달. 전체 출력은 파일 저장 후 컨텍스트에서 제거.
-- **Plan = Prompt**: 계획 파일이 곧 실행 지시서. 에이전트에 직접 전달.
+**Heuristics:**
+- Multi-file changes required
+- Non-trivial logic changes (more than a single-line edit)
+- Security-sensitive modifications
+- Ripple effects across modules or systems
+- Domain understanding needed before safe modification
+- Chesterton's Fence: removal target's purpose is unclear
+- Research cost < rework cost
 
-**단계별 로딩 맵:**
+### 1.2 Never Trigger
 
-| 진입 단계 | 읽을 파일 | 읽지 않을 파일 |
-|---|---|---|
-| Step 1 초기화 | `templates/output.md`, `.claude/forge-rules.md` | prompts/*, checklists/*, templates/research,plan,report |
-| Step 2 리서치 | `templates/research.md` | prompts/*, checklists/* |
-| Step 3 계획 | `templates/plan.md`, 산출물 `research.md` | prompts/*, checklists/* |
-| Step 7 에이전트 | 유형별 prompts + checklists | 이미 불필요한 templates |
-| Step 9 마무리 | `templates/report.md` | 나머지 전부 |
+- Trivial single-line edits (typo, rename one variable, one import, one env var)
+- Code explanation only (no modification requested)
+- Simple CLI commands (git log, npm install, docker ps)
+- New standalone files from scratch with no integration needed
 
-## 실행 플로우 — 요약
+---
 
-> **각 Step의 상세 지침은 [references/execution-flow.md](references/execution-flow.md)에서 현재 Step 섹션만 읽는다.**
-
-### Step 1 빠른 시작 (execution-flow.md 없이 실행 가능)
-
-Step 1은 SKILL.md만으로 바로 시작한다. execution-flow.md는 Step 2부터 참조.
-
-1. 사용자 입력에서 요청 추출 (불명확하면 질문)
-2. 언어, 요청 유형(`--type`), 규모(`--scale`) 감지 — 위 테이블 참조
-3. 실행 전략 추천 → `--exec` 미설정 시 사용자에게 질문 (subagent: 소규모/빠름 vs team: 중대규모/역할분리)
-4. 병렬 읽기: `templates/output.md` + `.claude/forge-rules.md` (있으면)
-5. 프로젝트 패러다임 감지 → `.claude/project-profile.json` 캐시
-6. 산출물 디렉토리 생성: `.claude/artifacts/{YYYY-MM-DD}/{slug}-{HHMM}/` → meta.json 초기화
-7. meta.json에 `"step": "init_done"` 기록 → Step 2로 진행 (이때 execution-flow.md의 Step 2 섹션 읽기)
-
-### Step 2~9 요약
-
-| Step | 이름 | 핵심 행동 | 산출물 |
-|---|---|---|---|
-| 1 | 초기화 | 요청 파싱, 유형/규모 감지, 산출물 디렉토리 생성 | meta.json |
-| 2 | 리서치 | 코드베이스 탐색, 발견사항 합성 (H/M/L 등급) | research.md |
-| 3 | 계획 | 작업 분해 [N-M], 페이즈 구성, 리뷰 | plan.md |
-| 4 | 체크포인트 | 규모 요약 표시, 사용자 승인 (small은 자동) | — |
-| 5 | Git 브랜치 | `feature/{slug}` 생성 제안 | — |
-| 6 | 작업 목록 | plan.md → TaskCreate | — |
-| 7 | 에이전트 설정 | 프롬프트 로드, 에이전트 생성 | — |
-| 8 | 실행 | 구현→GATE→리뷰→QA 루프 (페이즈별) | 코드 변경 |
-| 9 | 마무리 | 검증, 보고서 생성, 학습 기록 | report.md |
-
-## 활성화
-
-1. **명시적**: `/forge "요청" [옵션]`
-2. **자동 트리거**: 복잡도 판단 후 → 사용자 확인 → Step 1
-
-### 복잡도 판단
-
-아래 중 하나라도 "예"이면 forge 사용:
-1. **파급 효과**: 다른 모듈/시스템에 영향?
-2. **도메인 이해 필요**: 비즈니스 규칙을 이해해야 안전하게 수정?
-3. **Chesterton's Fence**: 제거 대상 코드의 존재 이유가 불분명?
-4. **이해 비용 > 코딩 비용**: 리서치 후 한 번에 구현이 더 효율적?
-
-## 커맨드 옵션
+## 2. Command Interface
 
 ```
-/forge "요청 설명" [옵션]
+/forge [request] [options]
 ```
 
-| 옵션 | 값 | 기본값 | 설명 |
+| Flag | Values | Default | Description |
 |---|---|---|---|
-| `--type` | `code`/`docs`/`analysis`/`infra`/`design` | auto | 요청 유형 |
-| `--direct` | 플래그 | off | 리서치+계획 생략 |
-| `--no-research` | 플래그 | off | 리서치만 생략 |
-| `--from` | 파일 경로 | — | 기존 research/plan에서 시작 |
-| `--model` | `opus`/`sonnet`/`haiku` | auto | 모델 강제 지정 |
-| `--review` | 1–5 | 1 | 검토자 수 |
-| `--scale` | `auto`/`small`/`medium`/`large` | auto | 작업 규모 |
-| `--exec` | `auto`/`subagent`/`team` | auto | 실행 전략 |
-| `--lang` | `ko`/`en`/… | auto | 출력 언어 (입력에서 감지) |
-| `--cost` | `low`/`medium`/`high` | medium | 비용 등급 |
-| `--paradigm` | `oop`/`functional`/`script`/`mixed`/`auto` | auto | 설계 패러다임 |
-| `--skip-tests` | 플래그 | off | TDD 생략 |
-| `--resume` | slug | — | 중단된 작업 재개 |
-| `--init` | 플래그 | off | 프로젝트 초기화 |
+| `--type` | code, code-bug, code-refactor, docs, analysis, analysis-security, infra, design | auto | Request type (auto-detected from keywords) |
+| `--direct` | flag | off | Skip research + plan-check, jump to plan then execute |
+| `--no-research` | flag | off | Skip research only |
+| `--from` | file path | - | Reuse existing research.md or plan.md |
+| `--model` | quality, balanced, budget | balanced | Model selection profile |
+| `--review` | strict, normal, light | normal | Review intensity |
+| `--scale` | small, medium, large | auto | Override auto-detected scale |
+| `--exec` | subagent, team | auto | Execution mode (subagent for small, team for large) |
+| `--lang` | language code | auto | Language hint for project detection |
+| `--cost` | high, medium, low | medium | Cost tier (influences model selection) |
+| `--paradigm` | oop, fp, script, ddd, mixed | auto | Design paradigm override |
+| `--skip-tests` | flag | off | Skip test generation/execution |
+| `--resume` | flag | - | Resume interrupted execution from meta.json |
+| `--init` | flag | off | Generate/refresh project profile only |
+| `--phase`     | integer | -    | Execute specific roadmap phase N                              |
+| `--autonomous`| flag    | off  | Chain all remaining phases automatically                      |
+| `--milestone` | integer | -    | Verify and archive milestone N (or current if omitted)        |
+| `--status`    | flag    | off  | Show project progress dashboard                               |
+| `--discuss`   | integer | -    | Capture decisions for phase N before planning                  |
 
-## 요청 유형 분류
+---
 
-> 상세 워크플로우: [resources/type-guides.md](resources/type-guides.md) (해당 Step에서 읽기)
+## 3. Type Classification
 
-**서브타입 구분 기준:**
-- `code (bug)`: 사용자 메시지에 버그/에러/오류/crash/broken/not working/안 됨/안돼/고쳐줘/fix 키워드가 포함되거나, 기존 동작의 오작동을 보고하는 경우
-- `code (refactor)`: 기능 변경 없이 구조 개선 요청 — 리팩토링/분리/정리/clean up/reorganize/SOLID 키워드
-- `analysis (security)`: 보안/취약점/OWASP/인증/인가 키워드가 포함된 분석 요청
+Eight subtypes with detection heuristics:
 
-| 유형 | 핵심 플로우 | 에이전트 |
-|---|---|---|
-| `code` | 리서치→계획→구현→리뷰→QA | implementer + code-reviewer + qa-inspector |
-| `code` (bug) | 진단→경량계획→수정→리뷰 | implementer + code-reviewer |
-| `code` (refactor) | 리서치→계획→기존테스트→구현→회귀→리뷰 | implementer + code-reviewer + qa-inspector |
-| `docs` | 리서치→작성→문서리뷰 | implementer + doc-reviewer |
-| `analysis` | 리서치→보고서 | analyst |
-| `analysis` (security) | 보안리서치→OWASP→보고서 (opus 필수) | analyst (opus) |
-| `infra` | 리서치→계획→dry-run→승인→실행 | implementer |
-| `design` | 리서치→설계문서→리뷰 | analyst |
+| Type | Detection Keywords | Core Flow | Agents |
+|---|---|---|---|
+| **code** | implement, build, add, create, feature | research > plan > execute > review > QA > verify | implementer, code-reviewer, qa-inspector, verifier |
+| **code-bug** | bug, error, crash, broken, not working, fix | research(light) > plan(1 phase) > fix > review > verify(light) | implementer, code-reviewer, verifier |
+| **code-refactor** | refactor, clean up, reorganize, SOLID, extract | research > plan(behavior-preserving) > baseline tests > execute > regression > review | implementer, code-reviewer, qa-inspector, verifier |
+| **docs** | document, README, guide, tutorial, API docs | research > write > doc-review | implementer, doc-reviewer |
+| **analysis** | analyze, audit, review codebase, assess, report | research > report (no code changes) | researcher |
+| **analysis-security** | security, vulnerability, OWASP, CVE, auth audit | research(opus) > OWASP report (no code changes) | researcher(opus) |
+| **infra** | deploy, pipeline, Docker, CI/CD, Terraform, K8s | research > plan > dry-run > approve > execute | implementer, code-reviewer, qa-inspector, verifier |
+| **design** | architecture, design, ADR, RFC, system design | research > design doc > review | researcher |
 
-## 규모 감지
+**Subtype detection priority:** Check specific subtypes first (code-bug, code-refactor, analysis-security) before falling back to base types (code, analysis).
 
-| 규모 | 파일 수 | 페이즈 | 작업 수 | 추천 전략 |
-|---|---|---|---|---|
-| small | 1–3 | 1 | 3–8 | subagent |
-| medium | 4–10 | 2–3 | 8–20 | team |
-| large | 10+ | 3–5 | 20+ | team |
+---
 
-## 모델 선택 (`--cost medium`)
+## 4. Scale Detection
 
-| 단계 | 모델 |
-|---|---|
-| 파일 탐색 | haiku |
-| 리서치/계획 | sonnet |
-| 계획 리뷰 | haiku |
-| 구현 (단순/핵심) | sonnet / opus |
-| 코드 리뷰 | opus |
-| QA | sonnet |
-
-`--cost low`: 전부 haiku (리뷰 생략 불가). `--cost high`: 전부 opus. 보안 분석은 기본 opus.
-적응형: 연속 3회 PASS → 리뷰 haiku 하향. 같은 파일 편집 → 마지막만 리뷰.
-
-## 유형별 필수 단계
-
-| 단계 | code | docs | analysis | infra | design |
+| Scale | Criteria | Phases | Tasks | Execution Mode | Checkpoint |
 |---|---|---|---|---|---|
-| 1. 초기화 | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 2. 리서치 | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 3. 계획 | ✓ | — | — | ✓ | ✓ |
-| 4. 체크포인트 | ✓ | — | — | ✓ | ✓ |
-| 5. Git 브랜치 | ✓ | 선택 | — | 선택 | 선택 |
-| 6. 작업 목록 | ✓ | ✓ | — | ✓ | — |
-| 7. 에이전트 설정 | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 8. 실행 | ✓ | ✓ | 보고서 | ✓ | 보고서 |
-| 9. 마무리 | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **small** | 1-3 files, isolated change, single concern | 1 | 1-5 | subagent | auto-proceed |
+| **medium** | 4-10 files, cross-module, multiple concerns | 1-2 | 6-15 | subagent or team | user confirmation |
+| **large** | 10+ files, system-wide, architectural impact | 2-5 | 16+ | team (persistent) | user confirmation + per-phase report |
 
-## 설계 원칙
+**Auto-detection signals:**
+- File count estimated from request scope and grep results
+- Module boundary crossings (different directories/packages)
+- Number of distinct concerns in the request
+- Explicit `--scale` flag overrides auto-detection
 
-패러다임(`--paradigm`)에 따라 적용. 감지 기준: 클래스 비율, import 패턴, 프레임워크, 확장자.
-- **OOP/mixed**: SOLID, DDD 경계 존중, Ubiquitous Language
-- **Functional**: Pure functions, immutable data, composition
-- **Script**: TDD 의무 없음, 가독성+안전성 중심
-- **TDD**: `script` 외 기본 적용 (Red→Green→Refactor). 생략: `--skip-tests` 또는 테스트 인프라 부재.
+---
 
-## 산출물 구조
+## 5. Context Engineering Principles
+
+> This is the core innovation of Forge v2. Every rule below exists to prevent **context rot** — the degradation of LLM output quality as the context window fills up.
+
+### 5.1 PM Context Budget: <= 15%
+
+The orchestrator (PM = you, Claude running this skill) must never consume more than 15% of the context window. This means:
+
+- **NEVER** load agent output into your context. Receive file paths only.
+- **NEVER** read full file contents when a summary suffices.
+- **ALLOWED:** Read file **paths** returned by agents.
+- **ALLOWED:** Read **summaries** (<= 20 lines) from artifact files.
+- **ALLOWED:** Load files selectively per the Loading Map (Section 6).
+
+### 5.2 File-Based Communication
+
+All agent communication goes through disk files. Agents never communicate directly.
 
 ```
-.claude/artifacts/{YYYY-MM-DD}/{slug}-{HHMM}/
-├── meta.json, research.md, plan.md, report.md, feedback.md(선택)
+PM ---(prompt + file_paths)---> Agent
+Agent ---(reads files)--------> Disk
+Agent ---(writes output)------> Disk
+Agent ---(returns path)-------> PM
+PM ---(reads summary only)---> Disk
 ```
-산출물 = 마스터. 프로젝트 루트에는 단방향 복사. index.json으로 이력 관리.
 
-## 언어 / 재개 / 초기화
+### 5.3 Fresh Context per Agent
 
-- **언어**: `--lang` 미설정 시 사용자 입력에서 감지. 코드/변수명은 영어 유지.
-- **재개** (`--resume slug`): meta.json → 체크포인트에서 재개.
-- **초기화** (`--init`): 새 프로젝트 스캐폴딩 또는 기존 프로젝트 profile 생성.
+Each subagent invocation starts with a clean context window. This is why agents read files directly instead of receiving content from PM.
+
+### 5.4 Plan = Prompt
+
+The plan.md file IS the execution instruction for agents. PM passes the file path; agents read the relevant task section directly.
+
+### 5.5 State Lives on Disk
+
+All state is externalized to `.forge/` artifacts (meta.json, research.md, plan.md, etc.). If PM's context is lost, the pipeline can be reconstructed from these files.
+
+> **Detailed rules:** `references/context-engineering.md` (load only when needed, not now).
+
+---
+
+## 6. Loading Map
+
+**This table defines exactly what PM loads at each step. Follow it strictly to prevent context rot.**
+
+| Step | Load These Files | DO NOT Load |
+|---|---|---|
+| **1. INIT** | This `SKILL.md` (sections 1-4 for classification). `.forge/project-profile.json` (if cached, < 30 days old). | `execution-flow.md`. Any prompts, checklists, or templates. |
+| **2. RESEARCH** | `execution-flow.md` section 2 only. `resources/type-guides.md` (relevant type only). | Other execution-flow sections. Prompts, checklists. |
+| **3. PLAN** | `execution-flow.md` section 3 only. `research.md` (Summary section only, <= 20 lines). `templates/plan.md`. | Full research.md. Other execution-flow sections. |
+| **4. PLAN-CHECK** | `execution-flow.md` section 4 only. `plan.md` (summary/frontmatter only). | research.md. Full plan.md body. Previous step details. |
+| **5. CHECKPOINT** | `execution-flow.md` section 5 only. `plan.md` (overview + task count). | Everything else. |
+| **6. BRANCH** | `execution-flow.md` section 6 only. | Everything else. |
+| **7. EXECUTE** | `execution-flow.md` section 7 only. `plan.md` task checklist (task IDs + status). Agent prompt paths. Checklist paths. | Completed task details. research.md. Plan rationale. |
+| **8. VERIFY** | `execution-flow.md` section 8 only. `plan.md` must_haves section only. | All previous step details. |
+| **9. FINALIZE** | `execution-flow.md` section 9 only. `verification.md` (verdict only). | All previous step details. |
+| **10. CLEANUP** | Nothing (internal bookkeeping only). | Everything. |
+| **Project Init** | `project-lifecycle.md` §1, `templates/project.json`, `templates/roadmap.md`, `templates/state.md` | All other references |
+| **Phase Exec** | `project-lifecycle.md` §2, `.forge/roadmap.md`, `.forge/state.md` | Other lifecycle sections |
+| **Autonomous** | `project-lifecycle.md` §3, `.forge/roadmap.md`, `.forge/state.md` | Everything else |
+| **Milestone** | `project-lifecycle.md` §4, phase `verification.md` files | Everything else |
+| **Status** | `.forge/project.json`, `.forge/roadmap.md`, `.forge/state.md` | Everything else |
+
+**Key rule:** `references/execution-flow.md` is NEVER read in full. Read only the current step's section (from `## Step N:` to the next `---` delimiter).
+
+---
+
+## 7. Execution Pipeline Summary
+
+| Step | Name | Action | Input | Output | Primary Agent |
+|---|---|---|---|---|---|
+| 1 | **INIT** | Parse request, detect type/scale/paradigm, create artifact directory | User request, project-profile.json (cache) | meta.json (initialized) | PM |
+| 2 | **RESEARCH** | Parallel codebase exploration, synthesize findings | Codebase files, type-guide | research.md | researcher(haiku x2-4) > synthesizer(sonnet) |
+| 3 | **PLAN** | Generate must_haves + deep work tasks with wave assignments | research.md, plan template, type-guide | plan.md | planner(sonnet/opus) |
+| 4 | **PLAN-CHECK** | 8-dimension plan verification (max 3 revision loops) | plan.md, research.md | plan.md (annotated with check results) | plan-checker(sonnet) |
+| 5 | **CHECKPOINT** | User approval gate (small: auto-proceed) | plan.md (summary) | User decision (execute/modify/cancel) | PM |
+| 6 | **BRANCH** | Create git feature branch | meta.json (slug) | feature/{slug} branch | PM |
+| 7 | **EXECUTE** | Wave-based parallel implementation with per-task review | plan.md (tasks), checklists | Code changes, task-summaries, qa-reports | implementer, code-reviewer, qa-inspector |
+| 8 | **VERIFY** | Goal-backward 3-level verification (Exists > Substantive > Wired) | plan.md (must_haves), codebase | verification.md | verifier(sonnet) |
+| 9 | **FINALIZE** | Generate report, capture learnings, propose PR | All summaries + verification | report.md | PM |
+| 10 | **CLEANUP** | Clean intermediate files, finalize meta.json | meta.json | meta.json (state: completed) | PM |
+
+> **Detailed step instructions:** `references/execution-flow.md` (load per-section as needed).
+
+---
+
+## 8. Agent Architecture
+
+Eight specialized agents. PM dispatches each with file paths; agents read files directly and write output to disk.
+
+| # | Agent | Role | Input (files) | Output (file) | Default Model |
+|---|---|---|---|---|---|
+| 1 | **researcher** | Codebase exploration + domain investigation | Project files (Glob/Grep) | `research.md` (or intermediate `research-*.md`) | haiku (parallel) > sonnet (synthesis) |
+| 2 | **planner** | Generate must_haves + deep work task plan | `research.md`, type-guide | `plan.md` | sonnet (or opus for large) |
+| 3 | **plan-checker** | 8-dimension plan verification | `plan.md`, `research.md` | Check results appended to `plan.md` | sonnet |
+| 4 | **implementer** | Code implementation with deviation rules | `plan.md` (task section), checklists | `task-{N-M}-summary.md`, code changes | sonnet |
+| 5 | **code-reviewer** | 10-perspective code review | Code changes, `plan.md` (must_haves), checklists | Review results in `task-{N-M}-summary.md` | sonnet |
+| 6 | **qa-inspector** | Build/test verification + anti-pattern scan | task-summaries, build/test results | `qa-report.md` | sonnet |
+| 7 | **verifier** | Goal-backward 3-level verification | `plan.md` (must_haves), codebase | `verification.md` | sonnet |
+| 8 | **doc-reviewer** | Documentation quality review | Document files | Review results | sonnet |
+
+**Agent dispatch format:**
+```xml
+<agent_dispatch>
+  <role>implementer</role>
+  <task_id>1-3</task_id>
+  <files_to_read>
+    .forge/2026-03-15/auth-refactor-1430/plan.md (task [1-3] only)
+    src/auth/handler.go
+    src/auth/middleware.go
+  </files_to_read>
+  <checklist>checklists/go.md</checklist>
+  <output_path>.forge/2026-03-15/auth-refactor-1430/task-1-3-summary.md</output_path>
+</agent_dispatch>
+```
+
+**Communication rule:** PM receives only the `output_path` back. PM reads at most a 20-line summary from that file. PM never loads full agent output into its own context.
+
+---
+
+## 9. Model Selection Matrix
+
+### 9.1 Profiles
+
+| Step | quality | balanced | budget |
+|---|---|---|---|
+| Research (parallel) | sonnet | haiku | haiku |
+| Research (synthesis) | opus | sonnet | haiku |
+| Planning | opus | sonnet | sonnet |
+| Plan-Check | opus | sonnet | haiku |
+| Implementation | opus | sonnet | sonnet |
+| Code Review | opus | sonnet | haiku |
+| QA Inspection | sonnet | sonnet | haiku |
+| Verification | opus | sonnet | sonnet |
+
+### 9.2 Adaptive Triggers
+
+| Trigger | Action |
+|---|---|
+| Plan-checker fails 3 consecutive times | Upgrade planner to opus |
+| Code review returns 3 consecutive major revisions | Upgrade implementer to opus |
+| 3 consecutive PASS results | Downgrade review model one tier (e.g., sonnet > haiku) |
+| analysis-security type detected | Force researcher to opus regardless of profile |
+
+---
+
+## 10. Artifact Structure
+
+### 10.1 Directory Layout
+
+```
+.forge/
+  project-profile.json              # Project cache (stack, language, paradigm, framework)
+  {YYYY-MM-DD}/
+    {slug}-{HHMM}/
+      meta.json                     # Execution state, config, progress tracking
+      research.md                   # Research findings (severity-tagged: H/M/L)
+      plan.md                       # Plan (YAML must_haves + XML deep work tasks)
+      task-{N-M}-summary.md         # Per-task execution summary
+      qa-report.md                  # QA inspection results
+      verification.md               # Goal-backward verification results
+      report.md                     # Final report
+```
+
+### 10.2 meta.json Structure
+
+```json
+{
+  "version": "2.0.0",
+  "created": "2026-03-15T14:30:00Z",
+  "request": "Implement JWT authentication middleware",
+  "type": "code",
+  "scale": "medium",
+  "paradigm": "oop",
+  "language": "go",
+  "state": "executing",
+  "current_step": 7,
+  "current_wave": 2,
+  "options": {
+    "model": "balanced",
+    "review": "normal",
+    "skip_tests": false
+  },
+  "tasks": {
+    "total": 8,
+    "completed": 5,
+    "in_progress": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "waves": {
+    "total": 3,
+    "current": 2,
+    "completed": [1]
+  },
+  "revisions": {
+    "plan": 1,
+    "code_minor": 2,
+    "code_major": 0,
+    "reject": 0,
+    "qa_retry": 0
+  },
+  "git": {
+    "branch": "feature/jwt-auth-middleware",
+    "commits": ["abc1234", "def5678"]
+  }
+}
+```
+
+---
+
+## 11. Quality System Summary (5-Layer Defense)
+
+| Layer | Name | Where | What It Checks |
+|---|---|---|---|
+| L1 | **Deep Work** | Planning (Step 3-4) | Every task has `read_first` + `acceptance_criteria` + concrete `action`. 8-dimension plan-checker verification. |
+| L2 | **Self-Check** | Implementation (Step 7) | Implementer's 6-item checklist (circular refs, init order, null safety, save/load, event timing, build). Analysis paralysis guard (5+ consecutive reads = stuck). |
+| L3 | **Peer Review** | Code Review (Step 7) | 10-perspective review: style, bugs, security, performance, plan alignment, TDD, SOLID/paradigm, error handling, goal-backward wiring, anti-pattern scan. Language-specific + general checklists. |
+| L4 | **QA Gate** | Wave Boundary (Step 7) | Build verification, test execution, caller impact analysis, anti-pattern scan across all changed files. |
+| L5 | **Goal-Backward** | Verification (Step 8) | Level 1: Exists (files present, min lines met). Level 2: Substantive (real code, not stubs). Level 3: Wired (imports used, key_links connected). |
+
+---
+
+## 12. Error Recovery Summary
+
+### 12.1 Three-Tier Escalation
+
+| Tier | Name | When | Action |
+|---|---|---|---|
+| **1** | Auto-Recover | Build failure, test failure, minor review feedback, file conflict | Analyze error, auto-fix, re-submit. Switch to sequential if parallel conflict. |
+| **2** | Alternative Approach | Tier 1 failed | Try different implementation strategy. Try alternative library. Upgrade model tier. |
+| **3** | User Intervention | Tier 2 failed, architecture decision needed, external system access | Report problem + options with recommendation. User decides. |
+
+### 12.2 Revision Limits
+
+| Type | Max Attempts | On Exceed |
+|---|---|---|
+| Plan revision | 3 | Escalate to user for manual plan edit |
+| Code minor revision | 5 | Upgrade model, then escalate |
+| Code major revision | 3 | Escalate to user |
+| Code reject | 2 | Redesign task or escalate to user |
+| QA retry | 2 | Escalate to user |
+| Deviation auto-fix | 3 per task | Document and move to next task |
+
+### 12.3 Absolute Rules
+
+1. **Never repeat the same failure.** Record failed approaches and try a different method.
+2. **3+ identical errors = immediate Tier 3 escalation.**
+3. **Deviation Rule R4 (architecture change needed) = immediate stop.** Only the user can authorize architectural changes.
+
+---
+
+## 13. Project Layer
+
+> Project operations wrap the existing task pipeline. The 10-step pipeline is UNCHANGED.
+> Project mode activates only when `.forge/project.json` exists or `--init` is used.
+> Detailed flows: `references/project-lifecycle.md` (load per-section as needed).
+
+### 13.1 Project Mode Detection
+
+| Condition | Mode | Artifact Location |
+|---|---|---|
+| No `.forge/project.json` exists | **Task mode** (v2.0 behavior) | `.forge/{date}/{slug}/` |
+| project.json exists + project flag used | **Project mode** | `.forge/phases/{NN}-{slug}/` |
+| project.json exists + no project flag | **Task mode** (within project context) | `.forge/{date}/{slug}/` |
+
+Project flags: `--init`, `--phase`, `--autonomous`, `--milestone`, `--status`, `--discuss`
+
+### 13.2 Project Commands
+
+| Command | Action | Loads |
+|---|---|---|
+| `/forge --init` | Create project + roadmap + state | `project-lifecycle.md` §1 |
+| `/forge --phase N` | Execute phase N via 10-step pipeline | `project-lifecycle.md` §2 |
+| `/forge --autonomous` | Auto-chain all remaining phases | `project-lifecycle.md` §3 |
+| `/forge --milestone [N]` | Verify and archive milestone | `project-lifecycle.md` §4 |
+| `/forge --status` | Show project progress dashboard | `project-lifecycle.md` §5 |
+| `/forge --discuss N` | Capture phase decisions before planning | `project-lifecycle.md` §2 (context step) |
+
+### 13.3 Project Artifact Structure
+
+```
+.forge/
+  project.json                    # Project identity + config
+  roadmap.md                      # Phase sequence with milestones
+  state.md                        # Session continuity (≤100 lines)
+  project-profile.json            # Stack cache (existing, unchanged)
+  phases/
+    {NN}-{slug}/                  # Per-phase artifacts
+      context.md                  # User decisions (optional)
+      meta.json                   # Standard forge execution state
+      research.md                 # Standard forge research
+      plan.md                     # Standard forge plan
+      verification.md             # Standard forge verification
+      report.md                   # Standard forge report
+  milestones/
+    {name}-archive.md             # Completed milestone archive
+    {name}-verification.md        # Milestone verification result
+  {YYYY-MM-DD}/                   # Non-project tasks (unchanged)
+    {slug}-{HHMM}/
+```
+
+### 13.4 New Agents
+
+| # | Agent | Role | Dispatched By | Model |
+|---|---|---|---|---|
+| 9 | **roadmapper** | Creates roadmap from project requirements | `/forge --init` | sonnet |
+| 10 | **integration-checker** | Cross-phase verification at milestone boundaries | `/forge --milestone` | sonnet |
+
+### 13.5 Session Continuity
+
+On session start, if `.forge/state.md` exists:
+1. Read state.md (always ≤100 lines — safe to load)
+2. Display current position to user
+3. Offer: resume current phase, show status, or start new task
+
+### 13.6 Autonomous Mode Safety
+
+- Max phases per session: 10 (prevents runaway execution)
+- Context pressure check after each phase (graceful exit if HIGH/CRITICAL)
+- User input during autonomous → pause after current task, respond
+- State persisted after every phase → safe to interrupt anytime
+
+---
+
+## Step 1: Quick Start (runs from SKILL.md alone)
+
+Step 1 does NOT require loading execution-flow.md. Execute entirely from this file.
+
+### Procedure
+
+0. **Project flag routing.** Check for project flags (`--init`, `--phase`, `--autonomous`, `--milestone`, `--status`, `--discuss`). If any detected → load `references/project-lifecycle.md` (relevant section only) and follow its flow instead of continuing below. If no project flag → proceed with standard Step 1.
+1. **Parse request.** Extract what the user wants. If unclear, ask a clarifying question.
+2. **Detect type** using Section 3 heuristics. Apply `--type` override if provided.
+3. **Detect scale** using Section 4 criteria. Apply `--scale` override if provided.
+4. **Detect language + paradigm.** Check `.forge/project-profile.json` (use cache if < 30 days old). If no cache, run Glob/Grep to identify stack, then create profile.
+5. **Create artifact directory:** `.forge/{YYYY-MM-DD}/{slug}-{HHMM}/`
+6. **Initialize meta.json** with version, request, type, scale, paradigm, language, options, state: "init".
+7. **Display start banner** to user:
+   ```
+   Forge v2 | type: {type} | scale: {scale} | lang: {language} | paradigm: {paradigm}
+   Artifact: .forge/{date}/{slug}-{HHMM}/
+   ```
+8. **Set meta.json state to "init_done".**
+9. **Proceed to Step 2.** Load `execution-flow.md` section 2 only.
+
+### Core Rules
+
+- **No code before Step 5.** Do not write implementation code until Steps 1-4 are complete (`--direct` exempted).
+- **Step order is mandatory.** Never skip ahead (except steps explicitly marked as skippable for a given type).
+- **Auto-trigger requires confirmation.** If forge activates on heuristics (not explicit `/forge`), confirm with the user before entering Step 1.
+- **Never self-select `--direct`.** Only allowed when the user explicitly passes it.
+- **Artifacts are mandatory.** Every execution produces at minimum: meta.json + research.md + report.md.
+
+---
+
+## Type-Based Step Requirements
+
+| Step | code | code-bug | code-refactor | docs | analysis | analysis-security | infra | design |
+|---|---|---|---|---|---|---|---|---|
+| 1. Init | Y | Y | Y | Y | Y | Y | Y | Y |
+| 2. Research | Y | Y (light) | Y | Y | Y | Y (opus) | Y | Y |
+| 3. Plan | Y | Y (1 phase) | Y (behavior-preserving) | skip | skip | skip | Y | skip |
+| 4. Plan-Check | Y | simplified (D1,D2,D5,D7) | Y | skip | skip | skip | Y | skip |
+| 5. Checkpoint | Y | auto | Y | skip | skip | skip | Y | skip |
+| 6. Branch | Y | Y | Y | optional | skip | skip | optional | optional |
+| 7. Execute | Y | Y | Y | Y | report only | report only | Y (dry-run first) | report only |
+| 8. Verify | Y | Y (light) | Y | skip | skip | skip | Y | skip |
+| 9. Finalize | Y | Y | Y | Y | Y | Y | Y | Y |
+| 10. Cleanup | Y | Y | Y | Y | Y | Y | Y | Y |
+
+---
+
+## Design Paradigm Rules
+
+Detected from: class ratio, import patterns, framework conventions, file extensions.
+Override with `--paradigm`.
+
+| Paradigm | Principles | TDD |
+|---|---|---|
+| **oop / mixed** | SOLID, DDD boundaries, Ubiquitous Language | Required (Red > Green > Refactor) |
+| **fp** | Pure functions, immutable data, composition over inheritance | Required |
+| **script** | Readability + safety focus, pragmatic structure | Optional (skip with `--skip-tests`) |
+| **ddd** | Bounded contexts, aggregates, domain events, anti-corruption layers | Required |

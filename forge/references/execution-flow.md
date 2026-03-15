@@ -1,194 +1,1036 @@
-# Forge 실행 플로우 상세
+# Forge v2 Execution Flow
 
-> 이 파일은 각 Step 진입 시 해당 섹션만 읽는다. 전체를 한 번에 읽지 않는다.
-> 컨텍스트 절약을 위해 현재 Step 섹션만 참조하라.
-
----
-
-## Step 1: 파싱 + 감지 + 초기화
-
-**완료 시**: meta.json에 `"step": "init_done"` 기록
-
-1. 사용자 입력에서 요청 추출 (불명확하면 질문)
-2. 언어, 요청 유형, 규모 감지
-3. 실행 전략 추천 → `--exec` 미설정 시 사용자에게 질문 (subagent vs team, 간단한 설명 포함)
-4. **병렬 읽기** (하나의 메시지에서 모든 Read 호출):
-   - `templates/output.md` — 진행 출력 형식
-   - `.claude/forge-rules.md` — 프로젝트 규칙 (있으면)
-   - `.claude/settings.local.json` — 권한 확인. 자동 수정하지 않는다.
-5. 프로젝트 언어/프레임워크 + 패러다임 감지 → `.claude/project-profile.json`에 캐시
-6. slug + 타임스탬프 생성 → `.claude/artifacts/{date}/{slug}-{HHMM}/` 생성 → meta.json 초기화 + index.json 업데이트
-
-산출물 디렉토리는 리서치 전에 반드시 존재해야 한다.
+> **Loading Rule:** PM loads ONLY the current step section using markers like `STEP_N_START` / `STEP_N_END`.
+> Never load the entire file at once. Each section is self-contained.
 
 ---
 
-## Step 2: 리서치
+<!-- STEP_0_START -->
+## Step 0: Project Router
 
-**생략 조건**: `--direct` / `--no-research` / `--from`
-**진입 조건**: meta.json `"init_done"` 확인
-**완료 시**: meta.json `"step": "research_done"`
+**This step runs BEFORE Step 1 only when project flags are detected.**
+**If no project flag → skip entirely and proceed to Step 1.**
 
-1. `templates/research.md` 읽어 출력 구조 확인
-2. 같은 모듈 기존 산출물 확인 (index.json) → 최근(<30일)이면 기준선 재사용
-3. Explore 에이전트(haiku) 생성 — 최소 1개, 규모 테이블 최대치까지
-4. research.md 합성 (sonnet), 발견 ID: H1, H2, M1, M2, L1…
-5. 검증: Glob/Grep으로 참조 파일 존재 확인 → 오래된 참조 수정
-6. 산출물 디렉토리에 저장 → 프로젝트 루트에 복사
-7. meta.json 체크포인트 업데이트
+### Load
+- SKILL.md Section 13 (Project Layer) — already loaded from skill entry
 
----
+### Prerequisites
+- PM detected a project flag: `--init`, `--phase N`, `--autonomous`, `--milestone [N]`, `--status`, `--discuss N`
 
-## Step 3: 계획
+### Actions
 
-**생략 조건**: `--direct` / `--from plan.md`
-**진입 조건**: meta.json `"research_done"` 확인
-**완료 시**: meta.json `"step": "plan_done"`
+1. **Identify operation** from the flag:
+   | Flag | Operation | Load Section |
+   |---|---|---|
+   | `--init` | Project initialization | `project-lifecycle.md` §1 (PROJECT_INIT) |
+   | `--phase N` | Phase execution | `project-lifecycle.md` §2 (PHASE_EXEC) |
+   | `--autonomous` | Autonomous multi-phase | `project-lifecycle.md` §3 (AUTONOMOUS) |
+   | `--milestone [N]` | Milestone verification | `project-lifecycle.md` §4 (MILESTONE) |
+   | `--status` | Status dashboard | `project-lifecycle.md` §5 (STATUS) |
+   | `--discuss N` | Phase context capture | `project-lifecycle.md` §2 (PHASE_EXEC, context substep) |
 
-1. `templates/plan.md` 읽어 출력 구조 확인
-2. 계획 작성 (sonnet): [N-M] 작업 ID + [REF:Hx,Mx] 추적성 태그
-3. 산출물 디렉토리에 저장 → 프로젝트 루트에 복사
-4. 추적성 검증: 모든 HIGH 참조 포함? 유령 참조 없음?
-5. 리뷰 (haiku × `--review`): 기본 `--review 1`은 R5 사용.
-   - R1: 완전성 — HIGH 발견 반영?
-   - R2: 실현 가능성 — 기술적 달성 가능?
-   - R3: 위험 — 엣지 케이스?
-   - R4: TDD/SOLID — 테스트→구현 순서?
-   - R5: 목표 정렬 (기본) — 요청과 일치? 파일 존재?
-   점수: PASS(≥7) / NEEDS_REVISION(5–6) / FAIL(≤4)
-6. 수정 필요 시 자동 수정 → 재저장
-7. 체크포인트 업데이트
+2. **Load the relevant section** from `references/project-lifecycle.md`
+   - Use section markers (e.g., `PROJECT_INIT_START` to `PROJECT_INIT_END`)
+   - Do NOT load the entire file
 
----
+3. **Execute the project-lifecycle flow**
+   - For `--phase N`: the flow will eventually invoke Step 1 with phase context injection
+   - For `--status`: display and return (no pipeline execution)
+   - For `--init`: create project, then optionally invoke `--phase 1`
 
-## Step 4: 체크포인트
+4. **Return control**
+   - If the operation invokes the pipeline (--phase, --autonomous): proceed to Step 1 with injected context
+   - If the operation is self-contained (--status, --milestone, --init): return to user
 
-**생략 조건**: `--direct`
-**진입 조건**: meta.json `"plan_done"` 확인
+### Output
+- Depends on operation (see project-lifecycle.md for each)
 
-실행 전 규모 요약 표시:
-- 총 페이즈/작업 수, 예상 모델 배분, 실행 전략, 적용 패러다임
+### User Output
+- Operation-specific (see project-lifecycle.md)
 
-**small**: 요약 후 자동 진행.
-**medium/large**: 사용자 선택 — "실행" / "수정 후 실행" / "취소"
-취소 → meta.json "cancelled". 수정 → 피드백 → 계획 수정 → 재체크포인트.
+### Error Handling
+- Project flag used but no project.json → helpful error message
+- Invalid phase/milestone number → list valid options
 
 ---
 
-## Step 5: Git 브랜치
+<!-- STEP_0_END -->
 
-**진입 조건**: Step 4 완료
+<!-- STEP_1_START -->
+## Step 1: INIT
 
-`feature/{slug}` 제안. 이미 feature 브랜치이거나 거부 시 생략.
+### Load
+- `SKILL.md` (sections 1-4: Activation, Command Interface, Type Classification, Scale Detection)
+- `.forge/project-profile.json` (if exists and < 30 days old)
 
----
+### Prerequisites
+- User has invoked `/forge [request]` or a matching activation keyword was detected.
+- No other Forge execution is currently in progress for this project.
 
-## Step 6: 작업 목록
+### Actions
+1. **Parse user request**
+   - Extract the natural-language goal from the user's message.
+   - If the request is ambiguous or incomplete, ask the user a clarifying question with concrete options before proceeding.
 
-**진입 조건**: Step 5 완료/생략
+**1b. Phase Context Injection (project mode only)**
 
-- `- [ ]` 파싱 → `[N-M]` ID로 TaskCreate
-- `--direct`: PM이 요청 분석 후 최소 plan.md 작성하고 작업 설계
-- 페이즈 의존성: 페이즈 N 첫 작업은 페이즈 N-1 마지막 작업에 의존
+If this Step 1 was invoked by `project-lifecycle.md` Phase Execution (Step 0 → --phase N):
+- `request` = phase goal from roadmap.md (already set by project-lifecycle flow)
+- `phase_context` is available: `{phase_number, success_criteria, requirements, context_md_path}`
+- Seed `must_haves.truths` with `success_criteria` (will be passed to planner in Step 3)
+- Set `artifact_dir` = `.forge/phases/{NN}-{slug}/` (not the date-based directory)
+- Include `context.md` path in planner's `<files_to_read>` if it exists
+- Set `meta.json.phase_ref` = `{phase_number, phase_name, milestone}`
 
----
+If NOT in project mode: skip this step entirely.
 
-## Step 7: 에이전트 설정
+2. **Detect type**
+   - Match the request against the 8 type definitions in SKILL.md: `code | code-bug | code-refactor | docs | analysis | analysis-security | infra | design`.
+   - If the user provided `--type`, use it as an override.
+   - Record the detected type in meta.json.
 
-**진입 조건**: Step 6 완료/생략
+3. **Detect scale**
+   - Estimate the number of files and scope of changes:
+     - `small` (1-5 tasks, single phase)
+     - `medium` (6-15 tasks, 1-2 phases)
+     - `large` (16+ tasks, 2-5 phases)
+   - If the user provided `--scale`, use it as an override.
 
-모드와 관계없이 항상 실행. 프롬프트에 에이전트 품질 향상용 도메인 지식 포함.
+4. **Detect language and paradigm**
+   - Check `.forge/project-profile.json` cache first (valid if < 30 days).
+   - If no cache: use Glob/Grep to scan for package.json, go.mod, Cargo.toml, requirements.txt, etc.
+   - Detect paradigm: `oop | fp | script | ddd | mixed`.
+   - If the user provided `--lang` or `--paradigm`, use as override.
+   - Create or update `.forge/project-profile.json` with: language, framework, paradigm, test_framework, build_tool, project_type.
 
-1. **프롬프트 병렬 읽기** (하나의 메시지, 여러 Read):
-   - **code**: `prompts/implementer.md` + `prompts/code-reviewer.md` + `prompts/qa-inspector.md` + `checklists/general.md` + `checklists/{lang}.md`
-   - **docs**: `prompts/implementer.md` + `prompts/doc-reviewer.md`
-   - **analysis**: `prompts/analyst.md`만
-   - 체크리스트 대체: `checklists/{lang}.md` 없으면 `checklists/general.md`만. meta.json에 기록.
+5. **Create artifact directory**
+   - Generate slug from the request (lowercase, hyphenated, max 30 chars).
+   - Create: `.forge/{YYYY-MM-DD}/{slug}-{HHMM}/`
+   - Initialize `meta.json`:
+     ```json
+     {
+       "version": "2.0.0",
+       "created": "{ISO timestamp}",
+       "request": "{user request}",
+       "type": "{detected type}",
+       "scale": "{detected scale}",
+       "paradigm": "{detected paradigm}",
+       "language": "{detected language}",
+       "state": "init",
+       "current_step": 1,
+       "options": { ... },
+       "tasks": { "total": 0, "completed": 0, "in_progress": 0, "failed": 0, "skipped": 0 },
+       "waves": { "total": 0, "current": 0, "completed": [] },
+       "revisions": { "plan": 0, "code_minor": 0, "code_major": 0, "reject": 0, "qa_retry": 0 },
+       "git": { "branch": "", "commits": [] }
+     }
+     ```
 
-2. **프로젝트 규칙**: `.claude/forge-rules.md`는 Step 1에서 로드됨 — 캐시 사용.
+6. **Determine type-based routing**
+   - Consult `resources/type-guides.md` for the detected type.
+   - Determine which steps to skip:
+     - `docs` -> skip Plan-Check (Step 4), QA, Verify (Step 8)
+     - `analysis` / `analysis-security` -> skip Plan (Step 3), Plan-Check (Step 4), Execute (Step 7), Verify (Step 8)
+     - `design` -> skip Plan-Check (Step 4), Execute (Step 7), Verify (Step 8)
+   - Record skip list in meta.json `options.skip_steps`.
 
-3. **플레이스홀더 치환** (에이전트 생성 시):
-   - `{PROJECT_RULES}` → forge-rules.md
-   - `{LANG_CHECKLIST}` → checklists/{lang}.md
-   - `{GENERAL_CHECKLIST}` → checklists/general.md
-
-4. **team 모드** (medium/large 권장):
-   - TeamCreate (slug 팀명)
-   - Agent로 implementer + code-reviewer 병렬 생성 (team_name 사용)
-   - qa-inspector: 페이즈 경계에서만 생성 → QA 후 종료
-   - PM ↔ 에이전트: SendMessage
-
-5. **subagent 모드** (small):
-   - TeamCreate 없음, 작업별 Agent 생성 (team_name 없음)
-   - 프롬프트 + 치환 플레이스홀더를 Agent 호출에 전달
-   - 결과 반환 후 소멸
-
----
-
-## Step 8: PM 실행 루프
-
-**진입 조건**: Step 7 완료
-
-**TDD**: `script` 외, `--skip-tests` 아닐 때 → 테스트를 구현보다 먼저 실행.
-
+### File-Based Communication
 ```
-FOR EACH task (차단 해제됨, ID 오름차순):
-  1. Implementer에 작업 할당
-  2. GATE (6항목 — 전부 OK/N/A여야 통과):
-     a. 순환/자기 참조 없는가?
-     b. 초기화 순서 안전한가?
-     c. Null/빈값 안전성 확보?
-     d. 저장→로드 왕복 일치?
-     e. 이벤트 타이밍 안전?
-     f. 빌드+테스트 통과?
-  3. PM 구조 점검: 계획 반영, 파일 완전성, TDD/SOLID 준수
-  4. Reviewer: code-reviewer / doc-reviewer / 생략(analysis)
-  5. 판정: PASS→완료 | NEEDS_REVISION→반복 | REJECT→사용자 선택
-  6. 페이즈 종료 → QA → git commit "feat({slug}): complete phase {N}"
-  7. 페이즈 경계 보고 (사용자: 계속/수정/중단):
-     - 변경 파일 목록 + 줄 수 변화량
-     - 리뷰 결과 요약 (PASS/NEEDS_REVISION/REJECT 횟수)
-     - 누적 진행률
-  8. meta.json 실시간 업데이트
+No agent dispatch in this step.
+PM performs all actions directly.
 ```
 
-**컨텍스트 효율성**: diff + 주변 컨텍스트만 전달 (전체 파일 아님), 현재 페이즈만 (전체 계획 아님), 결과 요약만 (전체 출력 아님).
+### Output
+- `.forge/{date}/{slug}-{HHMM}/meta.json` (initialized)
+- `.forge/project-profile.json` (created or updated)
 
-**한도**: 사소한 수정 ≤5회, 주요 수정 ≤3회, 거부 ≤2회, QA 재시도 ≤2회 → 에스컬레이션.
-**타임아웃 (team)**: 구현 10분, 리뷰 5분, QA 5분 → 1회 재생성 → 에스컬레이션.
-**안전**: DB/설정/보안/API/의존성 변경 → 사용자 확인 필수.
-**병렬**: 같은 페이즈 독립 작업 동시 실행. 같은 파일 수정 시 순차.
-**적응형**: 수정 3회+ → 모델 업그레이드 제안. subagent 수정 빈발 → team 전환 제안.
+### User Output
+```
+--- Forge v2 ---
+Request:  {user request}
+Type:     {type}
+Scale:    {scale}
+Language: {language} ({paradigm})
+Artifact: .forge/{date}/{slug}-{HHMM}/
+---
+```
+
+### Error Handling
+- If project-profile.json fails to detect language: ask the user to specify `--lang`.
+- If artifact directory already exists (slug collision): append `-2`, `-3`, etc.
+- If user request is empty: prompt user for a request description.
+
+### Next
+Proceed to **Step 2: RESEARCH** (unless `--direct`, `--no-research`, or `--from` is set, in which case skip to Step 3 or Step 6).
+<!-- STEP_1_END -->
 
 ---
 
-## 에러 복구
+<!-- STEP_2_START -->
+## Step 2: RESEARCH
 
-| 실패 유형 | 1차 | 2차 | 에스컬레이션 |
-|---|---|---|---|
-| 타임아웃 | 동일 모델 재생성 | 하위 모델로 분할 | 사용자: 건너뛰기/수동/중단 |
-| 빌드 실패 | 에러 분석→자동 수정 | 파일 재탐색→재시도 | 사용자: 에러 로그+방향 선택 |
-| 테스트 실패 | 실패 분석→구현 수정 | 테스트 범위 축소 | 사용자: 수정/생략/중단 |
-| 리뷰 REJECT | 피드백→재구현 | 모델 업그레이드 | 사용자: 요구사항 재확인 |
-| 연속 3회 동일 | 5 Whys 분석 | 접근 전환 제안 | 상세 보고+대안 |
+### Load
+- `references/execution-flow.md` (this section only)
+- `resources/type-guides.md` (section for the detected type)
 
-핵심: 같은 실패를 같은 방법으로 반복하지 않는다.
+### Prerequisites
+- meta.json `state` is `"init"` and `current_step` is 1.
+- Artifact directory exists.
+- Skip conditions NOT met: no `--direct`, `--no-research`, `--from` flags.
+
+### Actions
+1. **Check for reusable research**
+   - If `--from <path>` points to an existing research.md: copy it to the artifact directory, skip to Step 3.
+   - If a research.md exists in `.forge/` for the same module within the last 30 days: offer to reuse it.
+
+2. **Dispatch parallel exploration agents (haiku)**
+   - Number of agents by scale: small=2, medium=3, large=4.
+   - Each agent explores one dimension:
+     - **Agent 1 (Architecture):** directory structure, module boundaries, dependency flow
+     - **Agent 2 (Stack):** language, frameworks, build tools, test frameworks
+     - **Agent 3 (Patterns):** code patterns, conventions, naming rules (medium/large only)
+     - **Agent 4 (Risks):** tech debt, conflict zones, complexity hotspots (large only)
+   - Dispatch format for each:
+     ```xml
+     <agent_dispatch>
+       <role>researcher</role>
+       <task_id>research-arch</task_id>
+       <files_to_read>
+         {relevant project directories and files}
+       </files_to_read>
+       <focus>Architecture: directory structure, module boundaries, dependency flow</focus>
+       <output_path>.forge/{date}/{slug}/research-arch.md</output_path>
+     </agent_dispatch>
+     ```
+
+3. **Dispatch synthesis agent (sonnet)**
+   - After all exploration agents return their output paths:
+     ```xml
+     <agent_dispatch>
+       <role>researcher</role>
+       <task_id>research-synthesis</task_id>
+       <files_to_read>
+         .forge/{date}/{slug}/research-arch.md
+         .forge/{date}/{slug}/research-stack.md
+         .forge/{date}/{slug}/research-patterns.md
+         .forge/{date}/{slug}/research-risks.md
+       </files_to_read>
+       <focus>Synthesize all exploration results into a single research report</focus>
+       <output_path>.forge/{date}/{slug}/research.md</output_path>
+     </agent_dispatch>
+     ```
+
+4. **Validate references**
+   - PM reads only the References section of research.md (not the full file).
+   - For each file path in References, run Glob to confirm it exists.
+   - Remove any references that do not resolve.
+
+5. **Update meta.json**
+   - Set `state: "researched"`, `current_step: 2`.
+
+### File-Based Communication
+```
+PM ──(dispatch)──> researcher-1 (haiku) ──(writes)──> research-arch.md
+PM ──(dispatch)──> researcher-2 (haiku) ──(writes)──> research-stack.md
+PM ──(dispatch)──> researcher-3 (haiku) ──(writes)──> research-patterns.md
+PM ──(dispatch)──> researcher-4 (haiku) ──(writes)──> research-risks.md
+                        │
+PM ──(dispatch)──> synthesizer (sonnet)
+                   reads: research-arch.md, research-stack.md, ...
+                   writes: research.md
+PM <──(path)────── synthesizer returns: ".forge/.../research.md"
+PM reads: research.md summary section only (<=20 lines)
+```
+
+### Output
+- `.forge/{date}/{slug}/research.md` (final synthesized report, <=300 lines)
+- Intermediate files: `research-arch.md`, `research-stack.md`, etc. (kept for traceability)
+
+### User Output
+```
+Research complete.
+  HIGH findings: {N}
+  MEDIUM findings: {N}
+  LOW findings: {N}
+  Key issue: {title of H1 finding}
+```
+
+### Error Handling
+- If an exploration agent times out: proceed with remaining agents' results.
+- If synthesis agent fails: attempt synthesis with a fallback model (haiku with combined prompt).
+- If zero HIGH findings for a code-type request: flag as unusual, proceed with a warning to planner.
+
+### Next
+Proceed to **Step 3: PLAN**.
+<!-- STEP_2_END -->
 
 ---
 
-## Step 9: 마무리
+<!-- STEP_3_START -->
+## Step 3: PLAN
 
-**진입 조건**: Step 8 완료
+### Load
+- `references/execution-flow.md` (this section only)
+- `research.md` (summary section only, <=20 lines — DO NOT load the full file)
+- `templates/plan.md` (template structure)
 
-1. **검증**: meta.json `steps_completed` 확인. 필수 단계 누락 → 사용자 보고.
-2. 에이전트 종료 (team: 종료 → 30초 → TeamDelete)
-3. plan.md: `- [ ]` → `- [x]` → 루트 재복사
-4. meta.json: "completed", 최종 통계
-5. `templates/report.md` 읽기 → 보고서 생성 → 산출물 + 루트 저장
-6. PR 생성 제안 (code/infra만)
-7. 선택적 피드백 수집
-8. 학습: 새 패턴 발견 시 `.claude/forge-rules.md`에 즉시 기록
+### Prerequisites
+- meta.json `state` is `"researched"` and `current_step` is 2.
+- `research.md` exists in the artifact directory.
+- Skip conditions NOT met: no `--direct`, no `--from plan.md`.
 
-**steps_completed 형식**: `["init", "research", "plan", "checkpoint", "git_branch", "tasks", "agent_setup", "execute", "finalize"]`
+### Actions
+1. **Dispatch planner agent (sonnet or opus)**
+   - Model selection: sonnet (default), opus (if `--model quality` or `--cost high`).
+   ```xml
+   <agent_dispatch>
+     <role>planner</role>
+     <task_id>plan</task_id>
+     <files_to_read>
+       .forge/{date}/{slug}/research.md
+       resources/type-guides.md ({type} section only)
+       templates/plan.md
+     </files_to_read>
+     <type>{detected type}</type>
+     <scale>{detected scale}</scale>
+     <paradigm>{detected paradigm}</paradigm>
+     <output_path>.forge/{date}/{slug}/plan.md</output_path>
+   </agent_dispatch>
+   ```
 
-**모든 forge 실행은 최소 산출물**: meta.json + research.md + report.md
+2. **Verify plan structure** (PM reads plan.md summary, not full content)
+   - Confirm YAML frontmatter contains `must_haves` (truths, artifacts, key_links).
+   - Confirm all tasks have the Deep Work structure: `<read_first>`, `<action>`, `<acceptance_criteria>`.
+   - Confirm wave numbers are assigned.
+   - Confirm `[REF:Hx,Mx]` tags are present linking back to research findings.
+   - If any structural issue: send feedback to planner for immediate correction (not counted as plan revision).
+
+3. **Update meta.json**
+   - Set `state: "planned"`, `current_step: 3`.
+   - Record task count, wave count, phase count.
+
+### File-Based Communication
+```
+PM ──(dispatch)──> planner (sonnet/opus)
+                   reads: research.md, type-guide, plan template
+                   writes: plan.md
+PM <──(path)────── planner returns: ".forge/.../plan.md"
+PM reads: plan.md YAML frontmatter + task count only
+```
+
+### Output
+- `.forge/{date}/{slug}/plan.md` (complete plan with must_haves + deep work tasks)
+
+### User Output
+```
+Plan created.
+  Phases: {N}
+  Tasks:  {N} (across {W} waves)
+  Must-haves: {N} truths, {N} artifacts, {N} key_links
+```
+
+### Error Handling
+- If planner produces an empty or malformed plan: retry once with opus model.
+- If planner cannot create tasks from research (e.g., analysis type with no actionable findings): report to user and suggest switching to `analysis` type.
+
+### Next
+Proceed to **Step 4: PLAN-CHECK** (unless `--direct` is set, in which case skip to Step 5).
+<!-- STEP_3_END -->
+
+---
+
+<!-- STEP_4_START -->
+## Step 4: PLAN-CHECK
+
+### Load
+- `references/execution-flow.md` (this section only)
+
+### Prerequisites
+- meta.json `state` is `"planned"` and `current_step` is 3.
+- `plan.md` exists in the artifact directory.
+- Skip conditions NOT met: no `--direct` flag.
+
+### Actions
+1. **Dispatch plan-checker agent (sonnet)**
+   ```xml
+   <agent_dispatch>
+     <role>plan-checker</role>
+     <task_id>plan-check</task_id>
+     <files_to_read>
+       .forge/{date}/{slug}/plan.md
+       .forge/{date}/{slug}/research.md
+     </files_to_read>
+     <scale>{detected scale}</scale>
+     <output_path>.forge/{date}/{slug}/plan.md</output_path>
+     <output_mode>append</output_mode>
+   </agent_dispatch>
+   ```
+
+2. **Handle result (PM reads only the verdict line, not the full check details)**
+   - **PASS** (8/8 or 7/8 with 1 warning): proceed to Step 5.
+   - **NEEDS_REVISION**: enter revision loop.
+   - **FAIL** (3+ dimensions failed): escalate to user.
+
+3. **Revision loop (max 3 iterations)**
+   ```
+   Iteration 1:
+     plan-checker returns NEEDS_REVISION with specific feedback
+     PM dispatches planner with feedback + plan.md path
+     planner rewrites plan.md
+     PM dispatches plan-checker again
+     Increment revisions.plan in meta.json
+
+   Iteration 2: same as above
+   Iteration 3: if still NEEDS_REVISION, escalate to user
+   ```
+
+4. **Scale-based simplification**
+   - `small` scale: only check D1 (Requirement Coverage), D2 (Task Completeness), D5 (Scope Sanity), D7 (Deep Work Compliance).
+   - `medium/large` scale: full 8-dimension check.
+
+5. **Update meta.json**
+   - Set `state: "plan_checked"`, `current_step: 4`.
+   - Record `revisions.plan` count.
+
+### File-Based Communication
+```
+PM ──(dispatch)──> plan-checker (sonnet)
+                   reads: plan.md, research.md
+                   writes: verdict appended to plan.md
+PM <──(path)────── plan-checker returns: ".forge/.../plan.md"
+PM reads: verdict line only ("Overall: PASS/NEEDS_REVISION/FAIL")
+
+[If NEEDS_REVISION]:
+PM ──(dispatch)──> planner (sonnet)
+                   reads: plan.md (with feedback appended), research.md
+                   writes: revised plan.md
+PM ──(dispatch)──> plan-checker (sonnet)  [repeat]
+```
+
+### Output
+- `plan.md` (verified, with plan-check results appended at the bottom)
+
+### User Output
+```
+Plan verification (8D):
+  D1 Requirements: {status}  D5 Scope:    {status}
+  D2 Completeness: {status}  D6 Verify:   {status}
+  D3 Dependencies: {status}  D7 DeepWork: {status}
+  D4 Key Links:    {status}  D8 Tests:    {status}
+  Overall: {PASS|NEEDS_REVISION} (revisions: {N}/3)
+```
+
+### Error Handling
+- If plan-checker agent times out: retry once, then proceed with a warning.
+- If revision loop exhausts 3 attempts: notify user with the specific failing dimensions and ask for manual plan adjustments.
+- If plan-checker returns FAIL on first check: present the failure details to the user before attempting any revision.
+
+### Next
+Proceed to **Step 5: CHECKPOINT**.
+<!-- STEP_4_END -->
+
+---
+
+<!-- STEP_5_START -->
+## Step 5: CHECKPOINT
+
+### Load
+- `references/execution-flow.md` (this section only)
+- `plan.md` (summary: task count, wave count, phase names only)
+
+### Prerequisites
+- meta.json `state` is `"plan_checked"` (or `"planned"` if `--direct` skipped plan-check).
+- `plan.md` exists and has passed verification (or verification was skipped).
+
+### Actions
+1. **Small scale: auto-proceed**
+   - Display a brief summary and proceed to Step 6 without user confirmation.
+   - Log: "Auto-proceeding (small scale)."
+
+2. **Medium/Large scale: present choices**
+   - Display plan summary to user:
+     ```
+     --- Execution Plan Summary ---
+     Phases:    {N}
+     Tasks:     {N} (across {W} waves)
+     Est. mode: {subagent|team}
+     Paradigm:  {paradigm}
+
+     [1] Execute  -- proceed with this plan
+     [2] Modify   -- revise the plan (returns to Step 3)
+     [3] Cancel   -- abort this Forge execution
+     ```
+   - Wait for user selection.
+
+3. **Handle user choice**
+   - **Execute**: update meta.json, proceed to Step 6.
+   - **Modify**: collect user feedback, return to Step 3 (planner re-runs with feedback). Increment `revisions.plan`.
+   - **Cancel**: update meta.json `state: "cancelled"`, display cancellation message, stop.
+
+4. **Update meta.json**
+   - Set `state: "checkpoint_passed"`, `current_step: 5`.
+
+### File-Based Communication
+```
+No agent dispatch in this step.
+PM communicates directly with the user.
+```
+
+### Output
+- User decision recorded in meta.json.
+
+### User Output
+- Plan summary + choice prompt (medium/large).
+- Brief summary only (small).
+
+### Error Handling
+- If user provides unclear input: re-present the 3 options.
+- If user requests modifications: collect specific feedback before returning to Step 3.
+
+### Next
+Proceed to **Step 6: BRANCH**.
+<!-- STEP_5_END -->
+
+---
+
+<!-- STEP_6_START -->
+## Step 6: BRANCH
+
+### Load
+- `references/execution-flow.md` (this section only)
+
+### Prerequisites
+- meta.json `state` is `"checkpoint_passed"` and `current_step` is 5.
+
+### Actions
+1. **Check git status**
+   - Run `git status` to confirm working tree is clean.
+   - If uncommitted changes exist: warn the user and ask whether to stash, commit, or proceed anyway.
+
+2. **Determine branch strategy**
+   - If already on a feature branch: ask user whether to use the current branch or create a new one.
+   - If on main/master: create `feature/{slug}`.
+   - If the user declines branch creation: skip and proceed on current branch.
+
+3. **Create branch**
+   - Run `git checkout -b feature/{slug}`.
+   - Update meta.json `git.branch`.
+
+4. **Update meta.json**
+   - Set `state: "branched"`, `current_step: 6`.
+
+### File-Based Communication
+```
+No agent dispatch in this step.
+PM executes git commands directly.
+```
+
+### Output
+- New git branch (if created).
+- meta.json updated with branch name.
+
+### User Output
+```
+Branch: feature/{slug} (created)
+```
+Or:
+```
+Using current branch: {current_branch}
+```
+
+### Error Handling
+- If `git checkout -b` fails (branch exists): append timestamp, e.g., `feature/{slug}-1430`.
+- If git is not initialized: skip branch creation, warn user.
+
+### Next
+Proceed to **Step 7: EXECUTE**.
+<!-- STEP_6_END -->
+
+---
+
+<!-- STEP_7_START -->
+## Step 7: EXECUTE (Wave-Based Parallel Execution)
+
+### Load
+- `references/execution-flow.md` (this section only)
+- `references/wave-execution.md` (full reference for wave rules)
+- `references/deviation-rules.md` (full reference for deviation handling)
+
+### Prerequisites
+- meta.json `state` is `"branched"` (or `"checkpoint_passed"` if branch was skipped).
+- `plan.md` exists with verified tasks and wave assignments.
+
+### Actions
+
+#### 7.1 Wave Loop (outer loop)
+```
+for wave_number in 1..total_waves:
+    wave_tasks = tasks where wave == wave_number
+    parallel_batches = split wave_tasks into batches of max 3
+
+    for batch in parallel_batches:
+        execute batch tasks in parallel (see 7.2)
+
+    run wave boundary QA (see 7.3)
+    commit wave changes (see 7.4)
+    report wave progress to user (see 7.5)
+
+    update meta.json: waves.current, waves.completed
+```
+
+#### 7.2 Per-Task Execution Cycle (runs in parallel within a batch, max 3 concurrent)
+
+**Phase A: Implementation**
+```xml
+<agent_dispatch>
+  <role>implementer</role>
+  <task_id>{N-M}</task_id>
+  <files_to_read>
+    .forge/{date}/{slug}/plan.md (task [{N-M}] section only)
+    {task.read_first files}
+    {task.files}
+    checklists/{lang}.md
+    checklists/general.md
+  </files_to_read>
+  <deviation_rules>references/deviation-rules.md</deviation_rules>
+  <output_path>.forge/{date}/{slug}/task-{N-M}-summary.md</output_path>
+</agent_dispatch>
+```
+- Implementer reads the specified files directly (PM does NOT load them).
+- Implementer follows Deep Work structure: read `<read_first>` files, then execute `<action>` items, then verify `<acceptance_criteria>`.
+- Implementer writes `task-{N-M}-summary.md` with: Changes Made, Deviations, Self-Check Results, Acceptance Criteria Status.
+
+**Phase B: Deviation Handling (within implementer)**
+- **R1 (Bug found):** Auto-fix, record `[DEVIATION:R1]` in summary. Continue.
+- **R2 (Missing feature):** Auto-add, record `[DEVIATION:R2]` in summary. Continue.
+- **R3 (Blocking issue):** Auto-resolve, record `[DEVIATION:R3]` in summary. Continue.
+- **R4 (Architecture change needed):** STOP immediately. Record `[DEVIATION:R4:BLOCKED]`. Return to PM.
+- Auto-fix limit per task: 3 attempts. If exceeded, document and move on.
+- Scope boundary: only fix issues directly caused by the current task.
+
+**Phase C: Code Review**
+```xml
+<agent_dispatch>
+  <role>code-reviewer</role>
+  <task_id>{N-M}-review</task_id>
+  <files_to_read>
+    .forge/{date}/{slug}/task-{N-M}-summary.md
+    .forge/{date}/{slug}/plan.md (must_haves section only)
+    {changed files from summary}
+    checklists/{lang}.md
+    checklists/general.md
+  </files_to_read>
+  <output_path>.forge/{date}/{slug}/task-{N-M}-summary.md</output_path>
+  <output_mode>append</output_mode>
+</agent_dispatch>
+```
+- Code reviewer performs 10-perspective review (style, bugs, security, perf, plan alignment, TDD, SOLID, error handling, goal-backward wiring, anti-pattern scan).
+
+**Phase D: Review Result Handling**
+```
+if PASS:
+    mark task as complete in meta.json
+    stage and commit: "{type}({scope}): {task description}"
+
+if NEEDS_REVISION (minor):
+    send reviewer feedback to implementer
+    implementer revises (fresh agent invocation with feedback)
+    re-run code review
+    max 5 minor revision cycles
+    if exceeded: upgrade model and try once more, then escalate
+
+if NEEDS_REVISION (major):
+    send reviewer feedback to implementer
+    implementer revises with expanded context
+    re-run code review
+    max 3 major revision cycles
+    if exceeded: escalate to user
+
+if REJECT:
+    max 2 reject cycles
+    if exceeded: mark task as blocked, escalate to user
+    user chooses: redesign task / skip task / manual intervention
+```
+
+#### 7.3 Wave Boundary QA Gate
+After all tasks in a wave are complete (or blocked):
+```xml
+<agent_dispatch>
+  <role>qa-inspector</role>
+  <task_id>qa-wave-{wave_number}</task_id>
+  <files_to_read>
+    .forge/{date}/{slug}/task-{N-M}-summary.md (all tasks in this wave)
+    {all files modified in this wave}
+  </files_to_read>
+  <output_path>.forge/{date}/{slug}/qa-report-wave-{wave_number}.md</output_path>
+</agent_dispatch>
+```
+- QA inspector runs: build verification, test execution, caller impact analysis, anti-pattern scan.
+- Result handling:
+  - **PASS:** proceed to next wave.
+  - **GAPS_FOUND:** create targeted fix tasks, execute them, re-run QA (max 2 retries).
+  - **BUILD_FAILED:** apply Tier 1 recovery (error analysis, auto-fix). If fails, Tier 2 (alternative approach). If fails, Tier 3 (user intervention).
+
+#### 7.4 Wave Commit
+- After QA passes: create a wave-level commit if individual task commits already exist, no additional commit needed.
+- If task-level commits are not yet made (batch mode): create a single commit for the wave: `feat({slug}): complete wave {N}`.
+- Update meta.json `git.commits`.
+
+#### 7.5 Wave Progress Report to User
+```
+--- Wave {N}/{total} Complete ---
+Tasks:     {completed}/{total_in_wave}
+Revisions: {minor}m {major}M {reject}R
+Deviations: {count} (R1:{n} R2:{n} R3:{n})
+QA:        {PASS|GAPS_FOUND}
+Cumulative: {total_completed}/{total_tasks} tasks done
+---
+```
+
+#### 7.6 R4 Deviation Handling (Architecture Change Needed)
+If any implementer reports `[DEVIATION:R4:BLOCKED]`:
+1. PM pauses the affected task (other tasks in the wave continue).
+2. PM reads the task summary to understand the blocking issue.
+3. PM presents the situation to the user with options:
+   ```
+   [1] Approve the architecture change (PM adds a new task)
+   [2] Skip this task
+   [3] Provide alternative approach
+   [4] Cancel execution
+   ```
+4. Based on user choice, PM either creates a new task, skips, or stops.
+
+#### 7.7 Overall Execution Limits
+| Limit | Threshold | Action on Exceed |
+|---|---|---|
+| Minor revisions per task | 5 | Upgrade model, try once more, then escalate |
+| Major revisions per task | 3 | Escalate to user |
+| Rejects per task | 2 | Escalate to user |
+| QA retries per wave | 2 | Escalate to user |
+| Deviation auto-fixes per task | 3 | Document and proceed to next task |
+| Deviation auto-fixes per execution | 10 | Warn user, continue with documentation |
+
+### File-Based Communication
+```
+Per task cycle:
+  PM ──(dispatch)──> implementer ──(writes)──> task-{N-M}-summary.md + code changes
+  PM ──(dispatch)──> code-reviewer ──(appends)──> task-{N-M}-summary.md
+  PM reads: review verdict only (PASS/NEEDS_REVISION/REJECT)
+
+Per wave boundary:
+  PM ──(dispatch)──> qa-inspector ──(writes)──> qa-report-wave-{N}.md
+  PM reads: QA verdict only (PASS/GAPS_FOUND/BUILD_FAILED)
+```
+
+### Output
+- `task-{N-M}-summary.md` for each task (implementation details + review results)
+- `qa-report-wave-{N}.md` for each wave
+- Git commits (per task or per wave)
+- meta.json updated with progress
+
+### User Output
+- Per-wave progress report (see 7.5).
+- Per-task status updates during execution: `[{N-M}] implementing... | reviewing... | done | blocked`.
+- R4 deviation prompts when they occur.
+
+### Error Handling
+- If an implementer agent times out: retry once with the same model, then escalate.
+- If a code-reviewer agent times out: retry once, then mark as PASS with a warning.
+- If git commit fails: retry once, then warn user and continue.
+- If all tasks in a wave fail: stop execution, report to user.
+- Follow the 3-tier escalation: Tier 1 (auto-recover) -> Tier 2 (alternative approach) -> Tier 3 (user intervention).
+
+### Next
+After all waves complete, proceed to **Step 8: VERIFY**.
+<!-- STEP_7_END -->
+
+---
+
+<!-- STEP_8_START -->
+## Step 8: VERIFY (Goal-Backward Verification)
+
+### Load
+- `references/execution-flow.md` (this section only)
+- `plan.md` (must_haves section only — YAML frontmatter)
+
+### Prerequisites
+- meta.json `state` is `"executing"` and all waves are completed.
+- All tasks are either `complete` or `blocked/skipped`.
+- Skip conditions: `docs`, `analysis`, `design` types skip this step.
+
+### Actions
+1. **Dispatch verifier agent (sonnet)**
+   ```xml
+   <agent_dispatch>
+     <role>verifier</role>
+     <task_id>verify</task_id>
+     <files_to_read>
+       .forge/{date}/{slug}/plan.md
+       {all files listed in must_haves.artifacts[].path}
+       {all files listed in must_haves.key_links[].from}
+       {all files listed in must_haves.key_links[].to}
+     </files_to_read>
+     <output_path>.forge/{date}/{slug}/verification.md</output_path>
+   </agent_dispatch>
+   ```
+
+2. **Verifier executes 3-level check:**
+   - **Level 1 (EXISTS):** Do all `must_haves.artifacts` files exist? Do they meet `min_lines`?
+   - **Level 2 (SUBSTANTIVE):** Do `exports` actually exist in those files? Are there stub patterns (TODO, placeholder, empty return)?
+   - **Level 3 (WIRED):** Do `key_links` patterns match in the `from` files? Are imports actually used (not just declared)?
+   - **Truths verification:** Are `must_haves.truths` supported by code and/or passing tests?
+
+3. **Handle verifier result (PM reads verdict line only)**
+   - **VERIFIED:** proceed to Step 9.
+   - **GAPS_FOUND:** create gap-fix tasks, return to Step 7 for a targeted mini-execution (max 2 cycles).
+   - **FAILED:** escalate to user with the specific failures.
+
+4. **Update meta.json**
+   - Set `state: "verified"`, `current_step: 8`.
+
+### File-Based Communication
+```
+PM ──(dispatch)──> verifier (sonnet)
+                   reads: plan.md (must_haves), artifact files, key_link files
+                   writes: verification.md
+PM <──(path)────── verifier returns: ".forge/.../verification.md"
+PM reads: verdict line only ("Verdict: VERIFIED/GAPS_FOUND/FAILED")
+
+[If GAPS_FOUND]:
+PM creates gap-fix tasks in plan.md
+PM returns to Step 7 for targeted execution
+PM re-dispatches verifier after fixes
+```
+
+### Output
+- `.forge/{date}/{slug}/verification.md` (3-level verification results)
+
+### User Output
+```
+--- Goal-Backward Verification ---
+Level 1 (Exists):      {N}/{N} passed
+Level 2 (Substantive): {N}/{N} passed
+Level 3 (Wired):       {N}/{N} passed
+Truths:                {N}/{N} passed
+Verdict: {VERIFIED|GAPS_FOUND|FAILED}
+---
+```
+
+### Error Handling
+- If verifier agent times out: retry once, then run a simplified check (Level 1 only) directly.
+- If gap-fix cycle exceeds 2 iterations: escalate to user with remaining gaps.
+- If FAILED on Level 1 (files missing): this is critical — do not attempt automatic recovery, escalate immediately.
+
+### Next
+Proceed to **Step 9: FINALIZE**.
+<!-- STEP_8_END -->
+
+---
+
+<!-- STEP_9_START -->
+## Step 9: FINALIZE
+
+### Load
+- `references/execution-flow.md` (this section only)
+- `templates/report.md` (report template)
+
+### Prerequisites
+- meta.json `state` is `"verified"` (or `"executing"` if verification was skipped for docs/analysis/design types).
+- All execution steps are complete.
+
+### Actions
+1. **Generate final report**
+   - Read `templates/report.md` for the output structure.
+   - Aggregate data from:
+     - All `task-{N-M}-summary.md` files (file paths only, read as needed).
+     - `qa-report-wave-{N}.md` files.
+     - `verification.md`.
+     - meta.json (task stats, revision counts).
+   - Write `report.md` to artifact directory.
+   - Report sections:
+     - Overview (request, type, scale, paradigm)
+     - Task Results (per-task status table)
+     - Traceability Matrix (research finding -> task -> verification)
+     - Wave Execution Summary (per-wave stats)
+     - Deviations Log (all [DEVIATION:Rx] entries)
+     - Verification Summary (Level 1/2/3 results)
+     - Lessons Learned (repeated issues, model upgrades triggered)
+
+2. **Update project-profile.json**
+   - If new patterns or conventions were discovered: update the cache.
+   - If model upgrades were triggered: record for future reference.
+
+3. **Mark plan tasks as complete**
+   - In plan.md: update `<done>false</done>` to `<done>true</done>` for completed tasks.
+
+4. **Suggest PR (code/infra types only)**
+   - If a feature branch was created: suggest creating a pull request.
+   - Display: branch name, total commits, changed files summary.
+   - User can accept (PM creates PR) or decline.
+
+5. **Update meta.json**
+   - Set `state: "completed"`, `current_step: 9`.
+   - Record final statistics.
+
+### File-Based Communication
+```
+PM reads task-summary and QA report file paths from meta.json.
+PM reads templates/report.md for structure.
+PM writes report.md directly (no agent dispatch needed for small/medium).
+
+For large scale: dispatch a sonnet agent to compile the report:
+  PM ──(dispatch)──> reporter (sonnet)
+                     reads: all task summaries, QA reports, verification.md
+                     writes: report.md
+```
+
+### Output
+- `.forge/{date}/{slug}/report.md` (final comprehensive report)
+- Updated `plan.md` (tasks marked as done)
+- Updated `project-profile.json` (if changes detected)
+
+### User Output
+```
+--- Forge Complete ---
+Tasks: {completed}/{total} completed, {failed} failed, {skipped} skipped
+Waves: {total_waves} executed
+Revisions: {plan}P {minor}m {major}M {reject}R
+Deviations: {total} (R1:{n} R2:{n} R3:{n} R4:{n})
+Verification: {VERIFIED|GAPS_FOUND|N/A}
+
+Report: .forge/{date}/{slug}/report.md
+Branch: feature/{slug} ({N} commits)
+
+Create PR? [Y/n]
+---
+```
+
+### Error Handling
+- If report generation fails: create a minimal report with just the task status table.
+- If PR creation fails: display the error and provide the manual command.
+- If plan.md update fails: non-critical, continue.
+
+### Next
+Proceed to **Step 10: CLEANUP**.
+<!-- STEP_9_END -->
+
+---
+
+<!-- STEP_10_START -->
+## Step 10: CLEANUP
+
+### Load
+- Nothing. This step requires no external file loading.
+
+### Prerequisites
+- meta.json `state` is `"completed"` and `current_step` is 9.
+
+### Actions
+1. **Clean up intermediate files**
+   - Remove exploration-phase intermediate files: `research-arch.md`, `research-stack.md`, `research-patterns.md`, `research-risks.md`.
+   - Keep all final artifacts: `meta.json`, `research.md`, `plan.md`, `task-*-summary.md`, `qa-report-*.md`, `verification.md`, `report.md`.
+
+2. **Agent cleanup (team mode only)**
+   - If team mode was used: send termination messages to persistent agents.
+   - Wait 30 seconds, then delete the team.
+
+**Project Transition (project mode only)**
+
+If `.forge/project.json` exists AND this execution was a phase (meta.json has phase_ref):
+
+1. **Update roadmap.md:**
+   - Find the current phase entry
+   - Set status to "completed"
+   - Update Plans count
+
+2. **Update state.md:**
+   - Advance Current Position to next phase (or milestone complete)
+   - Add Session History entry: "{date} {time}: Phase {N} ({name}) completed"
+   - Update Next Action: "Start Phase {N+1}" or "Run milestone verification"
+   - Recalculate progress bar
+
+3. **Update project.json:**
+   - stats.completed_phases++
+   - stats.completed_tasks += tasks completed in this phase
+   - If all phases in current milestone are completed:
+     → current_phase = (first phase of next milestone, or same if no next)
+
+4. **Milestone boundary notification:**
+   If this was the LAST phase in the current milestone:
+   - Display: "All phases in Milestone {N} ({name}) are complete."
+   - Suggest: "Run `/forge --milestone` to verify integration."
+
+5. **Autonomous mode return:**
+   If this execution was triggered by autonomous mode (project-lifecycle.md §3):
+   - Return control to the autonomous loop
+   - The loop will handle milestone verification and next phase selection
+
+If NOT in project mode: skip this step entirely.
+
+3. **Final meta.json update**
+   - Set `state: "closed"`, `current_step: 10`.
+   - Record `completed_at` timestamp.
+   - Record `steps_completed` array: `["init", "research", "plan", "plan_check", "checkpoint", "branch", "execute", "verify", "finalize", "cleanup"]`.
+
+4. **Optional: collect user feedback**
+   - If the user is still engaged: ask for a 1-5 satisfaction rating.
+   - Record in meta.json `feedback` field.
+
+### File-Based Communication
+```
+No agent dispatch in this step.
+PM performs all cleanup actions directly.
+```
+
+### Output
+- meta.json (final state)
+- Intermediate files removed
+
+### User Output
+```
+Cleanup complete. All artifacts saved to:
+  .forge/{date}/{slug}/
+```
+
+### Error Handling
+- If file deletion fails: non-critical, log and continue.
+- If team deletion fails: log a warning.
+- Cleanup should never fail the overall execution — all errors are logged but do not block.
+
+### Next
+Execution complete. PM returns control to the user.
+<!-- STEP_10_END -->
+
+---
+
+## Appendix: Step Transition Quick Reference
+
+```
+INIT (1) ──> RESEARCH (2) ──> PLAN (3) ──> PLAN-CHECK (4) ──> CHECKPOINT (5)
+                                                                     │
+                    ┌────────────────────────────────────────────────┘
+                    v
+              BRANCH (6) ──> EXECUTE (7) ──> VERIFY (8) ──> FINALIZE (9) ──> CLEANUP (10)
+                                  ^                │
+                                  │                │
+                                  └── GAPS_FOUND ──┘
+
+Skip paths:
+  --direct:       INIT -> BRANCH -> EXECUTE -> VERIFY -> FINALIZE -> CLEANUP
+  --no-research:  INIT -> PLAN -> PLAN-CHECK -> CHECKPOINT -> BRANCH -> ...
+  --from plan.md: INIT -> CHECKPOINT -> BRANCH -> EXECUTE -> ...
+  docs type:      INIT -> RESEARCH -> PLAN -> CHECKPOINT -> BRANCH -> EXECUTE -> FINALIZE -> CLEANUP
+  analysis type:  INIT -> RESEARCH -> FINALIZE -> CLEANUP
+```
+
+## Appendix: meta.json State Machine
+
+```
+init -> researched -> planned -> plan_checked -> checkpoint_passed -> branched
+  -> executing -> verified -> completed -> closed
+
+Special states:
+  cancelled   (user cancelled at checkpoint)
+  failed      (unrecoverable error)
+  paused      (user requested pause or R4 deviation)
+```

@@ -33,40 +33,44 @@ if ! command -v node &>/dev/null; then
 fi
 
 NODE_BIN=$(command -v node)
-echo "[1/6] Node.js: $NODE_BIN ($(node --version))"
+echo "[1/7] Node.js: $NODE_BIN ($(node --version))"
 
 # ─── Step 2: Install Forge skill ───
-echo "[2/6] Installing forge skill..."
+echo "[2/7] Installing forge skill..."
 mkdir -p "$SKILLS_DIR/forge"
 cp -r "$REPO_DIR/forge/"* "$SKILLS_DIR/forge/"
 echo "  → $SKILLS_DIR/forge/"
 
 # ─── Step 3: Install CreateWork skill ───
-echo "[3/6] Installing creatework skill..."
+echo "[3/7] Installing creatework skill..."
 mkdir -p "$SKILLS_DIR/creatework"
 cp -r "$REPO_DIR/creatework/"* "$SKILLS_DIR/creatework/"
 echo "  → $SKILLS_DIR/creatework/"
 
 # ─── Step 4: Build hook (TypeScript → JS) ───
 if [ ! -f "$HOOK_ENTRY" ]; then
-  echo "[4/6] Building hook TypeScript..."
+  echo "[4/7] Building hook TypeScript..."
   cd "$HOOKS_DIR"
   npm install --silent 2>/dev/null
   node ./node_modules/typescript/bin/tsc
   cd "$REPO_DIR"
 else
-  echo "[4/6] Hook build already exists — skipping"
+  echo "[4/7] Hook build already exists — skipping"
 fi
 
 # ─── Step 5: Deploy rules + state ───
-echo "[5/6] Deploying skill-rules.json + state directory..."
+echo "[5/7] Deploying skill-rules.json + state directory..."
 cp "$RULES_SRC" "$RULES_DST"
 mkdir -p "$STATE_DIR"
 echo "  → $RULES_DST"
 echo "  → $STATE_DIR"
 
-# ─── Step 6: Register hook in settings.json ───
-echo "[6/6] Registering hook in settings.json..."
+# ─── Step 6: Install forge workspace hooks ───
+echo "[6/7] Installing forge workspace hooks..."
+"$NODE_BIN" "$SKILLS_DIR/forge/hooks/install.js" 2>/dev/null || echo "  (skipped — forge hooks install failed, non-critical)"
+
+# ─── Step 7: Register activation hook in settings.json ───
+echo "[7/7] Registering activation hook in settings.json..."
 
 HOOK_CMD="$NODE_BIN $HOOK_ENTRY"
 
@@ -127,10 +131,14 @@ echo "║   Installation Complete                  ║"
 echo "╠══════════════════════════════════════════╣"
 echo "║                                          ║"
 echo "║  Skills installed:                       ║"
-echo "║    • forge       — /forge                ║"
+echo "║    • forge v2.1  — /forge                ║"
 echo "║    • creatework  — /creatework           ║"
 echo "║                                          ║"
-echo "║  Hook: auto-activation enabled           ║"
+echo "║  Hooks installed:                        ║"
+echo "║    • context-monitor (PostToolUse)       ║"
+echo "║    • statusline (Notification)           ║"
+echo "║    • session-init (UserPromptSubmit)     ║"
+echo "║    • skill-activation (UserPromptSubmit) ║"
 echo "║                                          ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""

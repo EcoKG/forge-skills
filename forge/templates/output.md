@@ -1,4 +1,4 @@
-# Forge Output Format Templates
+# Forge Output Format Templates (v2)
 
 Use these templates for user-facing progress output at each step.
 Read this file at Step 1 and use the formats throughout the session.
@@ -8,128 +8,219 @@ Read this file at Step 1 and use the formats throughout the session.
 ## Step 1: Init
 
 **Forge Start**
-- Issue: [issue description]
-- Type: [code/docs/analysis/...]
-- Scale: [small/medium/large]
-- Model: [auto/forced]
-- Exec: [subagent/team]
-- Artifact: `.claude/artifacts/{d}/{s}/`
+- Issue: {issue description}
+- Type: {code/code-bug/code-refactor/docs/analysis/analysis-security/infra/design}
+- Scale: {small/medium/large}
+- Paradigm: {oop/fp/script/ddd/mixed}
+- Language: {detected language}
+- Model: {quality/balanced/budget}
+- Exec: {subagent/team}
+- Artifact: `.forge/{date}/{slug}-{HHMM}/`
 
 ---
 
 ## Step 2: Research Complete
 
 **Research Done**
-- HIGH: [N]
-- MEDIUM: [N]
-- LOW: [N]
-- Saved: `.claude/artifacts/{d}/{s}/research.md`
+- HIGH: {N}
+- MEDIUM: {N}
+- LOW: {N}
+- Key: {1-line summary of most critical finding}
+- Saved: `.forge/{date}/{slug}-{HHMM}/research.md`
 
 ---
 
 ## Step 3: Plan Complete
 
 **Plan Done**
-- Phases: [N]
-- Tasks: [N]
-- Review: [role] — [verdict] ([S]/10)
-- Saved: `.claude/artifacts/{d}/{s}/plan.md`
+- Phases: {N}
+- Tasks: {N}
+- Waves: {N}
+- Truths: {N} must-haves defined
+- Saved: `.forge/{date}/{slug}-{HHMM}/plan.md`
 
 ---
 
-## Step 5: Git Branch
+## Step 4: Plan Check Result Format
+
+```
+━━━ Plan Verification (8D) ━━━━━━━
+D1 Requirements: {status}  D5 Scope:    {status}
+D2 Completeness: {status}  D6 Verify:   {status}
+D3 Dependencies: {status}  D7 DeepWork: {status}
+D4 Key Links:    {status}  D8 Tests:    {status}
+Overall: {PASS|NEEDS_REVISION|FAIL} ({N}✅ {N}⚠️ {N}❌)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+Status values: `✅` PASS, `⚠️` WARN, `❌` FAIL
+
+---
+
+## Step 5: Checkpoint
+
+**Checkpoint: [{slug}]**
+
+Plan summary:
+- {N} tasks across {N} waves
+- Key deliverables: {1-2 line summary}
+- Estimated complexity: {low/medium/high}
+
+Options:
+```
+[1] Execute — proceed with plan
+[2] Modify — edit plan and re-check
+[3] Cancel — abort
+```
+
+> small scale: auto-proceed (no user prompt)
+
+---
+
+## Step 6: Branch
 
 **Branch:** `feature/{slug}`
 
 ---
 
-## Step 6: Tasks Created
+## Step 7: Wave Progress Format
 
-**Tasks converted:** [N]
-- Phase 1: [N]
-- Phase 2: [N]
-- Phase 3: [N]
+```
+━━━ Wave {N}/{total} ━━━━━━━━━━━━━━━
+[{task_id}] ✅ {task_name}
+[{task_id}] ✅ {task_name} (1 minor revision)
+[{task_id}] ⏳ {task_name} (implementing...)
+[{task_id}] ⏳ {task_name} (in review...)
+[{task_id}] ❌ {task_name} (BLOCKED: R4)
+[{task_id}] ⬜ {task_name} (pending)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Progress: {completed}/{total} tasks | Wave {current}/{total_waves}
+```
 
----
-
-## Step 7: Agent Setup
-
-**code type:**
-- implementer — code impl ([model])
-- code-reviewer — code review ([model])
-- qa-inspector — QA verify ([model], on-demand)
-
-**docs type:**
-- implementer — doc writing ([model])
-- doc-reviewer — doc review ([model])
-
-**analysis type:**
-- analyst — analysis ([model])
+Status icons:
+- `✅` — task complete (PASS)
+- `⏳` — task in progress (implementing or reviewing)
+- `❌` — task failed or blocked
+- `⬜` — task pending (not yet started)
+- `🔄` — task in revision loop
 
 ---
 
-## Step 8: Task Progress
+## Step 7: Task Progress (per task)
 
 **Task complete:**
-- [N-M] [task title] — Phase [N]: [X]/[Y] ([P]%)
+- [{task_id}] {task_name} — Wave {N}: {X}/{Y} ({P}%)
 
 **Review result:**
-- PASS: [N-M]
-- NEEDS_REVISION (minor): [N-M] — [brief reason]
-- NEEDS_REVISION (major): [N-M] — [brief reason]
-- REJECT: [N-M] — [brief reason]
+- PASS: [{task_id}]
+- NEEDS_REVISION (minor): [{task_id}] — {brief reason}
+- NEEDS_REVISION (major): [{task_id}] — {brief reason}
+- REJECT: [{task_id}] — {brief reason}
 
 **Revision loop:**
-- [N-M] revision [K]/5 — [what's being fixed]
+- [{task_id}] revision {K}/{max} — {what is being fixed}
 
-**Phase boundary:**
-- Phase [N] complete — Tasks: [X]/[Y], QA: PASS
-- Phase [N] failed — Tasks: [X]/[Y], QA: GAPS_FOUND — [gap description]
+**Deviation detected:**
+- [{task_id}] [DEVIATION:{R1/R2/R3}] — {brief description}
+- [{task_id}] [DEVIATION:R4:BLOCKED] — {description} — awaiting user decision
+
+**Wave boundary:**
+- Wave {N} complete — Tasks: {X}/{Y}, QA: {PASS/GAPS_FOUND}
+- Wave {N} QA failed — {gap description}
+
+---
+
+## Step 8: Verification Result Format
+
+```
+━━━ Goal-Backward Verification ━━━━
+Level 1 (Exists):      {N}/{N} ✅
+Level 2 (Substantive): {N}/{N} ✅
+Level 3 (Wired):       {N}/{N} ✅
+Truths:                {N}/{N} ✅
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Verdict: {VERIFIED|GAPS_FOUND|FAILED} {icon}
+```
+
+Verdict icons: `✅` VERIFIED, `⚠️` GAPS_FOUND, `❌` FAILED
+
+If GAPS_FOUND:
+```
+Gaps found ({N}):
+  - {gap 1 description}
+  - {gap 2 description}
+Action: generating fix tasks...
+```
 
 ---
 
 ## Step 9: Final Report (Chat Summary)
 
 **Forge Complete: [{slug}]**
-- Issue: [issue description]
-- Type: [type] | Scale: [scale] | Exec: [exec]
+- Issue: {issue description}
+- Type: {type} | Scale: {scale} | Exec: {exec}
 
 Tasks:
-- Completed: [N]
-- Skipped: [N]
-- Escalated: [N]
-- Total: [N]
+- Completed: {N}
+- Skipped: {N}
+- Escalated: {N}
+- Total: {N}
 
-Phases:
-- Phase 1: [N]/[N] [title]
-- Phase 2: [N]/[N] [title]
+Waves: {N} total, {N} revisions
 
-Review:
-- Code Review: PASS [N] / REVISION [N] / REJECT [N]
-- QA Inspect: PASS [N] / REVISION [N] / REJECT [N]
+Verification: {VERIFIED|GAPS_FOUND|FAILED}
+- Exists: {N}/{N}
+- Substantive: {N}/{N}
+- Wired: {N}/{N}
+- Truths: {N}/{N}
 
-Changed files: [file paths — max 10, else "+ N more"]
+Changed files: {file paths — max 10, else "+ N more"}
 
-Models: Research [m] | Plan [m] | Impl [m] | Review [m] | QA [m]
+Deviations: {N} total ({N} R1, {N} R2, {N} R3, {N} R4)
 
-Artifact: `.claude/artifacts/{d}/{s}/`
+Artifact: `.forge/{date}/{slug}-{HHMM}/`
+
+---
+
+## Context Pressure Warning Format
+
+```
+⚠ Context Pressure: {MEDIUM|HIGH|CRITICAL}
+  Usage: ~{N}% of context window
+  Action: {what is being done to manage it}
+```
+
+Pressure levels:
+- **MEDIUM (30-50%):** Replacing old step details with summaries
+- **HIGH (50-70%):** Loading only current-step essential files
+- **CRITICAL (>70%):** Emergency reduction — only active task data retained
+
+> Only display when pressure reaches MEDIUM or above.
 
 ---
 
 ## Resume
 
 **Forge Resume: [{slug}]**
-- Last step: [step]
-- Phase: [N]
-- Progress: [X]/[Y] tasks done
+- Last step: {step name}
+- Wave: {current}/{total}
+- Progress: {X}/{Y} tasks done
+- Next: {what will happen next}
 
 ---
 
 ## Error / Status Messages
 
 - Missing issue: ask user for issue description
-- Error: [error description]
-- Agent respawn: [agent name] (timeout exceeded)
-- Escalation: [reason] — user confirmation needed
-- Timeout: [agent name] ([N]min)
-- Cancelled: artifact saved
+- Error: {error description}
+- Agent timeout: {agent name} — retrying with {action}
+- Escalation: {reason} — user confirmation needed
+- Cancelled: artifact saved to `.forge/{date}/{slug}-{HHMM}/`
+
+**Revision limit reached:**
+- Plan revision limit ({N}/3) — requesting manual edit
+- Code revision limit ({N}/5 minor, {N}/3 major) — escalating
+- QA retry limit ({N}/2) — escalating
+
+**Model upgrade:**
+- Upgrading {agent} from {model_a} to {model_b} — reason: {N} consecutive failures
