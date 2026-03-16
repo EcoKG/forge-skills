@@ -151,6 +151,41 @@ Report OK / N/A / Issue+Action for each:
 5. **Event timing:** Are events firing during initialization before values are loaded?
 6. **Build result:** Build success/failure + any warnings?
 
+## Self-Reflection (Post-Implementation)
+
+After completing implementation and self-check, perform self-reflection BEFORE writing the summary:
+
+### Process
+1. Re-read the `<acceptance_criteria>` for the current task
+2. Score each criterion (0.0 to 1.0):
+   - 1.0 = fully met, verified by grep/build/test
+   - 0.7 = likely met but not fully verified
+   - 0.5 = partially met
+   - 0.0 = not met
+3. If ANY criterion scores < 0.7:
+   - Attempt self-correction (max 2 attempts)
+   - Re-score after each attempt
+   - If still < 0.7 after 2 attempts: mark as [LOW_CONFIDENCE] in summary
+4. Record all scores in the task summary
+
+### Self-Reflection Output Format
+```
+## Self-Reflection
+| Criteria | Score | Verification |
+|---|---|---|
+| {criteria text} | {0.0-1.0} | {how verified: grep/build/test/manual} |
+
+Overall Confidence: {average score}
+Low Confidence Items: {list of < 0.7 items, or "none"}
+Self-Correction Attempts: {0-2}
+```
+
+### Rules
+- Self-reflection is MANDATORY — never skip it
+- Be honest in scoring — inflated scores defeat the purpose
+- [LOW_CONFIDENCE] items get extra scrutiny from code-reviewer
+- If overall confidence < 0.5: flag to PM before proceeding to review
+
 ## Output Contract (Atomic Output)
 
 Write `task-{N-M}-summary.md` to `{output_path}` with the following structure:

@@ -10,9 +10,9 @@ description: |
   DO NOT (overrides above): trivial single-line edits (typo, rename one variable, one import), code explanation only, simple commands (git log, npm install), new standalone files from scratch (no integration needed)
 ---
 
-# Forge v2
+# Forge v3
 
-> Context-Engineered Autonomous Development System.
+> Context-Engineered Autonomous Development System — v3.0
 > Single entry point. File-based agent communication. Goal-backward verification.
 > **If context feels incomplete, re-read this SKILL.md to restore the flow.**
 
@@ -74,6 +74,9 @@ implement, build, add feature, bug, crash, broken, fix this, refactor, clean up,
 | `--status`    | flag    | off  | Show project progress dashboard                               |
 | `--discuss`   | integer | -    | Capture decisions for phase N before planning                  |
 | `--quick`     | flag    | off  | Quick mode: plan(1 task) → execute → commit. Skips research/plan-check/verify. |
+| `--debug`    | flag    | off  | Debug mode: scientific method bug diagnosis (5-step pipeline) |
+| `--map`      | flag    | off  | Map codebase: parallel analysis → 7 persistent documents |
+| `--retrospective` | flag | off | Run retrospective analysis on current/last milestone |
 
 ---
 
@@ -182,6 +185,8 @@ All state is externalized to `.forge/` artifacts (meta.json, research.md, plan.m
 | **Autonomous** | `project-lifecycle.md` §3, `.forge/roadmap.md`, `.forge/state.md` | Everything else |
 | **Milestone** | `project-lifecycle.md` §4, phase `verification.md` files | Everything else |
 | **Status** | `.forge/project.json`, `.forge/roadmap.md`, `.forge/state.md` | Everything else |
+| **Debug** | `references/debug-pipeline.md`, `prompts/debugger.md` | Everything else |
+| **Map** | `references/codebase-mapping.md` | Everything else |
 
 **Key rule:** `references/execution-flow.md` is NEVER read in full. Read only the current step's section (from `## Step N:` to the next `---` delimiter).
 
@@ -208,7 +213,9 @@ All state is externalized to `.forge/` artifacts (meta.json, research.md, plan.m
 
 ## 8. Agent Architecture
 
-Eight specialized agents. PM dispatches each with file paths; agents read files directly and write output to disk.
+Twelve specialized agents plus two project-level agents. PM dispatches each with file paths; agents read files directly and write output to disk.
+
+(See Section 13.4 for project-level agents: roadmapper, integration-checker)
 
 | # | Agent | Role | Input (files) | Output (file) | Default Model |
 |---|---|---|---|---|---|
@@ -220,6 +227,8 @@ Eight specialized agents. PM dispatches each with file paths; agents read files 
 | 6 | **qa-inspector** | Build/test verification + anti-pattern scan | task-summaries, build/test results | `qa-report.md` | sonnet |
 | 7 | **verifier** | Goal-backward 3-level verification | `plan.md` (must_haves), codebase | `verification.md` | sonnet |
 | 8 | **doc-reviewer** | Documentation quality review | Document files | Review results | sonnet |
+| 11 | **debugger** | Scientific method bug diagnosis | Bug description, source files | `debug-report.md` | sonnet |
+| 12 | **test-auditor** | Nyquist test coverage analysis | plan.md, source files, test files | `validation.md` | sonnet |
 
 **Agent dispatch format:**
 ```xml
@@ -264,6 +273,22 @@ Eight specialized agents. PM dispatches each with file paths; agents read files 
 | 3 consecutive PASS results | Downgrade review model one tier (e.g., sonnet > haiku) |
 | analysis-security type detected | Force researcher to opus regardless of profile |
 
+### 9.3 Smart Routing (balanced profile)
+
+When `--model balanced` (default), Forge uses complexity-based model routing instead of the static matrix above.
+
+**Complexity score (0-10)** is calculated per agent dispatch based on: file count, dependency depth, domain novelty, security sensitivity, and prior failure rate.
+
+| Complexity | Model |
+|---|---|
+| 0-3 (Low) | haiku |
+| 4-6 (Medium) | sonnet |
+| 7-10 (High) | opus |
+
+Static matrix (Section 9.1) is used as fallback when `--model quality` or `--model budget` is specified.
+
+> Detailed rules: `references/model-routing.md` (load only when needed).
+
 ---
 
 ## 10. Artifact Structure
@@ -281,7 +306,14 @@ Eight specialized agents. PM dispatches each with file paths; agents read files 
       task-{N-M}-summary.md         # Per-task execution summary
       qa-report.md                  # QA inspection results
       verification.md               # Goal-backward verification results
+      validation.md               # Test coverage gap analysis (Nyquist)
+      trace.jsonl                 # Agent dispatch trace log
       report.md                     # Final report
+  memory/                           # Learning system (persistent)
+    patterns.json                   # Successful implementation patterns
+    failures.json                   # Failed approaches + alternatives
+    decisions.json                  # Architectural decisions + rationale
+  metrics.json                      # Execution metrics (aggregated)
 ```
 
 ### 10.2 meta.json Structure
@@ -415,6 +447,11 @@ Project flags: `--init`, `--phase`, `--autonomous`, `--milestone`, `--status`, `
       plan.md                     # Standard forge plan
       verification.md             # Standard forge verification
       report.md                   # Standard forge report
+  memory/                         # Project-level learning
+    patterns.json
+    failures.json
+    decisions.json
+  retrospective-{milestone}.md    # Post-milestone retrospective
   milestones/
     {name}-archive.md             # Completed milestone archive
     {name}-verification.md        # Milestone verification result
@@ -428,6 +465,7 @@ Project flags: `--init`, `--phase`, `--autonomous`, `--milestone`, `--status`, `
 |---|---|---|---|---|
 | 9 | **roadmapper** | Creates roadmap from project requirements | `/forge --init` | sonnet |
 | 10 | **integration-checker** | Cross-phase verification at milestone boundaries | `/forge --milestone` | sonnet |
+| 11 | **debugger** | Scientific method bug diagnosis | Bug description, source files | `debug-report.md` | sonnet |
 
 ### 13.5 Session Continuity
 
@@ -451,7 +489,7 @@ Step 1 does NOT require loading execution-flow.md. Execute entirely from this fi
 
 ### Procedure
 
-0. **Project flag routing.** Check for project flags (`--init`, `--phase`, `--autonomous`, `--milestone`, `--status`, `--discuss`). If any detected → load `references/project-lifecycle.md` (relevant section only) and follow its flow instead of continuing below. If no project flag → proceed with standard Step 1.
+0. **Project flag routing.** Check for project flags (`--init`, `--phase`, `--autonomous`, `--milestone`, `--status`, `--discuss`). If any detected → load `references/project-lifecycle.md` (relevant section only) and follow its flow instead of continuing below. Check for `--debug` → load `references/debug-pipeline.md` and follow its 5-step flow. Check for `--map` → load `references/codebase-mapping.md` and follow its flow. If no special flag → proceed with standard Step 1.
 1. **Parse request.** Extract what the user wants. If unclear, ask a clarifying question.
 2. **Detect type** using Section 3 heuristics. Apply `--type` override if provided.
 3. **Detect scale** using Section 4 criteria. Apply `--scale` override if provided.

@@ -184,6 +184,17 @@ Apply these detection patterns for BAD truths:
 
 `D7: {verdict} — read_first: {N}/{N} verified. Vague actions: [{task 1-3: "ensure proper error handling" → replace with specific error types and handlers}]. Non-executable criteria: [{task 1-5: "code is readable" → replace with lint command}].`
 
+**D7 Enhanced Validation:**
+- For every `<read_first>` path in the plan:
+  1. Glob check: does the file exist? If glob pattern, does it resolve to ≥1 file?
+  2. If file does NOT exist: **D7 FAIL** — mark specific task + missing path
+  3. Exception: files that will be CREATED by earlier tasks in the same plan are allowed
+- For every `<action>` block:
+  1. Scan for vague patterns: "implement", "add", "update" without specifics
+  2. Banned phrases: "as needed", "appropriately", "align with", "follow conventions" (without specifying which)
+  3. Each action MUST contain at least one of: function name, file path, concrete value, or specific algorithm
+  4. If vague: **D7 WARN** — suggest concrete replacement
+
 ### Step 10: Check D8 — Test Coverage
 
 **Question:** Does the plan include adequate test coverage?

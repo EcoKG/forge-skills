@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "project": "",
+  "executions": [],
+  "averages": {
+    "quality_score": 0,
+    "revision_rate": 0,
+    "tasks_per_execution": 0,
+    "tokens_per_task": 0
+  }
+}
