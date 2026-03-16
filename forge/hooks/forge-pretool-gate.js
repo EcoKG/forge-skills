@@ -1,99 +1,68 @@
+#!/usr/bin/env node
 /**
  * Forge PreToolUse Gate — Pre-edit checkpoint
  *
- * Checks if the current tool use (Edit, Write, Bash) is happening
- * on a code file WITHOUT forge skill having been invoked first.
+ * Checks if Edit/Write/Bash is happening on a code file
+ * without forge skill having been invoked first.
  *
- * This is the last line of defense: even if UserPromptSubmit hook
- * was ignored, this hook fires BEFORE every tool use.
- *
- * Trigger: PreToolUse
- * Matcher: Edit, Write, Bash
+ * stdin: JSON { tool_name, tool_input, session_id }
+ * stdout: text warning (or empty)
  */
 
 const fs = require("fs");
 const path = require("path");
 
-// Code file extensions that should trigger forge
 const CODE_EXTENSIONS = new Set([
   ".js", ".ts", ".jsx", ".tsx", ".py", ".go", ".rs", ".java",
   ".c", ".cpp", ".h", ".hpp", ".cs", ".rb", ".php", ".swift",
   ".kt", ".scala", ".ex", ".exs", ".vue", ".svelte",
 ]);
 
-// Files that are NOT code (forge artifacts, configs, etc.)
-const SKIP_PATTERNS = [
-  ".forge/",
-  "node_modules/",
-  "package-lock.json",
-  "yarn.lock",
-  ".git/",
-  "CLAUDE.md",
-];
+const SKIP_PATTERNS = [".forge/", "node_modules/", "package-lock.json", "yarn.lock", ".git/", "CLAUDE.md"];
 
 function isCodeFile(filePath) {
   if (!filePath) return false;
-
-  // Skip non-code paths
-  for (const pattern of SKIP_PATTERNS) {
-    if (filePath.includes(pattern)) return false;
-  }
-
-  const ext = path.extname(filePath).toLowerCase();
-  return CODE_EXTENSIONS.has(ext);
+  for (const p of SKIP_PATTERNS) { if (filePath.includes(p)) return false; }
+  return CODE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
 function forgeWasInvoked(sessionId) {
-  // Check if forge skill was invoked in this session
-  // The skill-activation hook writes a state file when forge is suggested
-  const stateFile = path.join("/tmp", `forge-invoked-${sessionId || "default"}.json`);
   try {
-    const data = JSON.parse(fs.readFileSync(stateFile, "utf8"));
-    return data.invoked === true;
-  } catch {
-    return false;
-  }
+    return JSON.parse(fs.readFileSync(path.join("/tmp", `forge-invoked-${sessionId || "default"}.json`), "utf8")).invoked === true;
+  } catch { return false; }
 }
 
-module.exports = async ({ tool_name, tool_input, session_id }) => {
-  // Only check Edit, Write, Bash
-  if (!["Edit", "Write", "Bash"].includes(tool_name)) {
-    return {};
-  }
+function main() {
+  try {
+    const raw = fs.readFileSync(0, "utf8").trim();
+    if (!raw) { process.exit(0); }
+    const input = JSON.parse(raw);
 
-  // For Bash, check if it's running a code-modifying command
-  if (tool_name === "Bash") {
-    const cmd = tool_input?.command || "";
-    // Only flag if bash is doing code generation (sed, awk on code files, etc.)
-    // Most bash commands are fine (git, npm, ls, etc.)
-    if (!cmd.includes("sed ") && !cmd.includes("awk ") && !cmd.includes("cat >") && !cmd.includes("echo >")) {
-      return {};
+    const toolName = input.tool_name;
+    if (!["Edit", "Write", "Bash"].includes(toolName)) { process.exit(0); }
+
+    if (toolName === "Bash") {
+      const cmd = input.tool_input?.command || "";
+      if (!cmd.includes("sed ") && !cmd.includes("awk ") && !cmd.includes("cat >") && !cmd.includes("echo >")) {
+        process.exit(0);
+      }
     }
-  }
 
-  // For Edit/Write, check the file path
-  const filePath = tool_input?.file_path || tool_input?.path || "";
-
-  if (tool_name === "Edit" || tool_name === "Write") {
-    if (!isCodeFile(filePath)) {
-      return {}; // Not a code file, allow
+    if (toolName === "Edit" || toolName === "Write") {
+      const filePath = input.tool_input?.file_path || "";
+      if (!isCodeFile(filePath)) { process.exit(0); }
     }
-  }
 
-  // If forge was already invoked this session, allow
-  if (forgeWasInvoked(session_id)) {
-    return {};
-  }
+    if (forgeWasInvoked(input.session_id)) { process.exit(0); }
 
-  // Code file being edited without forge — inject warning
-  return {
-    additionalContext: [
-      "⚠️ FORGE GATE: You are about to edit a code file without invoking the forge skill.",
-      "Per CLAUDE.md rules, code modifications that involve implementation, bug fixes,",
-      "refactoring, or multi-file changes MUST go through the forge pipeline.",
-      "",
-      "If this edit is part of a forge pipeline execution, ignore this warning.",
-      "If not, consider: should you invoke Skill('forge') first?",
-    ].join("\n"),
-  };
-};
+    process.stdout.write(
+      "⚠️ FORGE GATE: You are about to edit a code file without invoking the forge skill.\n" +
+      "Per CLAUDE.md rules, code modifications MUST go through the forge pipeline.\n" +
+      "If this edit is part of a forge execution, ignore this warning.\n" +
+      "If not, consider: should you invoke Skill('forge') first?"
+    );
+  } catch {}
+  process.exit(0);
+}
+
+main();

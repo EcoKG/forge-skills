@@ -1,131 +1,68 @@
+#!/usr/bin/env node
 /**
  * Forge Context Monitor — PostToolUse Hook
  *
- * Monitors context window usage and injects advisory warnings
- * when remaining context drops below thresholds.
+ * Monitors context window usage and injects advisory warnings.
+ * WARNING at 35% remaining, CRITICAL at 25% remaining.
  *
- * Install: Add to .claude/settings.json hooks section
- * Trigger: PostToolUse (runs after every tool call)
- *
- * Thresholds:
- *   - 35% remaining → WARNING (suggest summarizing)
- *   - 25% remaining → CRITICAL (suggest new session)
- *   - Debounce: 5 tool uses between warnings
+ * stdin: JSON { tool_name, tool_input, result, session_id }
+ * stdout: text to inject (or empty)
  */
 
 const fs = require("fs");
 const path = require("path");
 
-// Configuration
-const WARN_THRESHOLD = 0.35; // 35% remaining
-const CRITICAL_THRESHOLD = 0.25; // 25% remaining
-const DEBOUNCE_COUNT = 5; // min tool uses between warnings
-
-// State file for cross-invocation tracking
-const STATE_DIR = "/tmp";
+const WARN_THRESHOLD = 0.35;
+const CRITICAL_THRESHOLD = 0.25;
+const DEBOUNCE_COUNT = 5;
 
 function getStateFile(sessionId) {
-  return path.join(STATE_DIR, `forge-ctx-${sessionId || "default"}.json`);
+  return path.join("/tmp", `forge-ctx-${sessionId || "default"}.json`);
 }
 
 function readState(sessionId) {
-  try {
-    const data = fs.readFileSync(getStateFile(sessionId), "utf8");
-    return JSON.parse(data);
-  } catch {
-    return { toolUseCount: 0, lastWarnAt: 0, level: "ok" };
-  }
+  try { return JSON.parse(fs.readFileSync(getStateFile(sessionId), "utf8")); }
+  catch { return { toolUseCount: 0, lastWarnAt: 0, totalChars: 0 }; }
 }
 
 function writeState(sessionId, state) {
+  try { fs.writeFileSync(getStateFile(sessionId), JSON.stringify(state)); } catch {}
+}
+
+function main() {
   try {
-    fs.writeFileSync(getStateFile(sessionId), JSON.stringify(state));
-  } catch {
-    // Silently fail — monitoring is advisory only
-  }
-}
+    const raw = fs.readFileSync(0, "utf8").trim();
+    if (!raw) { process.exit(0); }
+    const input = JSON.parse(raw);
 
-function detectForgeProject(cwd) {
-  // Check if .forge/project.json or .forge/state.md exists
-  const projectJson = path.join(cwd, ".forge", "project.json");
-  const stateMd = path.join(cwd, ".forge", "state.md");
+    const state = readState(input.session_id);
+    state.toolUseCount++;
 
-  const hasProject = fs.existsSync(projectJson);
-  const hasState = fs.existsSync(stateMd);
-
-  return { hasProject, hasState };
-}
-
-function getProjectStatus(cwd) {
-  try {
-    const stateMd = fs.readFileSync(
-      path.join(cwd, ".forge", "state.md"),
-      "utf8"
-    );
-    const phaseMatch = stateMd.match(
-      /\*\*Phase:\*\*\s*(\d+)\s*of\s*(\d+)\s*\(([^)]+)\)/
-    );
-    const statusMatch = stateMd.match(/\*\*Phase Status:\*\*\s*(\w+)/);
-    const nextMatch = stateMd.match(/## Next Action\n(.+)/);
-
-    return {
-      phase: phaseMatch ? `${phaseMatch[1]}/${phaseMatch[2]}` : "?",
-      phaseName: phaseMatch ? phaseMatch[3] : "unknown",
-      status: statusMatch ? statusMatch[1] : "unknown",
-      next: nextMatch ? nextMatch[1].trim() : "",
-    };
-  } catch {
-    return null;
-  }
-}
-
-// Main hook handler
-module.exports = async ({ tool_name, tool_input, result, session_id, cwd }) => {
-  const state = readState(session_id);
-  state.toolUseCount++;
-
-  // Skip if debounce hasn't elapsed
-  if (state.toolUseCount - state.lastWarnAt < DEBOUNCE_COUNT) {
-    writeState(session_id, state);
-    return {};
-  }
-
-  // Estimate context usage from conversation length
-  // This is approximate — actual measurement would need API support
-  const resultLength = typeof result === "string" ? result.length : 0;
-  state.totalChars = (state.totalChars || 0) + resultLength;
-
-  // Rough estimate: 1M context ≈ 750k chars ≈ 4 chars per token
-  const estimatedTokens = state.totalChars / 4;
-  const maxTokens = 1000000; // 1M context for Opus
-  const remainingRatio = 1 - estimatedTokens / maxTokens;
-
-  let additionalContext = "";
-
-  if (remainingRatio <= CRITICAL_THRESHOLD) {
-    state.level = "critical";
-    state.lastWarnAt = state.toolUseCount;
-
-    const forgeInfo = detectForgeProject(cwd || ".");
-    let saveMsg = "";
-    if (forgeInfo.hasProject) {
-      saveMsg =
-        " Forge project state is persisted in .forge/state.md — safe to start a new session.";
+    if (state.toolUseCount - state.lastWarnAt < DEBOUNCE_COUNT) {
+      writeState(input.session_id, state);
+      process.exit(0);
     }
 
-    additionalContext = `⚠️ CONTEXT CRITICAL (est. ${Math.round(remainingRatio * 100)}% remaining). Consider starting a new session to prevent quality degradation.${saveMsg} Write any important findings to files before context is compressed.`;
-  } else if (remainingRatio <= WARN_THRESHOLD) {
-    state.level = "warning";
-    state.lastWarnAt = state.toolUseCount;
+    const resultLen = typeof input.result === "string" ? input.result.length : 0;
+    state.totalChars = (state.totalChars || 0) + resultLen;
 
-    additionalContext = `⚡ Context pressure MEDIUM (est. ${Math.round(remainingRatio * 100)}% remaining). Summarize completed work to files. Avoid loading large files into context.`;
-  }
+    const estimatedTokens = state.totalChars / 4;
+    const maxTokens = 1000000;
+    const remainingRatio = 1 - estimatedTokens / maxTokens;
 
-  writeState(session_id, state);
+    if (remainingRatio <= CRITICAL_THRESHOLD) {
+      state.lastWarnAt = state.toolUseCount;
+      writeState(input.session_id, state);
+      process.stdout.write(`⚠️ CONTEXT CRITICAL (est. ${Math.round(remainingRatio * 100)}% remaining). Start a new session to prevent quality degradation. State is persisted in .forge/state.md.`);
+    } else if (remainingRatio <= WARN_THRESHOLD) {
+      state.lastWarnAt = state.toolUseCount;
+      writeState(input.session_id, state);
+      process.stdout.write(`⚡ Context pressure MEDIUM (est. ${Math.round(remainingRatio * 100)}% remaining). Summarize completed work to files.`);
+    } else {
+      writeState(input.session_id, state);
+    }
+  } catch {}
+  process.exit(0);
+}
 
-  if (additionalContext) {
-    return { additionalContext };
-  }
-
-  return {};
-};
+main();
