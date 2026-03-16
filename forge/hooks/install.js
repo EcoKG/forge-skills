@@ -97,12 +97,14 @@ function install() {
     }
 
     // Use correct Claude Code hook format: {matcher, hooks: [...]}
+    // Quote paths to handle spaces in Windows/WSL paths
+    const nodeBin = process.execPath;
     settings.hooks[hook.event].push({
       matcher: hook.matcher || "",
       hooks: [
         {
           type: "command",
-          command: `node ${hook.script}`,
+          command: `"${nodeBin}" "${hook.script}"`,
           timeout: 5,
         },
       ],
