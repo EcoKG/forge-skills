@@ -12,7 +12,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const STATE_DIR = "/tmp";
+const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
+try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
 
 function getSessionFile(sessionId) {
   return path.join(STATE_DIR, `forge-session-${sessionId || "default"}.json`);

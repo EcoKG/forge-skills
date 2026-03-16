@@ -26,10 +26,29 @@ function isCodeFile(filePath) {
   return CODE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
+const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
+try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
+
 function forgeWasInvoked(sessionId) {
+  // Check 1: explicit flag file (set by forge execution flow)
+  const flagFile = path.join(STATE_DIR, `forge-invoked-${sessionId || "default"}.json`);
   try {
-    return JSON.parse(fs.readFileSync(path.join("/tmp", `forge-invoked-${sessionId || "default"}.json`), "utf8")).invoked === true;
-  } catch { return false; }
+    const data = JSON.parse(fs.readFileSync(flagFile, "utf8"));
+    if (data.invoked === true) return true;
+  } catch {}
+
+  // Check 2: recent .forge/ activity (within last 60 minutes)
+  const cwd = process.cwd();
+  const forgeDir = path.join(cwd, ".forge");
+  try {
+    const entries = fs.readdirSync(forgeDir);
+    for (const entry of entries) {
+      const stat = fs.statSync(path.join(forgeDir, entry));
+      if (Date.now() - stat.mtimeMs < 3600000) return true; // modified in last hour
+    }
+  } catch {}
+
+  return false;
 }
 
 function main() {

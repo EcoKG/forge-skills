@@ -73,6 +73,7 @@ implement, build, add feature, bug, crash, broken, fix this, refactor, clean up,
 | `--milestone` | integer | -    | Verify and archive milestone N (or current if omitted)        |
 | `--status`    | flag    | off  | Show project progress dashboard                               |
 | `--discuss`   | integer | -    | Capture decisions for phase N before planning                  |
+| `--quick`     | flag    | off  | Quick mode: plan(1 task) → execute → commit. Skips research/plan-check/verify. |
 
 ---
 
@@ -92,6 +93,13 @@ Eight subtypes with detection heuristics:
 | **design** | architecture, design, ADR, RFC, system design | research > design doc > review | researcher |
 
 **Subtype detection priority:** Check specific subtypes first (code-bug, code-refactor, analysis-security) before falling back to base types (code, analysis).
+
+**Quick mode (`--quick`):** Bypasses type classification. Runs a 3-step pipeline:
+1. Plan (single task, no research input)
+2. Execute (implement + self-check only, no code review)
+3. Commit (atomic commit, no verification)
+
+Use for small, well-understood changes within a known codebase. Not for new features or unfamiliar code.
 
 ---
 
@@ -470,18 +478,18 @@ Step 1 does NOT require loading execution-flow.md. Execute entirely from this fi
 
 ## Type-Based Step Requirements
 
-| Step | code | code-bug | code-refactor | docs | analysis | analysis-security | infra | design |
-|---|---|---|---|---|---|---|---|---|
-| 1. Init | Y | Y | Y | Y | Y | Y | Y | Y |
-| 2. Research | Y | Y (light) | Y | Y | Y | Y (opus) | Y | Y |
-| 3. Plan | Y | Y (1 phase) | Y (behavior-preserving) | skip | skip | skip | Y | skip |
-| 4. Plan-Check | Y | simplified (D1,D2,D5,D7) | Y | skip | skip | skip | Y | skip |
-| 5. Checkpoint | Y | auto | Y | skip | skip | skip | Y | skip |
-| 6. Branch | Y | Y | Y | optional | skip | skip | optional | optional |
-| 7. Execute | Y | Y | Y | Y | report only | report only | Y (dry-run first) | report only |
-| 8. Verify | Y | Y (light) | Y | skip | skip | skip | Y | skip |
-| 9. Finalize | Y | Y | Y | Y | Y | Y | Y | Y |
-| 10. Cleanup | Y | Y | Y | Y | Y | Y | Y | Y |
+| Step | code | code-bug | code-refactor | docs | analysis | analysis-security | infra | design | quick |
+|---|---|---|---|---|---|---|---|---|---|
+| 1. Init | Y | Y | Y | Y | Y | Y | Y | Y | Y |
+| 2. Research | Y | Y (light) | Y | Y | Y | Y (opus) | Y | Y | skip |
+| 3. Plan | Y | Y (1 phase) | Y (behavior-preserving) | skip | skip | skip | Y | skip | Y (1 task) |
+| 4. Plan-Check | Y | simplified (D1,D2,D5,D7) | Y | skip | skip | skip | Y | skip | skip |
+| 5. Checkpoint | Y | auto | Y | skip | skip | skip | Y | skip | skip |
+| 6. Branch | Y | Y | Y | optional | skip | skip | optional | optional | skip |
+| 7. Execute | Y | Y | Y | Y | report only | report only | Y (dry-run first) | report only | Y (no review) |
+| 8. Verify | Y | Y (light) | Y | skip | skip | skip | Y | skip | skip |
+| 9. Finalize | Y | Y | Y | Y | Y | Y | Y | Y | Y (minimal) |
+| 10. Cleanup | Y | Y | Y | Y | Y | Y | Y | Y | skip |
 
 ---
 

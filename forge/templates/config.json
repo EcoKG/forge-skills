@@ -1,0 +1,24 @@
+{
+  "mode": "interactive",
+  "granularity": "standard",
+  "model": "balanced",
+  "review": "normal",
+  "git_branching": "none",
+  "skip_tests": false,
+  "auto_discuss": true,
+  "workflow": {
+    "research": true,
+    "plan_check": true,
+    "verifier": true,
+    "quick_mode": false,
+    "nyquist_validation": false
+  },
+  "parallelization": {
+    "enabled": true,
+    "max_concurrent_agents": 3
+  },
+  "safety": {
+    "always_confirm_destructive": true,
+    "always_confirm_external_services": true
+  }
+}
