@@ -43,6 +43,13 @@ const FORGE_HOOKS = [
     script: path.join(HOOKS_DIR, "forge-session-init.js"),
     description: "Forge: detects existing project on session start",
   },
+  {
+    event: "PreToolUse",
+    id: "forge-pretool-gate",
+    script: path.join(HOOKS_DIR, "forge-pretool-gate.js"),
+    matcher: "Edit|Write|Bash",
+    description: "Forge: checks if forge should be invoked before code edits",
+  },
 ];
 
 function readSettings() {
@@ -76,11 +83,11 @@ function install() {
       settings.hooks[hook.event] = [];
     }
 
-    // Check if already installed
+    // Check if already installed (search in nested hooks format)
     const existing = settings.hooks[hook.event].find(
-      (h) =>
-        h.command &&
-        h.command.includes(hook.id)
+      (entry) =>
+        entry.hooks?.some((h) => h.command?.includes(hook.id)) ||
+        (entry.command && entry.command.includes(hook.id))
     );
 
     if (existing) {
@@ -89,9 +96,16 @@ function install() {
       continue;
     }
 
+    // Use correct Claude Code hook format: {matcher, hooks: [...]}
     settings.hooks[hook.event].push({
-      command: `node "${hook.script}"`,
-      description: hook.description,
+      matcher: hook.matcher || "",
+      hooks: [
+        {
+          type: "command",
+          command: `node ${hook.script}`,
+          timeout: 5,
+        },
+      ],
     });
 
     console.log(`  ✅ ${hook.id} — installed (${hook.event})`);
@@ -122,7 +136,9 @@ function uninstall() {
     if (settings.hooks[hook.event]) {
       const before = settings.hooks[hook.event].length;
       settings.hooks[hook.event] = settings.hooks[hook.event].filter(
-        (h) => !h.command || !h.command.includes(hook.id)
+        (entry) =>
+          !(entry.hooks?.some((h) => h.command?.includes(hook.id))) &&
+          !(entry.command && entry.command.includes(hook.id))
       );
       const after = settings.hooks[hook.event].length;
 
