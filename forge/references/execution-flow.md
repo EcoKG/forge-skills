@@ -15,7 +15,7 @@
 - SKILL.md Section 13 (Project Layer) — already loaded from skill entry
 
 ### Prerequisites
-- PM detected a project flag: `--init`, `--phase N`, `--autonomous`, `--milestone [N]`, `--status`, `--discuss N`
+- PM detected a project flag: `--init`, `--phase N`, `--autonomous`, `--milestone [N]`, `--status`, `--discuss N`, `--debug`, `--map`, `--quick`, `--retrospective`
 
 ### Actions
 
@@ -28,6 +28,10 @@
    | `--milestone [N]` | Milestone verification | `project-lifecycle.md` §4 (MILESTONE) |
    | `--status` | Status dashboard | `project-lifecycle.md` §5 (STATUS) |
    | `--discuss N` | Phase context capture | `project-lifecycle.md` §2 (PHASE_EXEC, context substep) |
+   | `--debug` | Debug pipeline | `debug-pipeline.md` (DEBUG_PIPELINE) |
+   | `--map` | Codebase mapping | `codebase-mapping.md` (CODEBASE_MAP) |
+   | `--quick` | Quick 3-step pipeline | Skip to Step 3 (single task plan) |
+   | `--retrospective` | Milestone retrospective | `learning-system.md` (RETROSPECTIVE) |
 
 2. **Load the relevant section** from `references/project-lifecycle.md`
    - Use section markers (e.g., `PROJECT_INIT_START` to `PROJECT_INIT_END`)
@@ -134,6 +138,10 @@ If NOT in project mode: skip this step entirely.
      - `design` -> skip Plan-Check (Step 4), Execute (Step 7), Verify (Step 8)
    - Record skip list in meta.json `options.skip_steps`.
 
+7. **Mark forge as invoked** (for pretool gate):
+   - Run: `node forge-tools.js mark-invoked {session_id}`
+   - This writes a flag file so the PreToolUse gate knows forge is active.
+
 ### File-Based Communication
 ```
 No agent dispatch in this step.
@@ -179,6 +187,12 @@ Proceed to **Step 2: RESEARCH** (unless `--direct`, `--no-research`, or `--from`
 - Skip conditions NOT met: no `--direct`, `--no-research`, `--from` flags.
 
 ### Actions
+0. **Check codebase cache**
+   - If `.forge/codebase/` exists and is < 30 days old:
+     - Pass `.forge/codebase/STACK.md`, `.forge/codebase/CONVENTIONS.md` paths to researcher agents
+     - This reduces duplicate exploration significantly
+   - If not: researchers explore from scratch (existing behavior)
+
 1. **Check for reusable research**
    - If `--from <path>` points to an existing research.md: copy it to the artifact directory, skip to Step 3.
    - If a research.md exists in `.forge/` for the same module within the last 30 days: offer to reuse it.
@@ -280,8 +294,14 @@ Proceed to **Step 3: PLAN**.
 - Skip conditions NOT met: no `--direct`, no `--from plan.md`.
 
 ### Actions
+0. **Model selection for planner**
+   - If scale is medium or large: use opus (not sonnet)
+   - If `--model quality`: use opus
+   - If `--model budget`: use sonnet
+   - Otherwise: apply Smart Routing (`references/model-routing.md`) — calculate complexity score
+
 1. **Dispatch planner agent (sonnet or opus)**
-   - Model selection: sonnet (default), opus (if `--model quality` or `--cost high`).
+   - Model selection determined by action 0 above.
    ```xml
    <agent_dispatch>
      <role>planner</role>
@@ -298,12 +318,27 @@ Proceed to **Step 3: PLAN**.
    </agent_dispatch>
    ```
 
+1b. **Check memory for relevant patterns**
+   - If `.forge/memory/patterns.json` exists:
+     - Read patterns matching the current domain/tags
+     - Pass relevant pattern entries to planner as additional context
+   - If `.forge/memory/failures.json` exists:
+     - Read failures matching the current domain
+     - Pass as "avoid these approaches" context to planner
+
 2. **Verify plan structure** (PM reads plan.md summary, not full content)
    - Confirm YAML frontmatter contains `must_haves` (truths, artifacts, key_links).
    - Confirm all tasks have the Deep Work structure: `<read_first>`, `<action>`, `<acceptance_criteria>`.
    - Confirm wave numbers are assigned.
    - Confirm `[REF:Hx,Mx]` tags are present linking back to research findings.
    - If any structural issue: send feedback to planner for immediate correction (not counted as plan revision).
+
+2b. **Questioning methodology**
+   - If the request has ambiguous aspects AND `--discuss` was used (or `auto_discuss` config is true):
+     - Load `references/questioning.md`
+     - Apply dream extraction principles to clarify requirements
+     - Write `context.md` with locked decisions before planning
+   - If neither `--discuss` nor `auto_discuss`: skip (existing behavior)
 
 3. **Update meta.json**
    - Set `state: "planned"`, `current_step: 3`.
@@ -391,6 +426,24 @@ Proceed to **Step 4: PLAN-CHECK** (unless `--direct` is set, in which case skip 
 5. **Update meta.json**
    - Set `state: "plan_checked"`, `current_step: 4`.
    - Record `revisions.plan` count.
+
+5b. **Test coverage audit (if not `--skip-tests`)**
+   - Dispatch test-auditor agent:
+     ```xml
+     <agent_dispatch>
+       <role>test-auditor</role>
+       <task_id>test-audit</task_id>
+       <files_to_read>
+         .forge/{date}/{slug}/plan.md
+         {relevant source file paths from plan}
+         {existing test file paths}
+       </files_to_read>
+       <output_path>.forge/{date}/{slug}/validation.md</output_path>
+     </agent_dispatch>
+     ```
+   - If **CRITICAL_GAPS** found: add test tasks to plan (revision loop)
+   - If **IMPORTANT_GAPS** found: add as warnings in plan.md
+   - If **PASS**: proceed
 
 ### File-Based Communication
 ```
@@ -608,6 +661,26 @@ for wave_number in 1..total_waves:
 - Auto-fix limit per task: 3 attempts. If exceeded, document and move on.
 - Scope boundary: only fix issues directly caused by the current task.
 
+**Phase B2: Self-Reflection Verification (after implementer returns, before code-review)**
+- PM reads implementer's `task-{N-M}-summary.md` Self-Reflection section.
+- If any `acceptance_criteria` scores < 0.7 AND marked `[LOW_CONFIDENCE]`:
+  - Flag to code-reviewer with extra scrutiny instruction
+- If overall confidence < 0.5:
+  - Do NOT send to code-reviewer yet
+  - Ask user: "Implementer reports low confidence on task {id}. Review partial work or retry?"
+
+**Phase B3: Smart Model Routing (before each agent dispatch)**
+- If `--model balanced` (default):
+  1. Calculate complexity score per `references/model-routing.md`:
+     - `files_count` from task `<files>` tag
+     - `depends_on` count
+     - `domain_novelty`: check `.forge/memory/patterns.json` for matching patterns (no match = novel)
+     - `security_sensitive`: auth/crypto/payment keywords in task name or files
+  2. Apply per-agent adjustment (planner +1, researcher -2, debugger +2, etc.)
+  3. Select model: 0-3=haiku, 4-6=sonnet, 7-10=opus
+- If `--model quality`: always opus
+- If `--model budget`: always haiku
+
 **Phase C: Code Review**
 ```xml
 <agent_dispatch>
@@ -651,6 +724,14 @@ if REJECT:
     if exceeded: mark task as blocked, escalate to user
     user chooses: redesign task / skip task / manual intervention
 ```
+
+**Phase E: Trace Recording (after each agent returns)**
+- Append to `trace.jsonl` after every agent dispatch completes:
+  ```
+  echo '{"timestamp":"{ISO}","execution_id":"{slug}","step":7,"wave":{N},"agent":"{role}","task_id":"{N-M}","model":"{model}","input_files":[...],"output_file":"{path}","verdict":"{PASS|NEEDS_REVISION|REJECT}","revision":{cycle},"duration_ms":{ms},"error":null}' >> .forge/{date}/{slug}/trace.jsonl
+  ```
+- Trace covers all agents: implementer, code-reviewer, qa-inspector, verifier, etc.
+- Used by `forge-tools.js metrics-summary` for cost analysis and adaptive routing.
 
 #### 7.3 Wave Boundary QA Gate
 After all tasks in a wave are complete (or blocked):
@@ -833,6 +914,7 @@ Proceed to **Step 9: FINALIZE**.
 ### Load
 - `references/execution-flow.md` (this section only)
 - `templates/report.md` (report template)
+- `references/learning-system.md` (LEARNING and MEMORY sections — for metrics + memory writes)
 
 ### Prerequisites
 - meta.json `state` is `"verified"` (or `"executing"` if verification was skipped for docs/analysis/design types).
@@ -872,6 +954,45 @@ Proceed to **Step 9: FINALIZE**.
    - Set `state: "completed"`, `current_step: 9`.
    - Record final statistics.
 
+6. **Record execution metrics**
+   - Calculate `quality_score`:
+     ```
+     quality_score = 1.0
+       - (minor_revisions * 0.02)
+       - (major_revisions * 0.10)
+       - (deviations_R1 * 0.01)
+       - (deviations_R2 * 0.02)
+       - (deviations_R3 * 0.03)
+       - (deviations_R4 * 0.15)
+       + (verification == "VERIFIED" ? 0.05 : 0)
+       clamp to [0.0, 1.0]
+     ```
+   - Run: `node forge-tools.js metrics-record '{"id":"{slug}","date":"{date}","type":"{type}","scale":"{scale}","tasks":{N},"revisions":{"minor":{N},"major":{N}},"deviations":{"R1":{N},"R2":{N},"R3":{N},"R4":{N}},"verification":"{verdict}","quality_score":{score}}'`
+
+7. **Update memory (learning system)**
+   - a. If verification == `"VERIFIED"` AND `quality_score > 0.8`:
+     - Extract successful patterns from plan.md (approach, architecture choices)
+     - Append to `.forge/memory/patterns.json` via `forge-tools.js` or direct write
+   - b. If any deviation R4 occurred:
+     - Record the blocked approach and why it failed
+     - Append to `.forge/memory/failures.json`
+   - c. If architectural decisions were made during execution:
+     - Extract from `context.md` or plan.md frontmatter
+     - Append to `.forge/memory/decisions.json`
+   - d. Initialize memory files if they don't exist:
+     ```bash
+     mkdir -p .forge/memory
+     # If patterns.json missing: write {"patterns":[]}
+     # If failures.json missing: write {"failures":[]}
+     # If decisions.json missing: write {"decisions":[]}
+     ```
+
+8. **Retrospective trigger (project mode only)**
+   - If this execution completed the last phase in a milestone:
+     - Display: "Milestone complete. Run `/forge --retrospective` for analysis."
+     - If in autonomous mode: auto-trigger retrospective (load `references/learning-system.md` §3 RETROSPECTIVE)
+   - If not the last phase: skip
+
 ### File-Based Communication
 ```
 PM reads task-summary and QA report file paths from meta.json.
@@ -886,6 +1007,11 @@ For large scale: dispatch a sonnet agent to compile the report:
 
 ### Output
 - `.forge/{date}/{slug}/report.md` (final comprehensive report)
+- `.forge/{date}/{slug}/trace.jsonl` (execution trace from Step 7)
+- `.forge/metrics.json` (updated with execution metrics)
+- `.forge/memory/patterns.json` (updated if quality > 0.8)
+- `.forge/memory/failures.json` (updated if R4 deviations occurred)
+- `.forge/memory/decisions.json` (updated if architectural decisions made)
 - Updated `plan.md` (tasks marked as done)
 - Updated `project-profile.json` (if changes detected)
 
@@ -1019,8 +1145,14 @@ Skip paths:
   --direct:       INIT -> BRANCH -> EXECUTE -> VERIFY -> FINALIZE -> CLEANUP
   --no-research:  INIT -> PLAN -> PLAN-CHECK -> CHECKPOINT -> BRANCH -> ...
   --from plan.md: INIT -> CHECKPOINT -> BRANCH -> EXECUTE -> ...
+  --quick:        INIT -> PLAN (single task) -> BRANCH -> EXECUTE -> FINALIZE -> CLEANUP
   docs type:      INIT -> RESEARCH -> PLAN -> CHECKPOINT -> BRANCH -> EXECUTE -> FINALIZE -> CLEANUP
   analysis type:  INIT -> RESEARCH -> FINALIZE -> CLEANUP
+
+Standalone pipelines (Step 0 routes, no standard pipeline):
+  --debug:          Step 0 -> debug-pipeline.md (DEBUG_PIPELINE)
+  --map:            Step 0 -> codebase-mapping.md (CODEBASE_MAP)
+  --retrospective:  Step 0 -> learning-system.md (RETROSPECTIVE)
 ```
 
 ## Appendix: meta.json State Machine

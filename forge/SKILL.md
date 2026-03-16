@@ -172,13 +172,13 @@ All state is externalized to `.forge/` artifacts (meta.json, research.md, plan.m
 |---|---|---|
 | **1. INIT** | This `SKILL.md` (sections 1-4 for classification). `.forge/project-profile.json` (if cached, < 30 days old). | `execution-flow.md`. Any prompts, checklists, or templates. |
 | **2. RESEARCH** | `execution-flow.md` section 2 only. `resources/type-guides.md` (relevant type only). | Other execution-flow sections. Prompts, checklists. |
-| **3. PLAN** | `execution-flow.md` section 3 only. `research.md` (Summary section only, <= 20 lines). `templates/plan.md`. | Full research.md. Other execution-flow sections. |
-| **4. PLAN-CHECK** | `execution-flow.md` section 4 only. `plan.md` (summary/frontmatter only). | research.md. Full plan.md body. Previous step details. |
+| **3. PLAN** | `execution-flow.md` section 3 only. `research.md` (Summary section only, <= 20 lines). `templates/plan.md`. `references/questioning.md` (if ambiguous). `.forge/memory/patterns.json` (if exists). | Full research.md. Other execution-flow sections. |
+| **4. PLAN-CHECK** | `execution-flow.md` section 4 only. `plan.md` (summary/frontmatter only). Dispatch `test-auditor` after plan-check passes. | research.md. Full plan.md body. Previous step details. |
 | **5. CHECKPOINT** | `execution-flow.md` section 5 only. `plan.md` (overview + task count). | Everything else. |
 | **6. BRANCH** | `execution-flow.md` section 6 only. | Everything else. |
-| **7. EXECUTE** | `execution-flow.md` section 7 only. `plan.md` task checklist (task IDs + status). Agent prompt paths. Checklist paths. | Completed task details. research.md. Plan rationale. |
+| **7. EXECUTE** | `execution-flow.md` section 7 only. `plan.md` task checklist (task IDs + status). Agent prompt paths. Checklist paths. `references/model-routing.md` (for complexity calc). Record trace.jsonl after each dispatch. | Completed task details. research.md. Plan rationale. |
 | **8. VERIFY** | `execution-flow.md` section 8 only. `plan.md` must_haves section only. | All previous step details. |
-| **9. FINALIZE** | `execution-flow.md` section 9 only. `verification.md` (verdict only). | All previous step details. |
+| **9. FINALIZE** | `execution-flow.md` section 9 only. `verification.md` (verdict only). `references/learning-system.md` (memory write rules). `.forge/memory/` write. `forge-tools.js metrics-record`. | All previous step details. |
 | **10. CLEANUP** | Nothing (internal bookkeeping only). | Everything. |
 | **Project Init** | `project-lifecycle.md` §1, `templates/project.json`, `templates/roadmap.md`, `templates/state.md` | All other references |
 | **Phase Exec** | `project-lifecycle.md` §2, `.forge/roadmap.md`, `.forge/state.md` | Other lifecycle sections |
@@ -187,6 +187,8 @@ All state is externalized to `.forge/` artifacts (meta.json, research.md, plan.m
 | **Status** | `.forge/project.json`, `.forge/roadmap.md`, `.forge/state.md` | Everything else |
 | **Debug** | `references/debug-pipeline.md`, `prompts/debugger.md` | Everything else |
 | **Map** | `references/codebase-mapping.md` | Everything else |
+| **Retrospective** | `references/learning-system.md` §3, milestone report.md files, metrics.json | Everything else |
+| **Quick** | `execution-flow.md` Step 3 only (single task). Skip Steps 2,4,5,6,8. | Everything else |
 
 **Key rule:** `references/execution-flow.md` is NEVER read in full. Read only the current step's section (from `## Step N:` to the next `---` delimiter).
 
@@ -480,6 +482,68 @@ On session start, if `.forge/state.md` exists:
 - Context pressure check after each phase (graceful exit if HIGH/CRITICAL)
 - User input during autonomous → pause after current task, respond
 - State persisted after every phase → safe to interrupt anytime
+
+---
+
+## 14. Wiring Verification (Self-Check)
+
+> Every feature MUST be connected to the execution pipeline. A reference document or agent prompt that is never loaded by execution-flow.md is dead code.
+
+### 14.1 Verification Matrix
+
+Every reference, prompt, and template file must answer these 3 questions:
+
+| Question | If NO → Dead Code |
+|---|---|
+| **When does PM load this file?** | Must be listed in Loading Map (Section 6) |
+| **Which Step triggers this?** | Must be referenced in execution-flow.md |
+| **What is the output?** | Must produce a file listed in Artifact Structure (Section 10) |
+
+### 14.2 Current Wiring Status
+
+| File | Loaded By | Step | Output |
+|---|---|---|---|
+| `references/execution-flow.md` | Loading Map per-step | Steps 1-10 | — (instructions) |
+| `references/context-engineering.md` | On-demand | Any step | — (rules) |
+| `references/project-lifecycle.md` | Step 0 (flag routing) | Project commands | project.json, roadmap.md, state.md |
+| `references/wave-execution.md` | Step 7 | Execute | — (parallel rules) |
+| `references/deviation-rules.md` | Step 7 | Execute | deviation log in summary |
+| `references/debug-pipeline.md` | Step 0 (`--debug`) | Debug pipeline | debug-report.md |
+| `references/codebase-mapping.md` | Step 0 (`--map`) | Map pipeline | .forge/codebase/*.md |
+| `references/questioning.md` | Step 3 (ambiguous requests) | Plan | context.md |
+| `references/learning-system.md` | Step 9 (FINALIZE) | Finalize | memory/*.json, metrics.json |
+| `references/model-routing.md` | Step 7 (before dispatch) | Execute | — (model selection) |
+| `prompts/researcher.md` | Step 2 | Research | research.md |
+| `prompts/planner.md` | Step 3 | Plan | plan.md |
+| `prompts/plan-checker.md` | Step 4 | Plan-Check | plan.md (annotated) |
+| `prompts/implementer.md` | Step 7 | Execute | task-summary.md |
+| `prompts/code-reviewer.md` | Step 7 | Execute | task-summary.md (review) |
+| `prompts/qa-inspector.md` | Step 7 | Execute | qa-report.md |
+| `prompts/verifier.md` | Step 8 | Verify | verification.md |
+| `prompts/doc-reviewer.md` | Step 7 (docs type) | Execute | review results |
+| `prompts/debugger.md` | Step 0 (`--debug`) | Debug | debug-report.md |
+| `prompts/test-auditor.md` | Step 4 (after plan-check) | Plan-Check | validation.md |
+| `prompts/roadmapper.md` | Step 0 (`--init`) | Project Init | roadmap.md |
+| `prompts/integration-checker.md` | Step 0 (`--milestone`) | Milestone | milestone-verification.md |
+| `templates/plan.md` | Step 3 | Plan | plan.md |
+| `templates/research.md` | Step 2 | Research | research.md |
+| `templates/verification.md` | Step 8 | Verify | verification.md |
+| `templates/summary.md` | Step 7 | Execute | task-summary.md |
+| `templates/report.md` | Step 9 | Finalize | report.md |
+| `templates/output.md` | All steps | All | user display |
+| `templates/config.json` | Step 0 (`--init`) or config-init | Project Init | .forge/config.json |
+| `templates/metrics.json` | Step 9 | Finalize | .forge/metrics.json |
+| `templates/retrospective.md` | `--retrospective` | Retrospective | retrospective-{ms}.md |
+
+### 14.3 Rule for New Features
+
+When adding a new reference, prompt, or template:
+1. Add the file to the Wiring Verification table above
+2. Add a Loading Map entry in Section 6
+3. Add the trigger point in execution-flow.md (specific Step)
+4. Add the output to Artifact Structure (Section 10)
+
+**If any of these 4 steps is missing, the feature is incomplete.**
 
 ---
 
