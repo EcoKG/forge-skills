@@ -20,5 +20,23 @@
   "safety": {
     "always_confirm_destructive": true,
     "always_confirm_external_services": true
+  },
+  "atomic_commits": {
+    "enabled": true,
+    "message_format": "{type}({slug}/{task_id}): {task_name}"
+  },
+  "crash_recovery": {
+    "enabled": true,
+    "lock_file": "execution-lock.json"
+  },
+  "stuck_detection": {
+    "read_threshold_warn": 5,
+    "read_threshold_force": 7,
+    "same_file_threshold": 3,
+    "error_repeat_threshold": 3
+  },
+  "token_tracking": {
+    "enabled": true,
+    "trace_dispatches": true
   }
 }

@@ -168,6 +168,24 @@ Artifact: .forge/{date}/{slug}-{HHMM}/
 - If artifact directory already exists (slug collision): append `-2`, `-3`, etc.
 - If user request is empty: prompt user for a request description.
 
+### 1.8 Crash Recovery Check
+
+**If `--resume` flag is provided:**
+1. Scan `.forge/` date directories for `execution-lock.json` files using `forge-tools.js check-lock`
+2. If lock found: read `meta.json` from that artifact directory
+3. Display to user:
+   ```
+   Found interrupted execution: {slug} at step {current_step}, task {completed}/{total}.
+   Resume? [Y/n]
+   ```
+4. If user confirms: set artifact_dir to the interrupted execution's directory, restore meta.json state, skip to the interrupted step
+5. If no lock found: warn "No interrupted execution found. Starting fresh." and proceed normally
+
+**On normal init (no --resume):**
+1. After creating artifact directory and meta.json, run `forge-tools.js create-lock {artifact_dir}`
+2. This creates `execution-lock.json` — removed at Step 10 on clean completion
+3. If the process crashes, the lock file remains for detection by `forge-session-init.js`
+
 ### Next
 Proceed to **Step 2: RESEARCH** (unless `--direct`, `--no-research`, or `--from` is set, in which case skip to Step 3 or Step 6).
 <!-- STEP_1_END -->
@@ -791,6 +809,72 @@ If any implementer reports `[DEVIATION:R4:BLOCKED]`:
 | Deviation auto-fixes per task | 3 | Document and proceed to next task |
 | Deviation auto-fixes per execution | 10 | Warn user, continue with documentation |
 
+### 7.8 Resume Protocol
+
+**Applies when meta.json `tasks.completed_tasks[]` is non-empty (resumed execution).**
+
+1. Read `completed_tasks` array from meta.json
+2. For each completed task ID: mark as `<done>true</done>` in the task tracking
+3. When building wave assignments: skip all completed tasks
+4. Identify the first incomplete task and its wave number
+5. Start execution from that wave (all earlier waves are already done)
+6. Display:
+   ```
+   Resuming execution from task {first_incomplete_id} (wave {wave_N}).
+   {completed_count}/{total_count} tasks already completed.
+   Commits from previous run: {git.commits from meta.json}
+   ```
+7. Resume the wave loop from the identified wave
+
+**Resume safety rules:**
+- If a completed task's files have been modified since the last commit: warn the user
+- If plan.md has been modified since the lock was created: ask user to confirm
+- Re-run QA gate on the last completed wave before continuing (quick check only)
+
+---
+
+### 7.9 Per-Task Atomic Commit
+
+**After each task passes code review (or self-check in quick/no-review mode):**
+
+1. **Stage files:** Run `git add` on only the files listed in the task's `<files>` section
+2. **Commit** with the format:
+   - `feat({slug}/{task_id}): {task_name}` — for type: code
+   - `fix({slug}/{task_id}): {task_name}` — for type: code-bug
+   - `refactor({slug}/{task_id}): {task_name}` — for type: code-refactor
+   - `docs({slug}/{task_id}): {task_name}` — for type: docs
+   - `chore({slug}/{task_id}): {task_name}` — for type: infra
+3. **Record** commit hash in meta.json `git.commits[]`
+4. **Track** task ID in meta.json `tasks.completed_tasks[]`
+5. **Handle failures:**
+   - If `git add` finds nothing to stage: log "No file changes for task {id}" in trace.jsonl, skip commit
+   - If commit fails: log warning, do NOT block execution — wave-level commit at boundary will catch it
+
+**Atomic commit benefits:**
+- `git bisect` identifies exactly which task introduced a regression
+- Individual tasks revertable: `git revert {commit_hash}`
+- meta.json `completed_tasks[]` enables resume from any point
+- Commit history documents implementation sequence
+
+**Disabling:** Set `config.json: atomic_commits.enabled: false` to skip per-task commits. Falls back to wave-level commit at boundary.
+
+---
+
+### 7.10 Dispatch Tracing
+
+**After each agent dispatch (implementer, code-reviewer, qa-inspector), append to trace.jsonl:**
+
+```json
+{"agent":"{role}","task_id":"{id}","model":"{model}","timestamp":"{ISO}","result":"{PASS|REVISION|BLOCKED|STUCK}","wave":{N}}
+```
+
+**Tracing rules:**
+- One line per dispatch (JSONL format, not JSON array)
+- Include revision dispatches (same task_id, incremented attempt)
+- Record STUCK events as result type
+- At Step 9 (FINALIZE): aggregate trace.jsonl for the Token/Cost section in report.md
+- trace.jsonl is append-only — never truncate during execution
+
 ### File-Based Communication
 ```
 Per task cycle:
@@ -1052,6 +1136,13 @@ Proceed to **Step 10: CLEANUP**.
 - meta.json `state` is `"completed"` and `current_step` is 9.
 
 ### Actions
+
+### 10.1 Lock Cleanup
+
+1. Run `forge-tools.js remove-lock {artifact_dir}` to delete execution-lock.json
+2. If removal fails: log warning "Lock cleanup failed: {error}" — do NOT fail the cleanup step
+3. Lock removal signals clean completion — future sessions will not detect a crashed execution
+
 1. **Clean up intermediate files**
    - Remove exploration-phase intermediate files: `research-arch.md`, `research-stack.md`, `research-patterns.md`, `research-risks.md`.
    - Keep all final artifacts: `meta.json`, `research.md`, `plan.md`, `task-*-summary.md`, `qa-report-*.md`, `verification.md`, `report.md`.

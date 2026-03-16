@@ -19,6 +19,12 @@
 ## Next Action
 {exactly 1 line: what should happen next}
 
+## Execution Recovery
+- **Last Execution:** (none)
+- **Last Completed Task:** (none)
+- **Lock Status:** none
+- **Resumable:** no
+
 ## Session History
 - {YYYY-MM-DD HH:MM}: {event description}
 

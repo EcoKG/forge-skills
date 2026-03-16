@@ -131,10 +131,30 @@ QA inspector checks:
 3. **Caller impact:** Are all callers of modified functions updated?
 4. **Anti-pattern scan:** No TODO/FIXME/placeholder in changed files?
 
-### 3.2 Git Commit
-- If task-level commits already exist: no additional commit at wave boundary.
-- If task-level commits were deferred: create a single wave commit.
-- Commit message format: `feat({slug}): complete wave {N}/{total}`.
+### 3.2 Git Commit Strategy
+
+**Per-task atomic commits (default):**
+Each task that passes code review gets an individual commit immediately after review:
+- Commit format: `{type}({slug}/{task_id}): {task_name}`
+- Type mapping: code→`feat`, code-bug→`fix`, code-refactor→`refactor`, docs→`docs`, infra→`chore`
+- PM stages only the files listed in the task's `<files>` section
+- If staging finds no changes: skip commit, log warning in trace.jsonl
+- Commits happen BEFORE the wave boundary QA gate
+- Each commit hash is recorded in meta.json `git.commits[]`
+- Each task ID is added to meta.json `tasks.completed_tasks[]` (enables resume)
+
+**Wave-level fallback:**
+If per-task commits are disabled (`config.json: atomic_commits.enabled: false`):
+- Single commit at wave boundary after QA passes
+- Format: `feat({slug}): complete wave {N}/{total}`
+- All task IDs from the wave are added to `completed_tasks[]` at once
+
+**Benefits of per-task commits:**
+- `git bisect` can identify exactly which task introduced a regression
+- Individual tasks can be reverted without affecting others: `git revert {commit_hash}`
+- Commit history serves as documentation of the implementation sequence
+- meta.json `tasks.completed_tasks[]` tracks which commits exist, enabling `--resume`
+- Each commit is a natural checkpoint — crash between commits loses at most one task's work
 
 ### 3.3 Progress Report
 PM displays to the user:
@@ -145,6 +165,7 @@ Blocked:   {N} tasks
 Revisions: {minor}m {major}M
 Deviations: R1:{n} R2:{n} R3:{n}
 QA: {PASS|GAPS_FOUND}
+Commits: {N} new in this wave
 Overall: {total_completed}/{total_tasks} ({percentage}%)
 ---
 ```

@@ -279,3 +279,145 @@ RIGHT: PM reads plan.md summary once (Step 3), then only reads it again if modif
 4. **One step at a time.** Load only the current step's instructions. Drop the previous step's.
 5. **Fresh beats stale.** An agent with a fresh 200k context outperforms PM with 50% context rot.
 6. **When in doubt, offload.** If PM is tempted to do analysis, dispatch an agent instead.
+
+---
+
+## 8. Context Recovery Protocol
+
+> When the system compresses or truncates conversation context, PM may lose track of execution state.
+> This protocol ensures PM can recover and continue without restarting the pipeline.
+
+### 8.1 Detecting Context Compression
+
+**Symptoms that indicate context was compressed:**
+- PM cannot recall which step it is on or what the current wave is
+- Agent dispatch history is missing from memory
+- PM's understanding of meta.json state doesn't match what it would have known
+- PM receives a system message about conversation compression
+- PM finds itself re-asking questions it already answered
+
+**Trigger:** Immediately after noticing any of the above symptoms, execute the recovery procedure below.
+
+### 8.2 Recovery Procedure
+
+Execute these steps IN ORDER:
+
+1. **Read meta.json** from the artifact directory (`.forge/{date}/{slug}/meta.json`)
+   - This gives: `current_step`, `current_wave`, `tasks.completed_tasks[]`, `state`
+   - This is the source of truth for execution progress
+
+2. **Read SKILL.md §6 Loading Map** for the current step
+   - This tells PM exactly what files to load for the current step
+   - Do NOT load files for other steps
+
+3. **Load the current step section** from execution-flow.md
+   - Use `STEP_N_START` / `STEP_N_END` markers
+   - Load ONLY the current step, not the full file
+
+4. **If in Step 7 (Execute):** also read:
+   - `plan.md` task checklist (task IDs + `<done>` status only, NOT full task details)
+   - `wave-execution.md` (if currently processing waves)
+
+5. **Resume execution** from the current step and wave
+
+**Critical rules during recovery:**
+- Do NOT re-read completed step artifacts (research.md, previous task summaries)
+- Do NOT re-read the full plan.md (only task list for progress tracking)
+- Do NOT attempt to reconstruct agent dispatch history — it's in trace.jsonl if needed
+- Trust meta.json as the source of truth, not your memory
+
+### 8.3 Recovery Essentials per Step
+
+This table defines the MINIMUM files needed to resume each step after context loss:
+
+| Step | Must Re-Read | Can Safely Ignore |
+|---|---|---|
+| **1. Init** | meta.json, SKILL.md §1-4 | Everything else |
+| **2. Research** | meta.json, execution-flow.md §2 | Previous init details |
+| **3. Plan** | meta.json, execution-flow.md §3, research.md (summary only) | Full research, init details |
+| **4. Plan-Check** | meta.json, execution-flow.md §4, plan.md (frontmatter only) | research.md, init/research details |
+| **5. Checkpoint** | meta.json, plan.md (overview + task count) | Everything else |
+| **6. Branch** | meta.json, execution-flow.md §6 | Everything else |
+| **7. Execute** | meta.json, execution-flow.md §7, plan.md (task list only), wave-execution.md | Completed tasks, research, plan rationale |
+| **8. Verify** | meta.json, execution-flow.md §8, plan.md (must_haves section only) | All previous step details |
+| **9. Finalize** | meta.json, execution-flow.md §9, verification.md (verdict only) | All previous step details |
+| **10. Cleanup** | meta.json only | Everything |
+
+### 8.4 Post-Recovery Verification
+
+After completing recovery, PM should verify:
+1. Current step number matches meta.json `current_step`
+2. Completed task count matches meta.json `tasks.completed`
+3. Current wave matches meta.json `current_wave` (if in Step 7)
+4. If any mismatch: trust meta.json and re-read the relevant artifact
+
+---
+
+## 9. Token Budget Guide
+
+> This guide helps PM estimate and track token usage across the execution pipeline.
+> Token tracking data feeds into the report.md Token/Cost Estimation section.
+
+### 9.1 Estimated Token Costs per Dispatch
+
+| Model | Avg Input Tokens | Avg Output Tokens | Relative Cost |
+|---|---|---|---|
+| haiku | ~10k | ~5k | 1x (baseline) |
+| sonnet | ~20k | ~10k | ~5x |
+| opus | ~40k | ~20k | ~25x |
+
+These are estimates. Actual usage varies by:
+- File sizes being read by agents
+- Complexity of the task (more complex = more output)
+- Number of revision loops (each retry adds a full dispatch cost)
+
+### 9.2 Budget Estimation Formula
+
+Before starting execution, PM can estimate total cost:
+
+```
+total_dispatches = research_agents + 1 (planner) + 1 (plan-checker)
+                 + task_count × 1 (implementer)
+                 + task_count × 1 (code-reviewer)
+                 + wave_count × 1 (qa-inspector)
+                 + 1 (verifier)
+
+estimated_tokens = sum(dispatch_count × model_avg_tokens for each model)
+```
+
+**Example for a medium project (8 tasks, 3 waves, balanced profile):**
+```
+Research: 3 haiku + 1 sonnet = 3×15k + 1×30k = 75k
+Plan: 1 sonnet = 30k
+Plan-Check: 1 sonnet = 30k
+Implement: 8 sonnet = 8×30k = 240k
+Review: 8 sonnet = 8×30k = 240k
+QA: 3 sonnet = 3×30k = 90k
+Verify: 1 sonnet = 30k
+Total: ~735k tokens
+```
+
+### 9.3 Dispatch Tracing
+
+PM records each dispatch in `trace.jsonl` (one JSON object per line):
+
+```json
+{"agent":"researcher","task_id":"research-1","model":"haiku","timestamp":"2026-03-15T14:31:00Z","result":"PASS"}
+{"agent":"researcher","task_id":"research-2","model":"haiku","timestamp":"2026-03-15T14:31:05Z","result":"PASS"}
+{"agent":"planner","task_id":"plan","model":"sonnet","timestamp":"2026-03-15T14:32:00Z","result":"PASS"}
+{"agent":"implementer","task_id":"1-1","model":"sonnet","timestamp":"2026-03-15T14:35:00Z","result":"PASS"}
+```
+
+At Step 9 (FINALIZE), PM reads trace.jsonl and:
+1. Counts dispatches per agent and per model
+2. Estimates tokens using the table above
+3. Populates the Token/Cost Estimation section in report.md
+4. Optionally records aggregated data via `forge-tools.js metrics-record-dispatch`
+
+### 9.4 Cost Optimization Tips
+
+- **Start with balanced profile** — smart routing auto-selects the right model per dispatch
+- **Monitor revision rates** — high revisions mean wasted dispatches. Consider upgrading model early
+- **Use haiku for research** — research agents read a lot but produce structured summaries, haiku handles this well
+- **Avoid opus for code review** — sonnet catches >95% of issues at 5x less cost
+- **Quick mode** for small, well-understood changes — skips research, plan-check, and verify dispatches

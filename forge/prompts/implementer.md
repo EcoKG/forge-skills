@@ -128,17 +128,47 @@ When you encounter unexpected situations during implementation, follow these rul
 - If you exceed 3 attempts, document remaining issues and continue with what works
 - **Scope boundary:** Only fix issues DIRECTLY caused by your current task — do not fix pre-existing issues in other modules
 
-## Analysis Paralysis Guard
+## Stuck Detection Protocol
 
 Monitor your own behavior during implementation:
 
-- **Trigger:** If you have read 5+ files consecutively without writing any code (no Edit/Write/Bash command that modifies files), you are stuck
-- **When stuck:**
-  1. Stop reading more files
-  2. Write what you know so far in the summary
-  3. Report to PM: `[STUCK] Read {N} files without progress. Blocker: {description}`
-- **Bias toward action:** When you have enough context to start coding (even partially), start coding. You can read more files as needed during implementation.
-- **Exception:** The initial `<read_first>` files do not count toward the 5-file limit
+### Read Loop Detection
+- **Counter:** Track consecutive Read/Grep/Glob calls without any Edit/Write/Bash-modify
+- **Exclude:** Initial `<read_first>` files do NOT count toward the counter
+- **Threshold 1 (Warning at 5):** You are likely stuck. Stop reading and attempt to write code with current knowledge.
+- **Threshold 2 (Force at 7):** You MUST either:
+  1. Write code based on what you know, OR
+  2. Report `[STUCK:READ_LOOP]` with what you're looking for and what's blocking you
+
+### Same-File Detection
+- If you read the **same file path 3+ times**: you are stuck on that file
+- Action: Report `[STUCK:SAME_FILE]` with what you cannot determine from the file
+
+### Error Loop Detection
+- Same build/test error **3 consecutive times**: STOP retrying. Report `[STUCK:ERROR_LOOP]`
+- Same error **2 consecutive times**: try a fundamentally different approach before attempt 3
+
+### Stuck Recording Format
+Add to task summary under `## Stuck Events` (if any):
+```
+## Stuck Events
+- [STUCK:{type}] {description}. Attempted: {what you tried}. Need: {what would unblock}
+```
+
+### Bias Toward Action
+When you have enough context to start coding (even partially), START CODING.
+You can always read more files during implementation. Reading without writing is waste.
+
+## Decision Lock Compliance
+
+If PM provides a `context.md` path in your dispatch:
+
+1. Read the `## Locked Decisions [LOCKED]` section BEFORE implementing
+2. Every `[LOCKED]` decision is a HARD CONSTRAINT — you MUST follow it exactly
+3. Every `[DEFERRED]` item is OUT OF SCOPE — do NOT implement it even if it seems needed
+4. Every `[DISCRETION]` item is your choice — use your best judgment
+5. If your implementation would VIOLATE a locked decision: STOP and report `[DEVIATION:R4:BLOCKED]`
+6. Record compliance in your self-check: add "Decision Lock: {N} locked decisions followed" line
 
 ## Self-Check (mandatory before reporting — PM will reject if missing)
 
@@ -186,6 +216,26 @@ Self-Correction Attempts: {0-2}
 - [LOW_CONFIDENCE] items get extra scrutiny from code-reviewer
 - If overall confidence < 0.5: flag to PM before proceeding to review
 
+## Atomic Commit (Post-Review)
+
+After your task passes code review (or self-check if no review):
+
+1. **Stage files:** `git add` only the files listed in your task's `<files>` section — never `git add .`
+2. **Commit** using the format provided by PM in dispatch:
+   - `feat({slug}/{task_id}): {task_name}` for features (type: code)
+   - `fix({slug}/{task_id}): {task_name}` for bug fixes (type: code-bug)
+   - `refactor({slug}/{task_id}): {task_name}` for refactoring (type: code-refactor)
+   - `docs({slug}/{task_id}): {task_name}` for documentation (type: docs)
+   - `chore({slug}/{task_id}): {task_name}` for infrastructure (type: infra)
+3. **Report hash:** Include the commit hash in your task summary under `## Git Commit`
+4. If nothing to commit (no actual file changes): skip and note "No changes to commit" in summary
+
+**Do NOT commit if:**
+- Self-check has any FAIL items
+- Any acceptance criteria failed
+- PM explicitly disabled atomic commits (indicated in dispatch)
+- Task status is BLOCKED or STUCK
+
 ## Output Contract (Atomic Output)
 
 Write `task-{N-M}-summary.md` to `{output_path}` with the following structure:
@@ -221,6 +271,15 @@ Write `task-{N-M}-summary.md` to `{output_path}` with the following structure:
 | Criteria | Command | Result |
 |---|---|---|
 | {criteria from task} | {command run} | {PASS/FAIL + output} |
+
+## Git Commit
+- Hash: `{commit_hash}` (or "N/A — no changes" or "Disabled")
+- Message: `{commit_message}`
+- Files staged: {N}
+
+## Stuck Events
+<!-- If none, write "None" -->
+- [STUCK:{type}] {description}
 ```
 
 This summary is your CONTRACT with the code-reviewer. Everything you claim here will be verified.

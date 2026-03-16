@@ -60,6 +60,39 @@ function extractStateInfo(stateMd) {
   return info;
 }
 
+function findLockFiles(forgeDir) {
+  const locks = [];
+  try {
+    const entries = fs.readdirSync(forgeDir);
+    // Scan date directories (YYYY-MM-DD format)
+    const dateDirs = entries.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    for (const dateDir of dateDirs) {
+      const datePath = path.join(forgeDir, dateDir);
+      try {
+        const slugDirs = fs.readdirSync(datePath).filter(d => {
+          try { return fs.statSync(path.join(datePath, d)).isDirectory(); } catch { return false; }
+        });
+        for (const slugDir of slugDirs) {
+          const lockPath = path.join(datePath, slugDir, "execution-lock.json");
+          if (fs.existsSync(lockPath)) {
+            const lockData = readJsonSafe(lockPath);
+            const metaData = readJsonSafe(path.join(datePath, slugDir, "meta.json"));
+            locks.push({
+              path: lockPath,
+              dir: path.join(datePath, slugDir),
+              slug: slugDir,
+              date: dateDir,
+              lock: lockData,
+              meta: metaData
+            });
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+  return locks;
+}
+
 function main() {
   try {
     const raw = fs.readFileSync(0, "utf8").trim();
@@ -87,6 +120,26 @@ function main() {
       ctx += `Use /forge --status for details, or /forge --phase N to execute a phase.`;
       process.stdout.write(ctx);
       process.exit(0);
+    }
+
+    // Check for interrupted executions (crash recovery)
+    const locks = findLockFiles(forgeDir);
+    if (locks.length > 0) {
+      let ctx = "";
+      if (stateInfo && stateInfo.project) {
+        // Already printed project info above, append crash warning
+        ctx += "\n";
+      }
+      ctx += "⚠ Interrupted Forge Execution Detected ⚠\n";
+      for (const lock of locks) {
+        const meta = lock.meta || {};
+        const step = meta.current_step || "?";
+        const completed = meta.tasks?.completed || 0;
+        const total = meta.tasks?.total || "?";
+        ctx += `  ${lock.date}/${lock.slug}: step ${step}, tasks ${completed}/${total}\n`;
+      }
+      ctx += "Use /forge --resume to continue from where it stopped.\n";
+      process.stdout.write(ctx);
     }
 
     const projectJson = readJsonSafe(path.join(forgeDir, "project.json"));

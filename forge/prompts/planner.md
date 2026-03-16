@@ -30,6 +30,7 @@ You will receive:
 - `<project_info>` — language, framework, paradigm, test_framework
 - `<output_path>` — where to write plan.md
 - `<revision_feedback>` — (optional) feedback from plan-checker on a previous version
+- `<context_path>` — (optional) path to phase context.md with locked decisions
 
 {LANG_CHECKLIST}
 {GENERAL_CHECKLIST}
@@ -44,6 +45,20 @@ You will receive:
    - List every [Mx] finding — these SHOULD have corresponding tasks.
    - List every [Lx] finding — include if scope allows.
 3. Read the Recommended Approach section — use it as the starting strategy.
+
+### Step 1.5: Read Decision Context (if context.md provided)
+
+If `<context_path>` is provided:
+1. Read the file completely
+2. Extract ALL `[LOCKED]` decisions — these are HARD CONSTRAINTS on your plan
+3. Extract ALL `[DEFERRED]` items — these are EXPLICITLY OUT OF SCOPE, do NOT create tasks for them
+4. Extract ALL `[DISCRETION]` items — these are areas where you have freedom to choose
+
+**Enforcement rules:**
+- Every `[LOCKED]` decision MUST be reflected in at least one task's `<action>` items
+- If a locked decision conflicts with a research finding: the locked decision WINS (user's intent takes priority)
+- Add a `[LOCKED:{topic}]` tag to the relevant task's `<ref>` field to trace compliance
+- In the plan's Risk & Mitigation section, note any locked decisions that increase technical risk
 
 ### Step 2: Read Type Guide and Determine Workflow
 
@@ -235,6 +250,7 @@ must_haves:
    - Script: Favor linear flow, minimal abstraction. Tasks can be more procedural.
    - DDD: Favor bounded contexts, aggregates, value objects. Tasks should define domain model before infrastructure.
 6. **No circular dependencies** in wave ordering. If task A depends on B and B depends on A, restructure.
+7. **Decision Lock compliance.** If `<context_path>` is provided, every `[LOCKED]` decision must have a corresponding task or explicit action item. A plan that ignores a locked decision will be rejected by plan-checker.
 
 ## Placeholders
 
@@ -250,3 +266,4 @@ These are substituted by PM before dispatching this prompt:
 - `<project_info>` — Language, framework, paradigm, test_framework
 - `<output_path>` — Absolute path where plan.md must be written
 - `<revision_feedback>` — (Optional) Plan-checker feedback for revision
+- `<context_path>` — (Optional) Path to phase context.md with locked/deferred/discretion decisions

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 const fs = require("fs");
 const path = require("path");
+const { execSync } = require("child_process");
+const os = require("os");
 
 const CWD = process.cwd();
 const FORGE_DIR = path.join(CWD, ".forge");
@@ -213,6 +215,126 @@ function verifyKeyLinks(planFile) {
   return { key_links: results, all_connected: results.every(r => r.connected) };
 }
 
+// Detect project stack from file patterns
+function detectStack() {
+  const patterns = [
+    { lang: "go", glob: "**/*.go", framework: "go.mod" },
+    { lang: "typescript", glob: "**/*.ts", framework: "package.json" },
+    { lang: "javascript", glob: "**/*.js", framework: "package.json" },
+    { lang: "python", glob: "**/*.py", framework: "pyproject.toml" },
+    { lang: "rust", glob: "**/*.rs", framework: "Cargo.toml" },
+    { lang: "java", glob: "**/*.java", framework: "pom.xml" },
+    { lang: "csharp", glob: "**/*.cs", framework: "*.csproj" },
+  ];
+  let detected = { language: "unknown", framework: null, detected_files_count: 0 };
+  for (const p of patterns) {
+    try {
+      const fwPath = path.join(CWD, p.framework.replace("*", ""));
+      const hasFw = p.framework.includes("*")
+        ? fs.readdirSync(CWD).some(f => f.endsWith(p.framework.replace("*", "")))
+        : fs.existsSync(fwPath);
+      if (hasFw) {
+        // Count source files (limit search depth)
+        let count = 0;
+        try {
+          const out = execSync(`find "${CWD}" -name "${p.glob.split("/").pop()}" -maxdepth 5 -type f 2>/dev/null | wc -l`, { encoding: "utf8", timeout: 5000 });
+          count = parseInt(out.trim()) || 0;
+        } catch {}
+        if (count > detected.detected_files_count) {
+          detected = { language: p.lang, framework: p.framework, detected_files_count: count };
+        }
+      }
+    } catch {}
+  }
+  return detected;
+}
+
+// Get current git repository state
+function getGitState() {
+  try {
+    const branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: CWD, encoding: "utf8", timeout: 5000 }).trim();
+    const status = execSync("git status --porcelain", { cwd: CWD, encoding: "utf8", timeout: 5000 }).trim();
+    const logOut = execSync("git log --oneline -5 2>/dev/null", { cwd: CWD, encoding: "utf8", timeout: 5000 }).trim();
+    const uncommitted = status ? status.split("\n").length : 0;
+    const recent_commits = logOut ? logOut.split("\n").map(l => l.trim()) : [];
+    return { branch, is_clean: uncommitted === 0, uncommitted_count: uncommitted, recent_commits };
+  } catch (err) {
+    return { error: "Not a git repository or git not available", details: err.message };
+  }
+}
+
+// Create execution lock for crash recovery
+function createLock(artifactDir) {
+  const lockPath = path.join(artifactDir, "execution-lock.json");
+  const data = {
+    pid: process.pid,
+    started_at: new Date().toISOString(),
+    hostname: os.hostname(),
+  };
+  fs.writeFileSync(lockPath, JSON.stringify(data, null, 2));
+  return { created: true, path: lockPath };
+}
+
+// Remove execution lock (normal completion)
+function removeLock(artifactDir) {
+  const lockPath = path.join(artifactDir, "execution-lock.json");
+  try {
+    fs.unlinkSync(lockPath);
+    return { removed: true, path: lockPath };
+  } catch (err) {
+    return { removed: false, error: err.message };
+  }
+}
+
+// Check if execution lock exists (crash detection)
+function checkLock(artifactDir) {
+  const lockPath = path.join(artifactDir, "execution-lock.json");
+  if (fs.existsSync(lockPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+      return { locked: true, ...data, path: lockPath };
+    } catch {
+      return { locked: true, path: lockPath, corrupt: true };
+    }
+  }
+  return { locked: false };
+}
+
+// Record individual agent dispatch for token tracking
+function metricsRecordDispatch(jsonData) {
+  const metricsPath = path.join(FORGE_DIR, "metrics.json");
+  let metrics = { version: "2.0", executions: [], dispatches: [], averages: {}, token_summary: {} };
+  try { metrics = JSON.parse(fs.readFileSync(metricsPath, "utf8")); } catch {}
+  if (!metrics.dispatches) metrics.dispatches = [];
+
+  const data = JSON.parse(jsonData);
+  data.recorded_at = new Date().toISOString();
+  metrics.dispatches.push(data);
+
+  // Update token summary
+  if (!metrics.token_summary) metrics.token_summary = { total_input: 0, total_output: 0, by_model: {}, by_agent: {} };
+  const ts = metrics.token_summary;
+  const input = data.estimated_tokens?.input || 0;
+  const output = data.estimated_tokens?.output || 0;
+  ts.total_input += input;
+  ts.total_output += output;
+
+  const model = data.model || "unknown";
+  if (!ts.by_model[model]) ts.by_model[model] = { input: 0, output: 0, dispatches: 0 };
+  ts.by_model[model].input += input;
+  ts.by_model[model].output += output;
+  ts.by_model[model].dispatches += 1;
+
+  const agent = data.agent || "unknown";
+  if (!ts.by_agent[agent]) ts.by_agent[agent] = { input: 0, output: 0, dispatches: 0 };
+  ts.by_agent[agent].input += input;
+  ts.by_agent[agent].output += output;
+  ts.by_agent[agent].dispatches += 1;
+
+  fs.writeFileSync(metricsPath, JSON.stringify(metrics, null, 2));
+  return { recorded: true, total_dispatches: metrics.dispatches.length };
+}
+
 // Config operations
 function configInit() {
   const configPath = path.join(FORGE_DIR, "config.json");
@@ -337,6 +459,12 @@ try {
     case "metrics-record":  result = metricsRecord(args[0]); break;
     case "metrics-summary": result = metricsSummary(); break;
     case "mark-invoked":    result = markInvoked(args[0]); break;
+    case "detect-stack":        result = detectStack(); break;
+    case "git-state":           result = getGitState(); break;
+    case "create-lock":         result = createLock(args[0]); break;
+    case "remove-lock":         result = removeLock(args[0]); break;
+    case "check-lock":          result = checkLock(args[0]); break;
+    case "metrics-record-dispatch": result = metricsRecordDispatch(args[0]); break;
     case "help":
     default:
       result = {
@@ -346,7 +474,11 @@ try {
           "verify-artifacts <plan>", "verify-key-links <plan>",
           "config-init", "config-get <key>", "config-set <key> <value>",
           "metrics-record <json>", "metrics-summary",
-          "mark-invoked <session-id>", "help"
+          "mark-invoked <session-id>",
+          "detect-stack", "git-state",
+          "create-lock <dir>", "remove-lock <dir>", "check-lock <dir>",
+          "metrics-record-dispatch <json>",
+          "help"
         ]
       };
   }

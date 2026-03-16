@@ -10,9 +10,10 @@ description: |
   DO NOT (overrides above): trivial single-line edits (typo, rename one variable, one import), code explanation only, simple commands (git log, npm install), new standalone files from scratch (no integration needed)
 ---
 
-# Forge v3
+# Forge v3.1
 
-> Context-Engineered Autonomous Development System — v3.0
+> Context-Engineered Autonomous Development System — v3.1
+> v3.1 — GSD-inspired: atomic commits, crash recovery, resume, stuck detection, context recovery, decision locking, token tracking, deterministic CLI
 > Single entry point. File-based agent communication. Goal-backward verification.
 > **If context feels incomplete, re-read this SKILL.md to restore the flow.**
 
@@ -189,6 +190,7 @@ All state is externalized to `.forge/` artifacts (meta.json, research.md, plan.m
 | **Map** | `references/codebase-mapping.md` | Everything else |
 | **Retrospective** | `references/learning-system.md` §3, milestone report.md files, metrics.json | Everything else |
 | **Quick** | `execution-flow.md` Step 3 only (single task). Skip Steps 2,4,5,6,8. | Everything else |
+| **Resume** | `meta.json` (from lock file's artifact dir), `execution-flow.md` §7 (resume protocol) | Everything before the interrupted step |
 
 **Key rule:** `references/execution-flow.md` is NEVER read in full. Read only the current step's section (from `## Step N:` to the next `---` delimiter).
 
@@ -303,6 +305,7 @@ Static matrix (Section 9.1) is used as fallback when `--model quality` or `--mod
   {YYYY-MM-DD}/
     {slug}-{HHMM}/
       meta.json                     # Execution state, config, progress tracking
+      execution-lock.json             # Crash recovery lock (removed on clean exit)
       research.md                   # Research findings (severity-tagged: H/M/L)
       plan.md                       # Plan (YAML must_haves + XML deep work tasks)
       task-{N-M}-summary.md         # Per-task execution summary
@@ -340,6 +343,7 @@ Static matrix (Section 9.1) is used as fallback when `--model quality` or `--mod
   "tasks": {
     "total": 8,
     "completed": 5,
+    "completed_tasks": ["1-1", "1-2", "1-3", "1-4", "1-5"],
     "in_progress": 2,
     "failed": 0,
     "skipped": 0
@@ -370,7 +374,7 @@ Static matrix (Section 9.1) is used as fallback when `--model quality` or `--mod
 | Layer | Name | Where | What It Checks |
 |---|---|---|---|
 | L1 | **Deep Work** | Planning (Step 3-4) | Every task has `read_first` + `acceptance_criteria` + concrete `action`. 8-dimension plan-checker verification. |
-| L2 | **Self-Check** | Implementation (Step 7) | Implementer's 6-item checklist (circular refs, init order, null safety, save/load, event timing, build). Analysis paralysis guard (5+ consecutive reads = stuck). |
+| L2 | **Self-Check** | Implementation (Step 7) | Implementer's 6-item checklist (circular refs, init order, null safety, save/load, event timing, build). Stuck Detection Protocol: read loop (5 warn / 7 force), same-file 3x, error loop 3x. Decision Lock compliance check. |
 | L3 | **Peer Review** | Code Review (Step 7) | 10-perspective review: style, bugs, security, performance, plan alignment, TDD, SOLID/paradigm, error handling, goal-backward wiring, anti-pattern scan. Language-specific + general checklists. |
 | L4 | **QA Gate** | Wave Boundary (Step 7) | Build verification, test execution, caller impact analysis, anti-pattern scan across all changed files. |
 | L5 | **Goal-Backward** | Verification (Step 8) | Level 1: Exists (files present, min lines met). Level 2: Substantive (real code, not stubs). Level 3: Wired (imports used, key_links connected). |
@@ -533,6 +537,9 @@ Every reference, prompt, and template file must answer these 3 questions:
 | `templates/output.md` | All steps | All | user display |
 | `templates/config.json` | Step 0 (`--init`) or config-init | Project Init | .forge/config.json |
 | `templates/metrics.json` | Step 9 | Finalize | .forge/metrics.json |
+| `references/deviation-rules.md` §7 | Step 7 | Execute | stuck events in task summary |
+| `references/context-engineering.md` §8 | Any step (on compression) | Recovery | — (protocol) |
+| `references/context-engineering.md` §9 | Step 9 | Finalize | token summary in report |
 | `templates/retrospective.md` | `--retrospective` | Retrospective | retrospective-{ms}.md |
 
 ### 14.3 Rule for New Features

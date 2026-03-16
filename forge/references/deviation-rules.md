@@ -358,3 +358,145 @@ func GetUserByID(id string) (*User, error) {
   NOTE: Per-task deviation limit reached (3/3). Any further issues will be documented
   but not auto-fixed.
 ```
+
+---
+
+## 7. Stuck Detection Rules
+
+> These rules complement the Analysis Paralysis Guard in implementer.md with concrete thresholds and escalation procedures.
+> PM and agents both reference these rules during Step 7 (EXECUTE).
+
+### 7.1 Read Loop Detection
+
+**Problem:** An agent keeps reading files without making progress on implementation.
+
+| Metric | Threshold | Action |
+|---|---|---|
+| Consecutive Read/Grep/Glob without Edit/Write | **5** (Warning) | Agent should stop reading and attempt to write code with current knowledge |
+| Consecutive Read/Grep/Glob without Edit/Write | **7** (Force) | Agent MUST either write code OR report `[STUCK:READ_LOOP]` |
+| Same file path read 3+ times | **3** (Stuck) | Agent reports `[STUCK:SAME_FILE]` with what it cannot determine |
+
+**Counter rules:**
+- Counter starts at 0 when the agent begins a task
+- Each Read/Grep/Glob call increments the counter by 1
+- Each Edit/Write/Bash-modify call resets the counter to 0
+- `<read_first>` files from the task spec are EXCLUDED from the counter (they are mandatory reads)
+- Verification commands (build, test, grep for acceptance criteria) do NOT reset the counter
+
+**Example sequence:**
+```
+Read auth.go          — count: 0 (read_first, excluded)
+Read middleware.go     — count: 0 (read_first, excluded)
+Grep "ValidateToken"  — count: 1
+Read jwt.go           — count: 2
+Read config.go        — count: 3
+Grep "ParseToken"     — count: 4
+Read jwt.go           — count: 5 ← WARNING: 5 reads, attempt to write code
+Read routes.go        — count: 6
+Read jwt.go           — count: 7 ← FORCE: must write or report [STUCK]
+                        Also: jwt.go read 3 times → [STUCK:SAME_FILE]
+```
+
+---
+
+### 7.2 Error Loop Detection
+
+**Problem:** An agent retries the same failing approach without changing strategy.
+
+| Metric | Threshold | Action |
+|---|---|---|
+| Same build error message | **2** consecutive | Try fundamentally different approach before 3rd attempt |
+| Same build error message | **3** consecutive | STOP. Report `[STUCK:ERROR_LOOP]`. Immediate Tier 3 escalation |
+| Same test assertion failure | **2** consecutive | Analyze root cause instead of patching symptoms |
+| Same test assertion failure | **3** consecutive | STOP. Report `[STUCK:ERROR_LOOP]`. Immediate Tier 3 escalation |
+| Any identical error | **3** consecutive | Absolute rule: 3+ identical errors = immediate escalation (ref: Section 12.3 Rule 2) |
+
+**Error identity:** Two errors are "the same" if they share:
+- The same file path AND line number, OR
+- The same error message text (exact match or >90% similar), OR
+- The same error code (e.g., TS2345, E0308, etc.)
+
+**Correct response to repeated errors:**
+```
+Error 1: "Cannot find module './auth'" → Fix: check import path
+Error 2: "Cannot find module './auth'" → DIFFERENT approach: check if file exists, check tsconfig paths
+Error 3: "Cannot find module './auth'" → STOP. [STUCK:ERROR_LOOP]. Escalate to PM.
+```
+
+---
+
+### 7.3 Stuck Escalation Protocol
+
+When an agent reports `[STUCK:{type}]`:
+
+**Step 1: Agent writes to task summary**
+```markdown
+## Status: STUCK
+
+## Stuck Events
+- [STUCK:{type}] {description of what's blocking}
+  Attempted: {what approaches were tried}
+  Need: {what would unblock — e.g., "clarification on config format", "missing dependency"}
+```
+
+**Step 2: PM reads stuck report**
+PM reads only the `## Status` line and `## Stuck Events` section (not full summary).
+
+**Step 3: PM presents to user**
+```
+--- Task [{N-M}] Stuck: {STUCK_TYPE} ---
+
+Issue: {one-line from stuck description}
+Attempted: {what the agent tried}
+
+Options:
+  [1] Hint — provide guidance to the agent
+  [2] Skip — mark task as skipped, continue with next
+  [3] Manual — you'll fix this yourself, continue execution
+  [4] Cancel — stop execution
+---
+```
+
+**Step 4: PM acts on user choice**
+- **Hint:** PM re-dispatches the agent with user's guidance as additional context
+- **Skip:** PM marks task as `skipped`, updates meta.json, checks downstream dependencies
+- **Manual:** PM pauses the task, continues other tasks, user fixes manually
+- **Cancel:** PM stops execution, proceeds to Step 9 (FINALIZE)
+
+---
+
+### 7.4 Recording Format
+
+Every stuck event is recorded in the task summary:
+
+```markdown
+## Stuck Events
+- [STUCK:READ_LOOP] Read 7 files consecutively without progress.
+  Looking for: the JWT signing key configuration location.
+  Blocker: config structure is non-standard, cannot find where keys are loaded.
+  Attempted: searched for "jwt", "signing", "key" across config files.
+  Need: hint about where JWT config lives in this project.
+
+- [STUCK:ERROR_LOOP] Same build error 3x: "TS2345: Argument of type 'string' is not assignable to parameter of type 'number'"
+  at src/payment/handler.ts:78.
+  Attempted: (1) parseFloat conversion, (2) Number() cast — both failed because the type is used in 4 call sites.
+  Need: architectural decision about whether to change the function signature or all callers.
+
+- [STUCK:SAME_FILE] Read src/auth/middleware.go 3 times.
+  Cannot determine: how the middleware chain is composed — no clear entry point.
+  Attempted: searched for middleware registration, found nothing in routes.go.
+  Need: clarification on middleware wiring pattern in this project.
+```
+
+### Aggregation
+
+At Step 9 (FINALIZE), PM aggregates all stuck events into the final report:
+
+```markdown
+## Stuck Events Log
+| Task | Type | Description | Resolution |
+|---|---|---|---|
+| [1-2] | READ_LOOP | JWT config location unclear | User provided hint |
+| [1-4] | ERROR_LOOP | TS2345 type mismatch in 4 sites | User chose to change signature |
+| [1-5] | SAME_FILE | Middleware wiring unclear | User provided entry point |
+```
