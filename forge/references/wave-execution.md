@@ -1,6 +1,6 @@
 # Wave-Based Parallel Execution Reference
 
-> This file details how Forge v2 executes tasks in parallel using dependency-based waves.
+> This file details how Forge v6.0 executes tasks in parallel using dependency-based waves.
 > PM loads this file at Step 7 (EXECUTE) and when resolving wave-related issues.
 
 ---
@@ -131,6 +131,34 @@ QA inspector checks:
 3. **Caller impact:** Are all callers of modified functions updated?
 4. **Anti-pattern scan:** No TODO/FIXME/placeholder in changed files?
 
+### 3.1.5 VPM Cross-Check
+
+After QA inspection passes, the Verification PM (VPM) runs an independent cross-check before git commit.
+
+```xml
+<agent_dispatch>
+  <role>verification-pm</role>
+  <mode>wave_check</mode>
+  <task_id>vpm-wave-{N}</task_id>
+  <files_to_read>
+    {plan.md path}
+    {all task-summary.md files from this wave}
+    {all files modified in this wave}
+  </files_to_read>
+  <output_path>.forge/{date}/{slug}/vpm-wave-{N}.md</output_path>
+</agent_dispatch>
+```
+
+VPM cross-checks:
+1. **Task-summary vs code:** Do the changed files actually implement what summaries claim?
+2. **Inter-task consistency:** If Task A creates an interface and Task B uses it, do signatures match?
+3. **Wiring verification:** Are new connections actually called, not just imported?
+4. **Anti-pattern scan:** Independent scan for stubs, TODOs, placeholders in changed files
+
+**Verdict handling:**
+- **PASS:** Proceed to git commit (§3.2)
+- **ISSUES_FOUND:** PM creates targeted fix tasks, re-executes, then re-dispatches VPM (max 2 re-checks per wave). After 2 failed re-checks, escalate to user.
+
 ### 3.2 Git Commit Strategy
 
 **Per-task atomic commits (default):**
@@ -213,6 +241,21 @@ QA returns BUILD_FAILED:
 - Other tasks in the wave continue.
 - PM presents R4 details to user (see deviation-rules.md).
 - Resolution does not block the wave boundary QA (blocked task is excluded from QA).
+
+### Scenario E: VPM cross-check finds issues
+```
+VPM returns ISSUES_FOUND:
+  1. PM creates targeted fix tasks from VPM issue list.
+  2. PM executes fix tasks (same wave rules).
+  3. PM re-dispatches VPM for re-check.
+  4. Max 2 VPM re-checks per wave. After that, escalate to user.
+
+VPM issue types and handling:
+  - Task-summary mismatch: implementer must update code to match claimed behavior.
+  - Inter-task signature mismatch: fix the consumer to match the provider's actual signature.
+  - Wiring IMPORT_ONLY: add actual usage (function call, instantiation) in the consuming file.
+  - Anti-pattern (stub/TODO): complete the implementation or remove the placeholder.
+```
 
 ---
 

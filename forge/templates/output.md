@@ -1,4 +1,4 @@
-# Forge Output Format Templates (v2)
+# Forge Output Format Templates (v6.0)
 
 Use these templates for user-facing progress output at each step.
 Read this file at Step 1 and use the formats throughout the session.

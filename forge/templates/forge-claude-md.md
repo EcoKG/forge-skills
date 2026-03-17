@@ -1,6 +1,6 @@
 # Forge Project
 
-> This project is managed by Forge v2.1. Check `.forge/state.md` on session start.
+> This project is managed by Forge v6.0. Check `.forge/state.md` on session start.
 
 ## Quick Reference
 

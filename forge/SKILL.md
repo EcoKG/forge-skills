@@ -13,7 +13,7 @@ description: |
 # Forge v6.0 "Ironclad"
 
 > Code-enforced autonomous development engine.
-> Pipeline defined in `pipeline.json`. State managed by `forge-engine.js`. Gates enforced by hooks.
+> Pipeline defined in `pipeline.json`. State managed by `forge-tools.js`. Gates enforced by hooks.
 > **You don't memorize the pipeline — you call the engine and follow its instructions.**
 
 ---
@@ -26,19 +26,19 @@ Forge v6.0 is ENGINE-DRIVEN, not prompt-driven.
 User: /forge "implement JWT auth"
   │
   ▼
-PM calls: forge-engine.js init → creates pipeline-state.json
+PM calls: forge-tools.js init → creates pipeline-state.json
   │
   ▼
 HOOK (every turn): injects current step + allowed actions
   │
   ▼
-PM calls: forge-engine.js dispatch-spec → gets agent spec
+PM calls: forge-tools.js dispatch-spec → gets agent spec
 PM calls: Agent tool with spec → agent runs
-PM calls: forge-engine.js record-result → records outcome
+PM calls: forge-tools.js record-result → records outcome
   │
   ▼
-PM calls: forge-engine.js can-transition → checks if gate passes
-PM calls: forge-engine.js transition → moves to next step
+PM calls: forge-tools.js can-transition → checks if gate passes
+PM calls: forge-tools.js transition → moves to next step
   │
   ▼
 GATE GUARD (PreToolUse): blocks if pipeline state is violated
@@ -81,7 +81,7 @@ GATE GUARD (PreToolUse): blocks if pipeline state is violated
 
 ## 3. Engine Commands (the core of v6.0)
 
-**ALL pipeline logic is in forge-engine.js.** Call via Bash tool:
+**ALL pipeline logic is in forge-tools.js.** Call via Bash tool:
 
 ```bash
 # Pipeline lifecycle
@@ -176,8 +176,8 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | 4 | plan_check | agent (plan-checker) | plan.md exists | plan.md (verified) |
 | 5 | checkpoint | PM | plan_check PASS | user approval |
 | 6 | branch | PM | approved | git branch |
-| 7 | execute | agent (implementer + reviewer + QA) | plan.md exists | code + summaries |
-| 8 | verify | agent (verifier) | execution done | verification.md |
+| 7 | execute | agent (implementer + reviewer + QA + VPM) | plan.md exists | code + summaries + vpm-wave-{N}.md |
+| 8 | verify | agent (verification-pm, final_verify mode) | execution done | verification.md |
 | 9 | finalize | PM | verified | report.md |
 | 10 | cleanup | PM | finalized | completed |
 
@@ -188,18 +188,20 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 
 ---
 
-## 6. Code Enforcement (4 Hard Gates)
+## 6. Code Enforcement (6 Gates)
 
 `hooks/forge-gate-guard.js` (PreToolUse) enforces:
 
 | Gate | What It Blocks | How |
 |---|---|---|
 | **Gate 1** | plan.md Write without research.md | exit(1) — hard block |
-| **Gate 2** | Source code Edit/Write before step 7 | exit(1) — hard block |
+| **Gate 2** | Source code Edit/Write before plan_check PASS | exit(1) — hard block |
 | **Gate 3** | git commit with failed build/test | exit(1) — hard block |
 | **Gate 4** | report.md Write without verification.md | exit(1) — hard block |
+| **Gate 5** | Large edits (>500 chars) or overwrites (>100 lines) | warning (non-blocking) |
+| **Gate 6** | Secret/credential detection in code content | exit(1) — hard block |
 
-**These are NOT warnings. They are hard blocks. You cannot bypass them.**
+**Gates 1-4 and 6 are hard blocks. You cannot bypass them. Gate 5 is a warning only.**
 
 ---
 
@@ -208,13 +210,13 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | Hook | Trigger | What It Does |
 |---|---|---|
 | **forge-orchestrator** | UserPromptSubmit | Injects pipeline state every turn |
-| **forge-gate-guard** | PreToolUse | 4 hard gates (exit 1 on violation) |
+| **forge-gate-guard** | PreToolUse | 6 gates (5 hard blocks + 1 warning) |
 | **forge-tracker** | PostToolUse | Trace logging + build/test detection |
 | **forge-statusline** | Notification | IDE status display |
 
 ---
 
-## 8. Agents (16 + custom)
+## 8. Agents (17 + custom)
 
 | # | Role | Prompt | When |
 |---|---|---|---|
@@ -224,7 +226,8 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | 4 | implementer | prompts/implementer.md | Step 7 |
 | 5 | code-reviewer | prompts/code-reviewer.md | Step 7 |
 | 6 | qa-inspector | prompts/qa-inspector.md | Step 7 (wave boundary) |
-| 7 | verifier | prompts/verifier.md | Step 8 |
+| 7 | verifier | prompts/verifier.md | Step 8 (legacy, replaced by VPM) |
+| 7.5 | verification-pm | prompts/verification-pm.md | Step 7 (wave boundary) + Step 8 (final verify) |
 | 8 | doc-reviewer | prompts/doc-reviewer.md | Step 7 (docs type) |
 | 9 | roadmapper | prompts/roadmapper.md | --init |
 | 10 | integration-checker | prompts/integration-checker.md | --milestone |
@@ -259,9 +262,10 @@ Detailed rules: `references/context-engineering.md` (load only when needed)
 | L3 Peer Review | Prompt | 11-perspective code review |
 | L3.5 Backpressure | **Code** | Build/test MUST pass (engine-verify-build/tests) |
 | L4 QA Gate | Prompt | Wave boundary inspection |
+| L4.5 VPM Cross-Check | Prompt | Independent verification at wave boundary + final verify (goal-backward) |
 | L5 Goal-Backward | Prompt + **Code** | verifyArtifacts() + verifyKeyLinks() |
 | L6 Auto-Ralph | **Code** | Auto-enter Ralph on verify failure |
-| **L7 Gate Guard** | **Code** | 4 hard blocks (PreToolUse exit 1) |
+| **L7 Gate Guard** | **Code** | 6 gates — 5 hard blocks + 1 warning (PreToolUse) |
 
 ---
 

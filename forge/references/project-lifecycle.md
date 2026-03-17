@@ -487,7 +487,7 @@ When a NEW session starts and `.forge/state.md` exists:
 
 ### Backward Compatibility
 
-- If NO `.forge/project.json` exists -> ALL `/forge` calls work as v2.0 (task mode)
+- If NO `.forge/project.json` exists -> ALL `/forge` calls work as standard (task mode)
 - Artifact directory: `.forge/{date}/{slug}/` (unchanged for task mode)
 - If `project.json` EXISTS:
   - `/forge` with project flags (`--phase`, `--autonomous`, etc.) -> project mode
@@ -502,8 +502,8 @@ When a NEW session starts and `.forge/state.md` exists:
 <!-- BACKWARD_COMPAT_START -->
 ## 7. Backward Compatibility
 
-### Rule 1: No project.json = exact v2.0 behavior
-If `.forge/project.json` does NOT exist, ALL forge operations work exactly as Forge v2.0:
+### Rule 1: No project.json = standard single-execution behavior
+If `.forge/project.json` does NOT exist, ALL forge operations work as standard Forge v6.0:
 - `/forge [request]` -> 10-step pipeline -> `.forge/{date}/{slug}/`
 - No project flags available (`--phase`, `--autonomous`, etc. show helpful message)
 - `project-profile.json` still works for stack caching (unchanged)

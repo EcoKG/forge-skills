@@ -183,6 +183,12 @@ node hooks/forge-tools.js engine-dispatch-spec {dir} qa-inspector
 
 # UI review (if UI files changed)
 node hooks/forge-tools.js engine-dispatch-spec {dir} ui-reviewer
+
+# VPM cross-check (after QA, before git commit)
+node hooks/forge-tools.js engine-dispatch-spec {dir} verification-pm {wave_number}
+# Dispatch VPM in wave_check mode → writes vpm-wave-{N}.md
+# If ISSUES_FOUND: create fix tasks, re-execute, re-check (max 2 re-checks)
+# If PASS: proceed to git commit
 ```
 
 ### Revision Handling
@@ -200,17 +206,18 @@ Details: `references/deviation-rules.md`
 
 ---
 
-## Step 8: VERIFY
+## Step 8: VERIFY (VPM Final Verify Mode)
 
 ```bash
 node hooks/forge-tools.js engine-can-transition {dir} verify
 node hooks/forge-tools.js engine-transition {dir} verify
-node hooks/forge-tools.js engine-dispatch-spec {dir} verifier
-# Dispatch verifier → writes verification.md
-node hooks/forge-tools.js engine-record-result {dir} verifier verify {VERIFIED|GAPS_FOUND|FAILED}
+node hooks/forge-tools.js engine-dispatch-spec {dir} verification-pm
+# Dispatch VPM in final_verify mode (goal-backward 3-level verification)
+# VPM writes verification.md
+node hooks/forge-tools.js engine-record-result {dir} verification-pm verify {VERIFIED|GAPS_FOUND|FAILED}
 ```
 
-**If GAPS_FOUND (max 2 fix cycles):** create fix tasks, return to execute step
+**If GAPS_FOUND (max 2 fix cycles):** create fix tasks, return to execute step, re-dispatch VPM
 **If still failing after 2 cycles:** auto-enter Ralph Mode (defined in pipeline.json `gap_fix.on_exhausted`)
 
 ```bash
@@ -241,6 +248,14 @@ node hooks/forge-tools.js engine-transition {dir} finalize
 ```bash
 node hooks/forge-tools.js engine-can-transition {dir} cleanup
 node hooks/forge-tools.js engine-transition {dir} cleanup
+
+# Team cleanup (if team mode was used in Step 7)
+# Check meta.json options.exec_mode — if "team" or "hybrid":
+#   1. Send shutdown request to all teammates
+#   2. Wait for shutdown responses
+#   3. TeamDelete to destroy the team
+# This prevents "Already leading team" errors in subsequent forge runs.
+
 node hooks/forge-tools.js remove-lock {dir}
 # → pipeline-state.json: current_step = "completed"
 ```

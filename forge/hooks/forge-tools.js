@@ -555,8 +555,17 @@ function engineCanTransition(artifactDir, targetStep) {
       }
     }
     if (gate.required_artifacts) {
+      // Collect artifacts produced by skipped steps — these are exempt from the check
+      const skippedArtifacts = new Set();
+      for (const skippedId of state.skipped_steps) {
+        const skippedDef = steps.find(s => s.id === skippedId);
+        if (skippedDef && skippedDef.produces) {
+          skippedDef.produces.forEach(a => skippedArtifacts.add(a));
+        }
+      }
       const artDir = path.join(CWD, state.artifact_dir);
       const missing = gate.required_artifacts.filter(a => {
+        if (skippedArtifacts.has(a)) return false; // exempt: produced by a skipped step
         try { return !fs.existsSync(path.join(artDir, a)) || fs.statSync(path.join(artDir, a)).size < 10; }
         catch { return true; }
       });
@@ -586,6 +595,7 @@ function engineTransition(artifactDir, targetStep) {
   if (!canResult.allowed) return canResult;
 
   const state = readPipelineState(artifactDir);
+  const previousStep = state.current_step;
   const pipeline = loadPipeline();
   const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
   const steps = pipelineDef.steps || (pipelineDef.inherits ? pipeline.pipelines[pipelineDef.inherits].steps : []);
@@ -632,7 +642,7 @@ function engineTransition(artifactDir, targetStep) {
 
   return {
     transitioned: true,
-    from: state.current_step === actualTarget ? "(same)" : state.current_step,
+    from: previousStep,
     to: actualTarget,
     step_order: actualStepDef?.order,
     loads: actualStepDef?.loads || [],

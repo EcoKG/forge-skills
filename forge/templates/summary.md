@@ -1,4 +1,4 @@
-# Task Summary Template (v2)
+# Task Summary Template (v6.0)
 
 Use this structure when writing task-{N-M}-summary.md after each task execution.
 The implementer agent MUST follow this template exactly.

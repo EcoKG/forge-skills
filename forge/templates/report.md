@@ -1,4 +1,4 @@
-# Final Report Template (v2)
+# Final Report Template (v6.0)
 
 Use this structure when generating the completion report in Step 9.
 This is a FILE artifact (saved to disk) — use rich markdown formatting.

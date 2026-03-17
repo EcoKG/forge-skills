@@ -5,8 +5,8 @@
  * After EVERY tool call:
  * 1. Track tool use count (context pressure)
  * 2. Detect Agent dispatches → auto-record in trace.jsonl
- * 3. Detect build/test commands → record results in pipeline-state.json
- * 4. Auto type check after code file edits (typecheck pipeline-state update)
+ * 3. Detect build/test commands → write signals to tracker-signals.json
+ * 4. Auto type check after code file edits (signal on failure)
  * 5. Validate Agent output files (required sections check)
  * 6. Auto lint after code file edits (if config.backpressure.checks.lint=true)
  *
@@ -26,6 +26,7 @@ try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
 const WARN_TOOL_COUNT = 120;
 const CRITICAL_TOOL_COUNT = 160;
 const DEBOUNCE_COUNT = 8;
+const TYPE_CHECK_DEBOUNCE_MS = 5000; // 5 seconds
 
 // Build/test command patterns
 const BUILD_PATTERNS = [
@@ -97,7 +98,7 @@ function getStateFile(sessionId) {
 
 function readState(sessionId) {
   try { return JSON.parse(fs.readFileSync(getStateFile(sessionId), "utf8")); }
-  catch { return { toolUseCount: 0, lastWarnAt: 0, agentDispatches: 0 }; }
+  catch { return { toolUseCount: 0, lastWarnAt: 0, agentDispatches: 0, lastTypeCheckAt: 0 }; }
 }
 
 function writeState(sessionId, state) {
@@ -134,6 +135,20 @@ function updatePipelineState(statePath, updater) {
     state.updated_at = new Date().toISOString();
     fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
   } catch {}
+}
+
+function writeTrackerSignal(forgeDir, signalType, data) {
+  const signalPath = path.join(forgeDir, "tracker-signals.json");
+  let signals = [];
+  try { signals = JSON.parse(fs.readFileSync(signalPath, "utf8")); } catch {}
+  signals.push({
+    type: signalType,
+    data: data,
+    timestamp: new Date().toISOString()
+  });
+  // Keep only last 20 signals to prevent unbounded growth
+  if (signals.length > 20) signals = signals.slice(-20);
+  try { fs.writeFileSync(signalPath, JSON.stringify(signals, null, 2)); } catch {}
 }
 
 function main() {
@@ -185,10 +200,33 @@ function main() {
         // Detect build commands
         for (const pattern of BUILD_PATTERNS) {
           if (pattern.test(cmd)) {
-            const passed = !result.includes("error") && !result.includes("FAIL") && !result.includes("Error");
-            updatePipelineState(pipeline.path, (s) => {
-              s.last_build_result = passed ? "pass" : "fail";
-            });
+            // Regex-based detection to avoid false positives on "0 errors", "Error handling", etc.
+            let passed = null; // null = uncertain, don't update state
+            const FAIL_PATTERNS = [
+              /^ERROR\b/m,
+              /Build failed/i,
+              /Compilation failed/i,
+              /FATAL ERROR/i,
+              /Cannot find module/i,
+              /SyntaxError:/,
+              /TypeError:/,
+            ];
+            const PASS_PATTERNS = [
+              /compiled?\s+successfully/i,
+              /Build succeeded/i,
+              /0\s+errors?\b/i,
+              /webpack.*compiled/i,
+            ];
+            // Check fail patterns first
+            if (FAIL_PATTERNS.some(p => p.test(result))) {
+              passed = false;
+            } else if (PASS_PATTERNS.some(p => p.test(result))) {
+              passed = true;
+            }
+
+            if (passed !== null) {
+              writeTrackerSignal(FORGE_DIR, "build_result", { result: passed ? "pass" : "fail", command: cmd });
+            }
             break;
           }
         }
@@ -196,10 +234,36 @@ function main() {
         // Detect test commands
         for (const pattern of TEST_PATTERNS) {
           if (pattern.test(cmd)) {
-            const passed = !result.includes("FAIL") && !result.includes("failed") && !result.includes("Error");
-            updatePipelineState(pipeline.path, (s) => {
-              s.last_test_result = passed ? "pass" : "fail";
-            });
+            let testPassed = null;
+            const TEST_FAIL_PATTERNS = [
+              /(\d+)\s+(?:failed|failing|failures)/i,
+              /FAIL\s+\w/,
+              /Tests?:.*\b[1-9]\d*\s+failed/i,
+              /AssertionError/i,
+            ];
+            const TEST_PASS_PATTERNS = [
+              /Tests?:.*\b0\s+failed/i,
+              /All tests passed/i,
+              /Tests?:\s+\d+\s+passed/i,
+              /\d+\s+passing/i,
+            ];
+            // For test fail patterns with numbers, extract the count
+            for (const p of TEST_FAIL_PATTERNS) {
+              const m = result.match(p);
+              if (m) {
+                // If pattern captures a number, check it's > 0
+                if (m[1] && parseInt(m[1]) === 0) continue;
+                testPassed = false;
+                break;
+              }
+            }
+            if (testPassed === null && TEST_PASS_PATTERNS.some(p => p.test(result))) {
+              testPassed = true;
+            }
+
+            if (testPassed !== null) {
+              writeTrackerSignal(FORGE_DIR, "test_result", { result: testPassed ? "pass" : "fail", command: cmd });
+            }
             break;
           }
         }
@@ -210,15 +274,16 @@ function main() {
     if (["Edit", "Write"].includes(input.tool_name)) {
       const filePath = input.tool_input?.file_path || "";
       if (isCodeFile(filePath)) {
-        const typeCheckCmd = detectCommand(TYPE_CHECK_MAP);
-        if (typeCheckCmd) {
-          const result = runQuickCheck(typeCheckCmd, 15000);
-          if (!result.pass) {
-            output += `⚠ TYPE CHECK FAILED after editing ${path.basename(filePath)}:\n${result.output}\n`;
-            // Update pipeline state
-            const pipeline = findActivePipelineState();
-            if (pipeline) {
-              updatePipelineState(pipeline.path, (s) => { s.last_build_result = "fail"; });
+        const now = Date.now();
+        if (now - (state.lastTypeCheckAt || 0) >= TYPE_CHECK_DEBOUNCE_MS) {
+          const typeCheckCmd = detectCommand(TYPE_CHECK_MAP);
+          if (typeCheckCmd) {
+            state.lastTypeCheckAt = now;
+            const result = runQuickCheck(typeCheckCmd, 15000);
+            if (!result.pass) {
+              output += `⚠ TYPE CHECK FAILED after editing ${path.basename(filePath)}:\n${result.output}\n`;
+              // Signal type check failure
+              writeTrackerSignal(FORGE_DIR, "typecheck_fail", { file: path.basename(filePath), output: result.output });
             }
           }
         }

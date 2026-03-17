@@ -107,7 +107,7 @@ function formatPipelineContext(state) {
 
   if (state.allowed_transitions.length > 0) {
     lines.push(`Next allowed: ${state.allowed_transitions.join(", ")}`);
-    lines.push(`Transition: Bash("node forge-tools.js engine-transition ${state.artifact_dir} ${state.allowed_transitions[0]}")`);
+    lines.push(`Transition: Bash("node hooks/forge-tools.js engine-transition ${state.artifact_dir} ${state.allowed_transitions[0]}")`);
   }
 
   if (state.tasks_completed.length > 0) {
@@ -129,11 +129,11 @@ function formatPipelineContext(state) {
 
   lines.push("");
   lines.push("Engine commands (use via Bash):");
-  lines.push(`  forge-tools.js engine-state ${state.artifact_dir}`);
-  lines.push(`  forge-tools.js engine-can-transition ${state.artifact_dir} <step>`);
-  lines.push(`  forge-tools.js engine-transition ${state.artifact_dir} <step>`);
-  lines.push(`  forge-tools.js engine-dispatch-spec ${state.artifact_dir} <role> [task_id]`);
-  lines.push(`  forge-tools.js engine-record-result ${state.artifact_dir} <role> <task_id> <verdict>`);
+  lines.push(`  node hooks/forge-tools.js engine-state ${state.artifact_dir}`);
+  lines.push(`  node hooks/forge-tools.js engine-can-transition ${state.artifact_dir} <step>`);
+  lines.push(`  node hooks/forge-tools.js engine-transition ${state.artifact_dir} <step>`);
+  lines.push(`  node hooks/forge-tools.js engine-dispatch-spec ${state.artifact_dir} <role> [task_id]`);
+  lines.push(`  node hooks/forge-tools.js engine-record-result ${state.artifact_dir} <role> <task_id> <verdict>`);
   lines.push("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   lines.push("");
 

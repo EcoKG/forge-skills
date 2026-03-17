@@ -217,11 +217,60 @@
     },
     "debug": {
       "steps": [
-        {"id": "reproduce", "order": 1, "actor": "agent", "agent_role": "debugger"},
-        {"id": "hypothesize", "order": 2, "actor": "agent", "agent_role": "debugger"},
-        {"id": "test_hypothesis", "order": 3, "actor": "agent", "agent_role": "debugger"},
-        {"id": "fix", "order": 4, "actor": "agent", "agent_role": "implementer"},
-        {"id": "verify_fix", "order": 5, "actor": "agent", "agent_role": "verifier"}
+        {
+          "id": "reproduce",
+          "order": 1,
+          "actor": "agent",
+          "agent_role": "debugger",
+          "agent_prompt": "prompts/debugger.md",
+          "model_key": "implementation",
+          "entry_gate": null,
+          "exit_gate": {"state_value": "reproduced"},
+          "next": "hypothesize"
+        },
+        {
+          "id": "hypothesize",
+          "order": 2,
+          "actor": "agent",
+          "agent_role": "debugger",
+          "agent_prompt": "prompts/debugger.md",
+          "model_key": "planning",
+          "entry_gate": {"required_state": "reproduced"},
+          "exit_gate": {"state_value": "hypothesized"},
+          "next": "test_hypothesis"
+        },
+        {
+          "id": "test_hypothesis",
+          "order": 3,
+          "actor": "agent",
+          "agent_role": "debugger",
+          "agent_prompt": "prompts/debugger.md",
+          "model_key": "implementation",
+          "entry_gate": {"required_state": "hypothesized"},
+          "exit_gate": {"state_value": "hypothesis_tested"},
+          "next": "fix"
+        },
+        {
+          "id": "fix",
+          "order": 4,
+          "actor": "agent",
+          "agent_role": "implementer",
+          "agent_prompt": "prompts/implementer.md",
+          "model_key": "implementation",
+          "entry_gate": {"required_state": "hypothesis_tested"},
+          "exit_gate": {"state_value": "fixed"},
+          "next": "verify_fix"
+        },
+        {
+          "id": "verify_fix",
+          "order": 5,
+          "actor": "agent",
+          "agent_role": "verifier",
+          "agent_prompt": "prompts/verifier.md",
+          "model_key": "verification",
+          "entry_gate": {"required_state": "fixed"},
+          "exit_gate": {"state_value": "verified"}
+        }
       ]
     },
     "ralph": {

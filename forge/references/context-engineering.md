@@ -1,6 +1,6 @@
 # Context Engineering Reference
 
-> This file defines the rules for managing LLM context across the Forge v2 execution pipeline.
+> This file defines the rules for managing LLM context across the Forge v6.0 execution pipeline.
 > PM should load this file when context management decisions are needed, not at every step.
 
 ---
@@ -18,7 +18,7 @@ Symptoms of context rot:
 - Agent "forgets" the current objective and reverts to earlier patterns.
 - Repetitive output — the same code block or explanation appears multiple times.
 
-**Why Forge v2 is designed around this:**
+**Why Forge v6.0 is designed around this:**
 - PM (orchestrator) runs in a single long-lived context window.
 - Agents run in fresh 200k-token context windows per invocation.
 - If PM's context fills up, the entire execution degrades. Agents are immune because they start fresh.
@@ -254,7 +254,7 @@ RIGHT: PM tracks progress via meta.json task counts only
 ### Anti-Pattern 5: Loading the entire execution-flow.md
 ```
 WRONG: PM reads all 10 steps of execution-flow.md at init
-RIGHT: PM reads only the current step section using STEP_N markers
+RIGHT: PM reads only the current step section using ## Step N headers
 ```
 
 ### Anti-Pattern 6: Retaining agent conversation history
@@ -311,8 +311,8 @@ Execute these steps IN ORDER:
    - Do NOT load files for other steps
 
 3. **Load the current step section** from execution-flow.md
-   - Use `STEP_N_START` / `STEP_N_END` markers
-   - Load ONLY the current step, not the full file
+   - Navigate to the `## Step N` section header for the current step
+   - Load ONLY the current step section (up to the next `## Step` header), not the full file
 
 4. **If in Step 7 (Execute):** also read:
    - `plan.md` task checklist (task IDs + `<done>` status only, NOT full task details)
