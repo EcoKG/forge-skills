@@ -2,7 +2,9 @@
 
 > Ralph Mode implements the Ralph Loop philosophy: "fresh context, repeat until tests pass."
 > Named after the Ralph Wiggum Loop by Geoffrey Huntley.
-> PM loads this at Step 0 when `--ralph` flag is detected.
+> **Two activation paths:**
+> 1. **Automatic:** Step 8 verification fails after 2 fix cycles → auto-Ralph (no flag needed)
+> 2. **Manual:** `--ralph` flag for standalone use (e.g., "fix all failing tests")
 
 ---
 
@@ -46,6 +48,17 @@ Ralph approach: Implement → Test → Fail? → Fresh context → Try again →
 
 ## 3. Invocation
 
+### 3.1 Automatic (no flag needed)
+
+Ralph Mode activates automatically when:
+- **Step 8 verification fails** after 2 gap-fix cycles → auto-Ralph with remaining gaps as completion promise
+- **Backpressure exhausted** (6 retries failed) → auto-Ralph on that specific task
+
+The user doesn't need to do anything — the standard `/forge` pipeline handles it.
+
+### 3.2 Manual (standalone)
+
+For standalone use when you already know what needs fixing:
 ```
 /forge "fix all failing tests" --ralph
 /forge "make the build pass" --ralph --max-iterations 5

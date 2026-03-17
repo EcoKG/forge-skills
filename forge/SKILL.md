@@ -385,8 +385,10 @@ Static matrix (Section 9.1) is used as fallback when `--model quality` or `--mod
 | L1 | **Deep Work** | Planning (Step 3-4) | Every task has `read_first` + `acceptance_criteria` + concrete `action`. 8-dimension plan-checker verification. |
 | L2 | **Self-Check** | Implementation (Step 7) | Implementer's 6-item checklist (circular refs, init order, null safety, save/load, event timing, build). Stuck Detection Protocol: read loop (5 warn / 7 force), same-file 3x, error loop 3x. Decision Lock compliance check. |
 | L3 | **Peer Review** | Code Review (Step 7) | 10-perspective review: style, bugs, security, performance, plan alignment, TDD, SOLID/paradigm, error handling, goal-backward wiring, anti-pattern scan. Language-specific + general checklists. |
+| L3.5 | **Backpressure** | Per-Task (Step 7) | Build + test + lint must pass BEFORE code review. Auto-retry with fresh context (max 6). Completion Promise = external verification decides "done". |
 | L4 | **QA Gate** | Wave Boundary (Step 7) | Build verification, test execution, caller impact analysis, anti-pattern scan across all changed files. |
 | L5 | **Goal-Backward** | Verification (Step 8) | Level 1: Exists (files present, min lines met). Level 2: Substantive (real code, not stubs). Level 3: Wired (imports used, key_links connected). |
+| L6 | **Auto-Ralph** | Post-Verification (Step 8) | If verification fails after 2 fix cycles → auto-enter Ralph Mode. Fresh context iterations until tests pass. No flag needed. |
 
 ---
 

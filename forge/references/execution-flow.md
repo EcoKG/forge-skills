@@ -1003,7 +1003,36 @@ After all waves complete, proceed to **Step 8: VERIFY**.
 3. **Handle verifier result (PM reads verdict line only)**
    - **VERIFIED:** proceed to Step 9.
    - **GAPS_FOUND:** create gap-fix tasks, return to Step 7 for a targeted mini-execution (max 2 cycles).
+   - **GAPS_FOUND (after 2 fix cycles):** Auto-enter Ralph Mode for remaining gaps (see 8.5).
    - **FAILED:** escalate to user with the specific failures.
+
+### 8.5 Auto-Ralph on Verification Failure
+
+**When Step 8 gap-fix cycles are exhausted (2 cycles tried, gaps remain), automatically enter Ralph Mode:**
+
+1. Determine completion promise from remaining gaps:
+   - If test failures: `{test_command}` (run failing tests)
+   - If build failure: `{build_command}`
+   - If wiring gaps: construct grep-based check for key_links
+2. Create Ralph artifact subdirectory: `.forge/{date}/{slug}/ralph-fixup/`
+3. Initialize `iteration-log.md` with remaining gaps as initial state
+4. Run Ralph iteration loop (max iterations from config, default 10):
+   - Dispatch `ralph-executor` with gap details + source files
+   - Check completion promise after each iteration
+   - On success → return to Step 8 for re-verification
+   - On exhaustion → escalate to user
+5. Display:
+   ```
+   Verification gaps remain after 2 fix cycles.
+   Auto-entering Ralph Mode to resolve remaining issues...
+   Ralph: iteration {N}/{max} | promise: {command}
+   ```
+
+**This is automatic — no `--ralph` flag needed.** The standard pipeline seamlessly enters Ralph when needed.
+
+**Skip conditions:**
+- If config `ralph.max_iterations` is 0: skip auto-Ralph, escalate directly
+- If type is docs/analysis/design: no auto-Ralph (no tests to satisfy)
 
 4. **Update meta.json**
    - Set `state: "verified"`, `current_step: 8`.
