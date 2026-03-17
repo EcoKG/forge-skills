@@ -10,10 +10,10 @@ description: |
   DO NOT (overrides above): trivial single-line edits (typo, rename one variable, one import), code explanation only, simple commands (git log, npm install), new standalone files from scratch (no integration needed)
 ---
 
-# Forge v3.2
+# Forge v5.0
 
-> Context-Engineered Autonomous Development System — v3.2
-> v3.2 "Relentless" — Backpressure system, Ralph Mode + all v3.1 GSD features
+> Context-Engineered Autonomous Development System — v5.0
+> v5.0 "Forge Pro" — Plugin system, UI pipeline, test strategist, progressive disclosure, knowledge transfer + all prior features
 > Single entry point. File-based agent communication. Goal-backward verification.
 > **If context feels incomplete, re-read this SKILL.md to restore the flow.**
 
@@ -71,6 +71,7 @@ implement, build, add feature, bug, crash, broken, fix this, refactor, clean up,
 | `--ralph` | flag | off | Ralph Mode: iterate until completion promise passes |
 | `--max-iterations` | integer | 10 | Max Ralph iterations (only with --ralph) |
 | `--completion-promise` | string | auto | Custom completion check command (only with --ralph) |
+| `--disclosure` | novice, standard, advanced | standard | Output verbosity mode |
 | `--init` | flag | off | Generate/refresh project profile only |
 | `--phase`     | integer | -    | Execute specific roadmap phase N                              |
 | `--autonomous`| flag    | off  | Chain all remaining phases automatically                      |
@@ -196,6 +197,10 @@ All state is externalized to `.forge/` artifacts (meta.json, research.md, plan.m
 | **Resume** | `meta.json` (from lock file's artifact dir), `execution-flow.md` §7 (resume protocol) | Everything before the interrupted step |
 | **Ralph** | `references/ralph-mode.md`, `prompts/ralph-executor.md` | Standard pipeline steps |
 | **Backpressure** | `references/backpressure.md` (loaded within Step 7 when backpressure enabled) | — |
+| **Plugin Scan** | `.forge/agents/*.md` (Step 1 scan only) | Plugin file contents |
+| **Test Strategy** | `prompts/test-strategist.md`, `templates/test-strategy.md` (Step 4 after plan-check) | — |
+| **UI Review** | `prompts/ui-reviewer.md` (Step 7, only when UI files changed) | — |
+| **Knowledge** | `~/.forge/knowledge/{stack}/conventions.md`, `pitfalls.md` (Step 2 research, Step 9 write) | Full knowledge contents (agents read directly) |
 
 **Key rule:** `references/execution-flow.md` is NEVER read in full. Read only the current step's section (from `## Step N:` to the next `---` delimiter).
 
@@ -239,6 +244,9 @@ Twelve specialized agents plus two project-level agents. PM dispatches each with
 | 11 | **debugger** | Scientific method bug diagnosis | Bug description, source files | `debug-report.md` | sonnet |
 | 12 | **test-auditor** | Nyquist test coverage analysis | plan.md, source files, test files | `validation.md` | sonnet |
 | 13 | **ralph-executor** | Fresh-context iteration executor for Ralph Mode | `iteration-log.md`, completion promise, source files | `iteration-{N}-summary.md` | sonnet |
+| 14 | **ui-reviewer** | 6-pillar UI quality review (layout, a11y, responsiveness, interaction, visual, perf) | Changed UI files, plan.md | `ui-review-wave-{N}.md` | sonnet |
+| 15 | **test-strategist** | Test strategy design before implementation | plan.md, project-profile.json | `test-strategy.md` | sonnet |
+| 16 | **custom:{name}** | User-defined plugin agent from `.forge/agents/` | Per plugin spec | Per plugin spec | sonnet |
 
 **Agent dispatch format:**
 ```xml
@@ -328,7 +336,14 @@ Static matrix (Section 9.1) is used as fallback when `--model quality` or `--mod
     failures.json                   # Failed approaches + alternatives
     decisions.json                  # Architectural decisions + rationale
   metrics.json                      # Execution metrics (aggregated)
+  test-strategy.md                  # Test strategy (generated after plan-check)
 ```
+
+~/.forge/                             # Global (cross-project)
+  knowledge/                          # Stack-specific knowledge base
+    {stack}/                          # e.g., typescript-nextjs, go-gin
+      conventions.md                  # Proven coding conventions
+      pitfalls.md                     # Known pitfalls and solutions
 
 ### 10.2 meta.json Structure
 
@@ -384,7 +399,7 @@ Static matrix (Section 9.1) is used as fallback when `--model quality` or `--mod
 |---|---|---|---|
 | L1 | **Deep Work** | Planning (Step 3-4) | Every task has `read_first` + `acceptance_criteria` + concrete `action`. 8-dimension plan-checker verification. |
 | L2 | **Self-Check** | Implementation (Step 7) | Implementer's 6-item checklist (circular refs, init order, null safety, save/load, event timing, build). Stuck Detection Protocol: read loop (5 warn / 7 force), same-file 3x, error loop 3x. Decision Lock compliance check. |
-| L3 | **Peer Review** | Code Review (Step 7) | 10-perspective review: style, bugs, security, performance, plan alignment, TDD, SOLID/paradigm, error handling, goal-backward wiring, anti-pattern scan. Language-specific + general checklists. |
+| L3 | **Peer Review** | Code Review (Step 7) | 11-perspective review: style, bugs, security, performance, plan alignment, TDD, SOLID/paradigm, error handling, goal-backward wiring, UI review (when UI files changed), anti-pattern scan. Language-specific + general checklists. |
 | L3.5 | **Backpressure** | Per-Task (Step 7) | Build + test + lint must pass BEFORE code review. Auto-retry with fresh context (max 6). Completion Promise = external verification decides "done". |
 | L4 | **QA Gate** | Wave Boundary (Step 7) | Build verification, test execution, caller impact analysis, anti-pattern scan across all changed files. |
 | L5 | **Goal-Backward** | Verification (Step 8) | Level 1: Exists (files present, min lines met). Level 2: Substantive (real code, not stubs). Level 3: Wired (imports used, key_links connected). |
@@ -554,6 +569,13 @@ Every reference, prompt, and template file must answer these 3 questions:
 | `references/backpressure.md` | Step 7 (within execute) | Execute | backpressure results in task summary |
 | `references/ralph-mode.md` | Step 0 (`--ralph`) | Ralph Mode | iteration-log.md, iteration summaries |
 | `prompts/ralph-executor.md` | Step 0 (`--ralph`) | Ralph Mode | iteration-{N}-summary.md |
+| `references/plugin-system.md` | Step 1 (plugin scan) | Init | meta.json plugins list |
+| `prompts/ui-reviewer.md` | Step 7 (UI files changed) | Execute | ui-review-wave-{N}.md |
+| `prompts/test-strategist.md` | Step 4 (after plan-check) | Plan-Check | test-strategy.md |
+| `templates/test-strategy.md` | Step 4 (after plan-check) | Plan-Check | test-strategy.md |
+| `templates/knowledge-conventions.md` | Step 9 (knowledge write) | Finalize | ~/.forge/knowledge/{stack}/conventions.md |
+| `templates/knowledge-pitfalls.md` | Step 9 (knowledge write) | Finalize | ~/.forge/knowledge/{stack}/pitfalls.md |
+| `references/learning-system.md` §4 | Step 2 (read) + Step 9 (write) | Research + Finalize | knowledge files |
 | `templates/retrospective.md` | `--retrospective` | Retrospective | retrospective-{ms}.md |
 
 ### 14.3 Rule for New Features
@@ -584,7 +606,7 @@ Check for `--ralph` → load `references/ralph-mode.md` and follow its iteration
 6. **Initialize meta.json** with version, request, type, scale, paradigm, language, options, state: "init".
 7. **Display start banner** to user:
    ```
-   Forge v2 | type: {type} | scale: {scale} | lang: {language} | paradigm: {paradigm}
+   Forge v5.0 | type: {type} | scale: {scale} | lang: {language} | paradigm: {paradigm}
    Artifact: .forge/{date}/{slug}-{HHMM}/
    ```
 8. **Set meta.json state to "init_done".**

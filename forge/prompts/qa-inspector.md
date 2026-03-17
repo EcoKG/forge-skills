@@ -127,6 +127,17 @@ Anti-patterns are informational for PASS/GAPS_FOUND verdict — they don't cause
 **GUI (WPF/Web/Mobile):**
 - Verify UI binding paths match ViewModel/component properties
 - Check thread safety for UI updates from background threads
+- **Dispatch UI Reviewer** if UI files changed (HTML/CSS/JSX/TSX/Vue/Svelte):
+  ```xml
+  <agent_dispatch>
+    <role>ui-reviewer</role>
+    <task_id>ui-review-wave-{N}</task_id>
+    <files_to_read>{all changed UI files from this wave}</files_to_read>
+    <output_path>.forge/{date}/{slug}/ui-review-wave-{N}.md</output_path>
+  </agent_dispatch>
+  ```
+- Include UI reviewer verdict in QA report under `## UI Review`
+- UI accessibility FAIL → GAPS_FOUND verdict
 
 **API/Backend:**
 - Verify endpoint signatures match expected request/response

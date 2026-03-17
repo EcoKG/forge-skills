@@ -16,6 +16,8 @@ Read this file at Step 1 and use the formats throughout the session.
 - Model: {quality/balanced/budget}
 - Exec: {subagent/team}
 - Artifact: `.forge/{date}/{slug}-{HHMM}/`
+- Disclosure: {novice/standard/advanced}
+- Plugins: {N} custom agents ({names or "none"})
 
 ---
 
@@ -224,3 +226,47 @@ Pressure levels:
 
 **Model upgrade:**
 - Upgrading {agent} from {model_a} to {model_b} — reason: {N} consecutive failures
+
+---
+
+## Progressive Disclosure Modes
+
+### novice
+- Show detailed explanation for every step transition
+- Show what each agent does before dispatching
+- Show all options at every checkpoint (never auto-proceed)
+- Use friendly language, avoid jargon
+- Example:
+  ```
+  Step 2: Research — I'm going to explore your codebase to understand:
+  - What files exist and how they're organized
+  - What patterns are already in use
+  - What might be affected by this change
+  This usually takes 10-30 seconds...
+  ```
+
+### standard (default)
+- Current behavior — concise status updates
+- Auto-proceed for small scale
+- Technical but not verbose
+- Example:
+  ```
+  Forge v3.2 | type: code | scale: medium | lang: typescript | paradigm: oop
+  Artifact: .forge/2026-03-17/auth-feature-1430/
+  ```
+
+### advanced
+- Minimal output — show only task IDs and verdicts
+- Auto-proceed for small AND medium scale
+- Skip checkpoint for non-large
+- Suppress wave progress details (show only final summary)
+- Example:
+  ```
+  ⚒ auth-feature | 8 tasks 3 waves | balanced
+  W1: ✅✅✅ | W2: ✅✅✅ | W3: ✅✅ | QA: PASS | V: VERIFIED
+  ```
+
+### Mode Selection
+- Set via config.json `disclosure_mode`
+- Override per-execution: auto-detected from user's verbosity preference
+- PM reads mode at Step 1 and adapts ALL output formats accordingly

@@ -22,7 +22,7 @@ PM dispatches you with:
 1. Read the implementer's `task-{N-M}-summary.md` to understand claimed changes
 2. Read plan.md for the task's `<action>`, `<acceptance_criteria>`, and the YAML `must_haves`
 3. Read the changed files AND their callers/callees (not just the diff)
-4. Apply all 10 Review Perspectives below
+4. Apply all 11 Review Perspectives below
 5. Cross-check the implementer's Self-Check claims against actual code
 6. Render verdict
 
@@ -101,7 +101,35 @@ This perspective verifies that the code actually creates the connections promise
 
 Report each key_link as: WIRED / IMPORT_ONLY / MISSING
 
-### 10. Anti-Pattern Scan
+### 10. UI Review (activate when UI files changed)
+
+**Skip if:** No UI files (HTML, CSS, JSX, TSX, Vue, Svelte, SCSS) in the changed files.
+
+When UI files ARE present, check:
+
+1. **Accessibility:**
+   - Images have alt text
+   - Form inputs have labels
+   - Interactive elements are keyboard-accessible
+   - ARIA attributes used correctly
+
+2. **Responsiveness:**
+   - No fixed pixel widths that break on mobile
+   - Touch targets ≥ 44px
+   - Media queries or responsive utilities present
+
+3. **Visual Consistency:**
+   - Colors from theme/design tokens (not hardcoded hex)
+   - Spacing from system (not magic numbers)
+   - Typography consistent
+
+4. **Interaction States:**
+   - Loading, error, empty states handled
+   - Hover/focus/active states defined
+
+Report: {PASS / WARN / FAIL} for each sub-item. Any accessibility FAIL → minimum NEEDS_REVISION(major).
+
+### 11. Anti-Pattern Scan
 
 Scan all changed files for the following anti-patterns:
 

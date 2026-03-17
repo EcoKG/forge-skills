@@ -213,6 +213,21 @@ Artifact: .forge/{date}/{slug}-{HHMM}/
 2. This creates `execution-lock.json` — removed at Step 10 on clean completion
 3. If the process crashes, the lock file remains for detection by `forge-session-init.js`
 
+### 1.9 Plugin Discovery
+
+1. Check if `.forge/agents/` directory exists
+2. If yes: scan for `*.md` files using Glob
+3. For each plugin file found:
+   - Extract agent name from filename (remove `.md` extension)
+   - Verify name doesn't conflict with built-in agents
+   - Register in meta.json: `"plugins": ["agent-name-1", "agent-name-2"]`
+4. If no `.forge/agents/`: set `"plugins": []` in meta.json
+5. Display discovered plugins to user:
+   ```
+   Plugins: {N} custom agents found ({names})
+   ```
+   Or: `Plugins: none`
+
 ### Next
 Proceed to **Step 2: RESEARCH** (unless `--direct`, `--no-research`, or `--from` is set, in which case skip to Step 3 or Step 6).
 <!-- STEP_1_END -->
@@ -522,6 +537,27 @@ Plan verification (8D):
 - If plan-checker agent times out: retry once, then proceed with a warning.
 - If revision loop exhausts 3 attempts: notify user with the specific failing dimensions and ask for manual plan adjustments.
 - If plan-checker returns FAIL on first check: present the failure details to the user before attempting any revision.
+
+### 4.5 Test Strategy Generation
+
+**After plan-check passes (verdict: PASS):**
+
+1. Dispatch test-strategist agent:
+   ```xml
+   <agent_dispatch>
+     <role>test-strategist</role>
+     <task_id>test-strategy</task_id>
+     <files_to_read>
+       .forge/{date}/{slug}/plan.md
+       .forge/project-profile.json
+       {key source files from plan.md artifacts}
+     </files_to_read>
+     <output_path>.forge/{date}/{slug}/test-strategy.md</output_path>
+   </agent_dispatch>
+   ```
+2. PM reads verdict line only from test-strategy.md
+3. test-strategy.md is passed to implementer agents alongside plan.md
+4. Skip if: `--skip-tests`, type is docs/analysis/design, or `--quick` mode
 
 ### Next
 Proceed to **Step 5: CHECKPOINT**.
@@ -1154,6 +1190,18 @@ Proceed to **Step 9: FINALIZE**.
      # If failures.json missing: write {"failures":[]}
      # If decisions.json missing: write {"decisions":[]}
      ```
+
+### 9.5 Knowledge Transfer
+
+**Condition:** `quality_score > 0.8` AND `verification == "VERIFIED"`
+
+1. Determine stack key: read project-profile.json → `{language}-{framework}`
+2. Create `~/.forge/knowledge/{stack}/` if not exists
+3. Extract conventions from this execution's successful patterns → append to `conventions.md`
+4. Extract pitfalls from deviations/backpressure failures → append to `pitfalls.md`
+5. Load `references/learning-system.md` §4 for detailed rules
+
+**Skip if:** quality_score ≤ 0.8 or verification != "VERIFIED"
 
 8. **Retrospective trigger (project mode only)**
    - If this execution completed the last phase in a milestone:

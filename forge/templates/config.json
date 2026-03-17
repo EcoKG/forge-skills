@@ -57,5 +57,16 @@
     "cost_limit": null,
     "commit_per_iteration": true,
     "stuck_threshold": 3
+  },
+  "disclosure_mode": "standard",
+  "plugins": {
+    "enabled": true,
+    "directory": ".forge/agents",
+    "auto_suggest": true
+  },
+  "knowledge_transfer": {
+    "enabled": true,
+    "min_quality_score": 0.8,
+    "global_path": "~/.forge/knowledge"
   }
 }

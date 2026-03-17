@@ -172,3 +172,85 @@ quality_score = 1.0
 6. Feed action items into next milestone's planning context
 
 <!-- RETROSPECTIVE_END -->
+
+---
+
+<!-- KNOWLEDGE_TRANSFER_START -->
+
+## 4. Cross-Project Knowledge Transfer
+
+### Overview
+Knowledge Transfer extracts proven patterns and pitfalls from individual project executions and stores them in a global knowledge base organized by technology stack. Future projects with the same stack automatically benefit.
+
+### Directory Structure
+```
+~/.forge/knowledge/
+  typescript-nextjs/
+    conventions.md      # Coding conventions for TypeScript + Next.js
+    pitfalls.md         # Known pitfalls and solutions
+  go-grpc/
+    conventions.md
+    pitfalls.md
+  python-fastapi/
+    conventions.md
+    pitfalls.md
+```
+
+Stack key = `{language}-{framework}` from project-profile.json (e.g., `typescript-nextjs`, `go-gin`, `python-django`).
+
+### When Knowledge is Written (Step 9 — FINALIZE)
+
+**Condition:** `quality_score > 0.8` AND `verification == "VERIFIED"`
+
+**Extraction process:**
+1. Read current execution's patterns from `.forge/memory/patterns.json`
+2. Determine stack key from project-profile.json: `{language}-{framework}`
+3. Create `~/.forge/knowledge/{stack}/` directory if not exists
+4. Merge new patterns into `conventions.md`:
+   - Code patterns that produced high-quality results
+   - Naming conventions observed in the project
+   - Test patterns that worked well
+5. Merge new pitfalls into `pitfalls.md`:
+   - Any deviation R4 (architecture-level issue)
+   - Backpressure exhausted cases (6+ retries)
+   - Ralph Mode cases needing 5+ iterations
+6. Deduplicate: if a similar entry already exists (>80% text similarity), skip
+
+**Extraction command (PM runs at Step 9):**
+```
+If quality_score > 0.8 AND verification == VERIFIED:
+  stack = project-profile.json → "{language}-{framework}"
+  knowledge_dir = ~/.forge/knowledge/{stack}/
+  mkdir -p {knowledge_dir}
+
+  For each pattern in .forge/memory/patterns.json (new in this execution):
+    Append to {knowledge_dir}/conventions.md
+
+  For each R4 deviation or backpressure exhaustion:
+    Append to {knowledge_dir}/pitfalls.md
+```
+
+### When Knowledge is Read (Step 2 — RESEARCH)
+
+**Always, if knowledge exists for the current stack:**
+
+1. PM determines stack key from project-profile.json
+2. Check if `~/.forge/knowledge/{stack}/` exists
+3. If yes: pass paths to researcher agent in `<files_to_read>`:
+   - `~/.forge/knowledge/{stack}/conventions.md`
+   - `~/.forge/knowledge/{stack}/pitfalls.md`
+4. Researcher incorporates knowledge into research.md findings:
+   - Known pitfalls become automatic [M] or [H] findings
+   - Conventions inform the "Recommended Approach" section
+
+**PM context impact:** PM passes only the file PATHS to the researcher (not the content). Knowledge files are read by agents directly. Zero PM context cost.
+
+### Knowledge Rules
+- Max 50 entries per conventions.md section (oldest trimmed)
+- Max 100 entries per pitfalls.md (oldest trimmed)
+- Entries older than 6 months without re-use are auto-archived
+- Stack key is lowercase: `typescript-nextjs`, not `TypeScript-NextJS`
+- If framework is unknown: use language only (e.g., `go`, `python`)
+- Global knowledge (`~/.forge/knowledge/`) is separate from project memory (`.forge/memory/`)
+
+<!-- KNOWLEDGE_TRANSFER_END -->
