@@ -8,9 +8,10 @@
  * Or triggered by: /forge --init (project initialization)
  *
  * Hooks installed:
- *   1. forge-context-monitor (PostToolUse) — context pressure warnings
+ *   1. forge-tracker (PostToolUse) — context + agent + build/test tracking
  *   2. forge-statusline (Notification) — project status in statusline
- *   3. forge-session-init (UserPromptSubmit) — session continuity
+ *   3. forge-orchestrator (UserPromptSubmit) — pipeline state injection
+ *   4. forge-gate-guard (PreToolUse) — 4 critical hard gates
  */
 
 const fs = require("fs");
@@ -25,11 +26,12 @@ const SETTINGS_PATH = path.join(
 const HOOKS_DIR = path.dirname(__filename);
 
 const FORGE_HOOKS = [
+  // v6.0 Ironclad hooks
   {
     event: "PostToolUse",
-    id: "forge-context-monitor",
-    script: path.join(HOOKS_DIR, "forge-context-monitor.js"),
-    description: "Forge: monitors context window usage and injects warnings",
+    id: "forge-tracker",
+    script: path.join(HOOKS_DIR, "forge-tracker.js"),
+    description: "Forge v6: context monitor + agent dispatch tracker + build/test detector",
   },
   {
     event: "Notification",
@@ -39,17 +41,24 @@ const FORGE_HOOKS = [
   },
   {
     event: "UserPromptSubmit",
-    id: "forge-session-init",
-    script: path.join(HOOKS_DIR, "forge-session-init.js"),
-    description: "Forge: detects existing project on session start",
+    id: "forge-orchestrator",
+    script: path.join(HOOKS_DIR, "forge-orchestrator.js"),
+    description: "Forge v6: pipeline state injection + crash recovery + project context",
   },
   {
     event: "PreToolUse",
-    id: "forge-pretool-gate",
-    script: path.join(HOOKS_DIR, "forge-pretool-gate.js"),
+    id: "forge-gate-guard",
+    script: path.join(HOOKS_DIR, "forge-gate-guard.js"),
     matcher: "Edit|Write|Bash",
-    description: "Forge: checks if forge should be invoked before code edits",
+    description: "Forge v6: 4 critical gates — hard blocks on pipeline violations",
   },
+];
+
+// Old hooks to clean up during install (replaced by v6 hooks)
+const LEGACY_HOOKS = [
+  "forge-context-monitor",
+  "forge-session-init",
+  "forge-pretool-gate",
 ];
 
 function readSettings() {
@@ -73,6 +82,23 @@ function install() {
 
   if (!settings.hooks) {
     settings.hooks = {};
+  }
+
+  // Clean up legacy hooks (replaced by v6.0)
+  for (const legacyId of LEGACY_HOOKS) {
+    for (const event of Object.keys(settings.hooks || {})) {
+      if (settings.hooks[event]) {
+        const before = settings.hooks[event].length;
+        settings.hooks[event] = settings.hooks[event].filter(
+          (entry) =>
+            !(entry.hooks?.some((h) => h.command?.includes(legacyId))) &&
+            !(entry.command && entry.command.includes(legacyId))
+        );
+        if (before > settings.hooks[event].length) {
+          console.log(`  🔄 ${legacyId} — replaced by v6.0 hook`);
+        }
+      }
+    }
   }
 
   let installed = 0;

@@ -397,6 +397,438 @@ function getIterationCount(artifactDir) {
   }
 }
 
+// === FORGE ENGINE FUNCTIONS (v6.0 Ironclad) ===
+
+// Load pipeline definition
+function loadPipeline() {
+  // Try project-local first, then skill default
+  const localPath = path.join(FORGE_DIR, "pipeline.json");
+  const defaultPath = path.join(__dirname, "..", "templates", "pipeline.json");
+  try {
+    if (fs.existsSync(localPath)) return JSON.parse(fs.readFileSync(localPath, "utf8"));
+    return JSON.parse(fs.readFileSync(defaultPath, "utf8"));
+  } catch (err) {
+    return { error: "Failed to load pipeline.json: " + err.message };
+  }
+}
+
+// Read pipeline state (engine-managed, not meta.json)
+function readPipelineState(artifactDir) {
+  const statePath = path.join(artifactDir || FORGE_DIR, "pipeline-state.json");
+  try { return JSON.parse(fs.readFileSync(statePath, "utf8")); }
+  catch { return null; }
+}
+
+// Write pipeline state (ONLY engine should call this)
+function writePipelineState(artifactDir, state) {
+  const statePath = path.join(artifactDir, "pipeline-state.json");
+  state.updated_at = new Date().toISOString();
+  fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+  return { written: true, path: statePath };
+}
+
+// Initialize pipeline for a new execution
+function engineInit(artifactDir, request, type, scale, options) {
+  const pipeline = loadPipeline();
+  if (pipeline.error) return pipeline;
+
+  const pipelineName = options?.quick ? "quick" : options?.debug ? "debug" : options?.ralph ? "ralph" : "standard";
+  const pipelineDef = pipeline.pipelines[pipelineName] || pipeline.pipelines.standard;
+
+  // Determine which steps to skip based on type
+  const typeOverrides = pipeline.type_step_overrides?.[type] || {};
+  const skippedSteps = typeOverrides.skip || [];
+  if (options?.direct) skippedSteps.push("research", "plan_check");
+  if (options?.no_research) skippedSteps.push("research");
+  if (options?.quick) skippedSteps.push("research", "plan_check", "checkpoint", "branch", "verify");
+
+  const state = {
+    session_id: path.basename(artifactDir),
+    artifact_dir: path.relative(CWD, artifactDir),
+    pipeline: pipelineName,
+    current_step: "init",
+    current_step_order: 1,
+    gates_passed: [],
+    gates_pending: ["init_done"],
+    allowed_transitions: [],
+    skipped_steps: [...new Set(skippedSteps)],
+    agents_dispatched: 0,
+    revision_counts: { plan: 0, code_minor: 0, code_major: 0, reject: 0, qa_retry: 0 },
+    last_build_result: null,
+    last_test_result: null,
+    wave_current: 0,
+    wave_total: 0,
+    tasks_completed: [],
+    drift: [],
+    created_at: new Date().toISOString(),
+    request: request,
+    type: type,
+    scale: scale
+  };
+
+  writePipelineState(artifactDir, state);
+  return { initialized: true, pipeline: pipelineName, skipped_steps: state.skipped_steps };
+}
+
+// Get current pipeline state with allowed transitions
+function engineCurrentState(artifactDir) {
+  const state = readPipelineState(artifactDir);
+  if (!state) return { error: "No active pipeline state found" };
+
+  const pipeline = loadPipeline();
+  if (pipeline.error) return pipeline;
+
+  const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
+  const steps = pipelineDef.steps || (pipelineDef.inherits ? pipeline.pipelines[pipelineDef.inherits].steps : []);
+  const currentStepDef = steps.find(s => s.id === state.current_step);
+
+  // Compute allowed transitions
+  const allowed = [];
+  if (currentStepDef?.next) {
+    const nextStepDef = steps.find(s => s.id === currentStepDef.next);
+    if (nextStepDef) {
+      // Check if next step should be skipped
+      if (state.skipped_steps.includes(currentStepDef.next)) {
+        // Find the next non-skipped step
+        let target = currentStepDef.next;
+        while (target && state.skipped_steps.includes(target)) {
+          const targetDef = steps.find(s => s.id === target);
+          target = targetDef?.next || null;
+        }
+        if (target) allowed.push(target);
+      } else {
+        allowed.push(currentStepDef.next);
+      }
+    }
+  }
+
+  return {
+    current_step: state.current_step,
+    current_step_order: state.current_step_order,
+    gates_passed: state.gates_passed,
+    gates_pending: state.gates_pending,
+    allowed_transitions: allowed,
+    revision_counts: state.revision_counts,
+    last_build_result: state.last_build_result,
+    last_test_result: state.last_test_result,
+    wave_current: state.wave_current,
+    tasks_completed: state.tasks_completed,
+    drift: state.drift
+  };
+}
+
+// Check if a transition is valid
+function engineCanTransition(artifactDir, targetStep) {
+  const state = readPipelineState(artifactDir);
+  if (!state) return { allowed: false, reason: "No active pipeline state" };
+
+  const pipeline = loadPipeline();
+  if (pipeline.error) return { allowed: false, reason: pipeline.error };
+
+  const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
+  const steps = pipelineDef.steps || (pipelineDef.inherits ? pipeline.pipelines[pipelineDef.inherits].steps : []);
+
+  const currentStepDef = steps.find(s => s.id === state.current_step);
+  const targetStepDef = steps.find(s => s.id === targetStep);
+
+  if (!targetStepDef) return { allowed: false, reason: `Unknown step: ${targetStep}` };
+
+  // Check order (no backward unless revision loop)
+  if (targetStepDef.order < (currentStepDef?.order || 0)) {
+    const loop = currentStepDef?.revision_loop;
+    if (!loop || loop.target_step !== targetStep) {
+      return { allowed: false, reason: `Cannot go backward from ${state.current_step} to ${targetStep}` };
+    }
+    if ((state.revision_counts[state.current_step] || 0) >= loop.max_iterations) {
+      return { allowed: false, reason: `Revision limit reached (${loop.max_iterations})`, escalate: true };
+    }
+  }
+
+  // Check entry gate
+  const gate = targetStepDef.entry_gate;
+  if (gate) {
+    if (gate.required_state && state.current_step !== "init" && !state.gates_passed.includes(gate.required_state)) {
+      // Check if it's the exit value of current step
+      const exitValue = currentStepDef?.exit_gate?.state_value;
+      if (exitValue !== gate.required_state) {
+        return { allowed: false, reason: `Required gate: ${gate.required_state} not passed. Current: ${state.current_step}` };
+      }
+    }
+    if (gate.required_artifacts) {
+      const artDir = path.join(CWD, state.artifact_dir);
+      const missing = gate.required_artifacts.filter(a => {
+        try { return !fs.existsSync(path.join(artDir, a)) || fs.statSync(path.join(artDir, a)).size < 10; }
+        catch { return true; }
+      });
+      if (missing.length > 0) {
+        return { allowed: false, reason: `Missing required artifacts: ${missing.join(", ")}` };
+      }
+    }
+  }
+
+  // Check if target should be skipped
+  if (state.skipped_steps.includes(targetStep)) {
+    return { allowed: true, skip: true, reason: `Step ${targetStep} is skipped, will advance to next` };
+  }
+
+  return {
+    allowed: true,
+    target: targetStep,
+    loads: targetStepDef.loads || [],
+    produces: targetStepDef.produces || [],
+    agent_role: targetStepDef.agent_role || null
+  };
+}
+
+// Execute a state transition
+function engineTransition(artifactDir, targetStep) {
+  const canResult = engineCanTransition(artifactDir, targetStep);
+  if (!canResult.allowed) return canResult;
+
+  const state = readPipelineState(artifactDir);
+  const pipeline = loadPipeline();
+  const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
+  const steps = pipelineDef.steps || (pipelineDef.inherits ? pipeline.pipelines[pipelineDef.inherits].steps : []);
+  const targetStepDef = steps.find(s => s.id === targetStep);
+
+  // Record exit gate of current step as passed
+  const currentStepDef = steps.find(s => s.id === state.current_step);
+  if (currentStepDef?.exit_gate?.state_value) {
+    if (!state.gates_passed.includes(currentStepDef.exit_gate.state_value)) {
+      state.gates_passed.push(currentStepDef.exit_gate.state_value);
+    }
+  }
+
+  // If target is skipped, find the next non-skipped step
+  let actualTarget = targetStep;
+  while (actualTarget && state.skipped_steps.includes(actualTarget)) {
+    const def = steps.find(s => s.id === actualTarget);
+    // Mark skipped step's gate as passed
+    if (def?.exit_gate?.state_value) {
+      state.gates_passed.push(def.exit_gate.state_value);
+    }
+    actualTarget = def?.next || null;
+  }
+
+  if (!actualTarget) return { error: "No valid step found after skipping" };
+
+  const actualStepDef = steps.find(s => s.id === actualTarget);
+
+  // Update state
+  state.current_step = actualTarget;
+  state.current_step_order = actualStepDef?.order || 0;
+  state.gates_pending = [];
+  if (actualStepDef?.exit_gate?.state_value) {
+    state.gates_pending.push(actualStepDef.exit_gate.state_value);
+  }
+
+  // Compute next allowed transitions
+  state.allowed_transitions = [];
+  if (actualStepDef?.next) {
+    state.allowed_transitions.push(actualStepDef.next);
+  }
+
+  writePipelineState(artifactDir, state);
+
+  return {
+    transitioned: true,
+    from: state.current_step === actualTarget ? "(same)" : state.current_step,
+    to: actualTarget,
+    step_order: actualStepDef?.order,
+    loads: actualStepDef?.loads || [],
+    produces: actualStepDef?.produces || [],
+    agent_role: actualStepDef?.agent_role || null,
+    next: actualStepDef?.next || null
+  };
+}
+
+// Generate dispatch specification for an agent
+function engineDispatchSpec(artifactDir, role, taskId) {
+  const state = readPipelineState(artifactDir);
+  if (!state) return { error: "No active pipeline state" };
+
+  const pipeline = loadPipeline();
+  const modelProfile = pipeline.model_profiles?.[state.options?.model || "balanced"] || pipeline.model_profiles?.balanced;
+
+  const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
+  const steps = pipelineDef.steps || (pipelineDef.inherits ? pipeline.pipelines[pipelineDef.inherits].steps : []);
+  const currentStepDef = steps.find(s => s.id === state.current_step);
+
+  // Determine prompt path and model
+  let promptPath = null;
+  let model = "sonnet";
+
+  if (currentStepDef?.agent_role === role) {
+    promptPath = currentStepDef.agent_prompt;
+    model = modelProfile?.[currentStepDef.model_key] || "sonnet";
+  } else if (currentStepDef?.review_agent?.role === role) {
+    promptPath = currentStepDef.review_agent.prompt;
+    model = modelProfile?.[currentStepDef.review_agent.model_key] || "sonnet";
+  } else if (currentStepDef?.qa_agent?.role === role) {
+    promptPath = currentStepDef.qa_agent.prompt;
+    model = modelProfile?.[currentStepDef.qa_agent.model_key] || "sonnet";
+  } else {
+    // Custom agent — check .forge/agents/
+    const customPath = path.join(FORGE_DIR, "agents", `${role}.md`);
+    if (fs.existsSync(customPath)) {
+      promptPath = customPath;
+    } else {
+      promptPath = `prompts/${role}.md`;
+    }
+  }
+
+  // Build dispatch spec
+  const spec = {
+    role: role,
+    task_id: taskId || state.current_step,
+    prompt_path: promptPath,
+    model: model,
+    output_path: path.join(state.artifact_dir, taskId ? `task-${taskId}-summary.md` : `${role}-output.md`),
+    artifact_dir: state.artifact_dir,
+    step: state.current_step,
+    agents_dispatched: state.agents_dispatched + 1
+  };
+
+  // Update dispatch count
+  state.agents_dispatched++;
+  writePipelineState(artifactDir, state);
+
+  return spec;
+}
+
+// Record agent result
+function engineRecordResult(artifactDir, role, taskId, verdict) {
+  const state = readPipelineState(artifactDir);
+  if (!state) return { error: "No active pipeline state" };
+
+  if (verdict === "PASS" && taskId && !state.tasks_completed.includes(taskId)) {
+    state.tasks_completed.push(taskId);
+  }
+
+  // Append to trace.jsonl
+  const traceEntry = {
+    timestamp: new Date().toISOString(),
+    agent: role,
+    task_id: taskId,
+    verdict: verdict,
+    step: state.current_step
+  };
+  const tracePath = path.join(CWD, state.artifact_dir, "trace.jsonl");
+  try { fs.appendFileSync(tracePath, JSON.stringify(traceEntry) + "\n"); } catch {}
+
+  writePipelineState(artifactDir, state);
+  return { recorded: true, tasks_completed: state.tasks_completed.length };
+}
+
+// Record revision attempt
+function engineRecordRevision(artifactDir, type) {
+  const state = readPipelineState(artifactDir);
+  if (!state) return { error: "No active pipeline state" };
+
+  const pipeline = loadPipeline();
+  const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
+  const steps = pipelineDef.steps || [];
+  const currentStepDef = steps.find(s => s.id === state.current_step);
+  const limits = currentStepDef?.revision_limits || {};
+
+  state.revision_counts[type] = (state.revision_counts[type] || 0) + 1;
+  const count = state.revision_counts[type];
+  const limit = limits[type] || 999;
+
+  writePipelineState(artifactDir, state);
+
+  if (count >= limit) {
+    return { recorded: true, count, limit, exceeded: true, action: "escalate_to_user" };
+  }
+  return { recorded: true, count, limit, exceeded: false };
+}
+
+// Run build verification and record result
+function engineVerifyBuild(artifactDir, command) {
+  const state = readPipelineState(artifactDir);
+  if (!state) return { error: "No active pipeline state" };
+
+  try {
+    execSync(command, { cwd: CWD, encoding: "utf8", timeout: 120000, stdio: ["pipe", "pipe", "pipe"] });
+    state.last_build_result = "pass";
+    writePipelineState(artifactDir, state);
+    return { result: "pass", command };
+  } catch (err) {
+    state.last_build_result = "fail";
+    writePipelineState(artifactDir, state);
+    return { result: "fail", command, error: (err.stderr || err.stdout || "").slice(0, 1000) };
+  }
+}
+
+// Run test verification and record result
+function engineVerifyTests(artifactDir, command) {
+  const state = readPipelineState(artifactDir);
+  if (!state) return { error: "No active pipeline state" };
+
+  try {
+    const output = execSync(command, { cwd: CWD, encoding: "utf8", timeout: 120000, stdio: ["pipe", "pipe", "pipe"] });
+    state.last_test_result = "pass";
+    writePipelineState(artifactDir, state);
+    return { result: "pass", command, output: output.slice(0, 1000) };
+  } catch (err) {
+    state.last_test_result = "fail";
+    writePipelineState(artifactDir, state);
+    return { result: "fail", command, error: (err.stderr || err.stdout || "").slice(0, 1000) };
+  }
+}
+
+// Get wave info for current execution
+function engineWaveInfo(artifactDir) {
+  const state = readPipelineState(artifactDir);
+  if (!state) return { error: "No active pipeline state" };
+
+  return {
+    wave_current: state.wave_current,
+    wave_total: state.wave_total,
+    tasks_completed: state.tasks_completed,
+    tasks_total: state.tasks_total || 0
+  };
+}
+
+// Reconcile: compare desired state with actual state on disk
+function engineReconcile(artifactDir) {
+  const state = readPipelineState(artifactDir);
+  if (!state) return { error: "No active pipeline state" };
+
+  const artDir = path.join(CWD, state.artifact_dir);
+  const drift = [];
+
+  // Check completed tasks have summaries
+  for (const taskId of state.tasks_completed) {
+    const summaryPath = path.join(artDir, `task-${taskId}-summary.md`);
+    if (!fs.existsSync(summaryPath)) {
+      drift.push({ type: "missing_summary", task_id: taskId, expected: summaryPath });
+    }
+  }
+
+  // Check required artifacts for current step
+  const pipeline = loadPipeline();
+  const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
+  const steps = pipelineDef.steps || [];
+  const currentStepDef = steps.find(s => s.id === state.current_step);
+
+  if (currentStepDef?.entry_gate?.required_artifacts) {
+    for (const artifact of currentStepDef.entry_gate.required_artifacts) {
+      if (!fs.existsSync(path.join(artDir, artifact))) {
+        drift.push({ type: "missing_artifact", artifact, step: state.current_step });
+      }
+    }
+  }
+
+  state.drift = drift;
+  writePipelineState(artifactDir, state);
+
+  if (drift.length > 0) {
+    return { status: "DRIFT_DETECTED", drift, action: "correct" };
+  }
+  return { status: "CONSISTENT", drift: [] };
+}
+
 // Config operations
 function configInit() {
   const configPath = path.join(FORGE_DIR, "config.json");
@@ -531,6 +963,17 @@ try {
     case "record-iteration":       result = recordIteration(args[0], args[1], args[2]); break;
     case "check-completion-promise": result = checkCompletionPromise(args[0], args.slice(1).join(" ")); break;
     case "get-iteration-count":    result = getIterationCount(args[0]); break;
+    case "engine-init":          result = engineInit(args[0], args[1], args[2], args[3], args[4] ? JSON.parse(args[4]) : {}); break;
+    case "engine-state":         result = engineCurrentState(args[0]); break;
+    case "engine-can-transition": result = engineCanTransition(args[0], args[1]); break;
+    case "engine-transition":    result = engineTransition(args[0], args[1]); break;
+    case "engine-dispatch-spec": result = engineDispatchSpec(args[0], args[1], args[2]); break;
+    case "engine-record-result": result = engineRecordResult(args[0], args[1], args[2], args[3]); break;
+    case "engine-record-revision": result = engineRecordRevision(args[0], args[1]); break;
+    case "engine-verify-build":  result = engineVerifyBuild(args[0], args.slice(1).join(" ")); break;
+    case "engine-verify-tests":  result = engineVerifyTests(args[0], args.slice(1).join(" ")); break;
+    case "engine-wave-info":     result = engineWaveInfo(args[0]); break;
+    case "engine-reconcile":     result = engineReconcile(args[0]); break;
     case "help":
     default:
       result = {
@@ -548,6 +991,17 @@ try {
           "record-iteration <dir> <N> <json>",
           "check-completion-promise <dir> <command>",
           "get-iteration-count <dir>",
+          "engine-init <dir> <request> <type> <scale> [options_json]",
+          "engine-state <dir>",
+          "engine-can-transition <dir> <target_step>",
+          "engine-transition <dir> <target_step>",
+          "engine-dispatch-spec <dir> <role> [task_id]",
+          "engine-record-result <dir> <role> <task_id> <verdict>",
+          "engine-record-revision <dir> <type>",
+          "engine-verify-build <dir> <command...>",
+          "engine-verify-tests <dir> <command...>",
+          "engine-wave-info <dir>",
+          "engine-reconcile <dir>",
           "help"
         ]
       };
