@@ -18,6 +18,10 @@
           "bug fix",
           "리팩토링",
           "refactoring",
+          "refactor",
+          "implement",
+          "debug",
+          "migrate",
           "코드 리뷰",
           "code review",
           "보안 감사",
@@ -115,6 +119,16 @@
       },
       "skipConditions": {
         "sessionSkillUsed": false
+      },
+      "smartScoring": {
+        "enabled": true,
+        "threshold": 60,
+        "weights": {
+          "fileExtension": 50,
+          "actionVerb": 30,
+          "codeIdentifier": 20,
+          "negativeSignal": -40
+        }
       }
     }
   }

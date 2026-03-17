@@ -34,6 +34,8 @@ export function formatOutput(matches) {
             tags.push(`keywords: ${m.matchedKeywords.join(', ')}`);
         if (m.matchedIntents.length > 0)
             tags.push(`intents: ${m.matchedIntents.length}`);
+        if (m.smartScore?.total > 0)
+            tags.push(`smart: ${m.smartScore.total}pts`);
         lines.push(`  → ${m.skillName} [${m.rule.priority}] (${tags.join('; ')})`);
         if (m.rule.description) {
             lines.push(`    ${m.rule.description}`);
