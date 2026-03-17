@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 /**
- * Forge Gate Guard — PreToolUse Hook (v6.0 Ironclad)
+ * Forge Gate Guard — PreToolUse Hook (v6.1)
  *
  * Hard-blocks tool usage that violates pipeline state.
  * Reads .forge/pipeline-state.json for current state.
  * Exit(1) = hard block. Exit(0) = allow.
  *
- * 4 Critical Gates:
- *   Gate 1: research.md must exist before plan.md creation
- *   Gate 2: plan_check PASS before source code edits
- *   Gate 3: build/test must pass before git commit
- *   Gate 4: verification must exist before report.md creation
+ * 6 Gates:
+ *   Gate 1: research.md must exist before plan.md creation [HARD BLOCK]
+ *   Gate 2: plan_check PASS before source code edits [HARD BLOCK]
+ *   Gate 3: build/test must pass before git commit [HARD BLOCK]
+ *   Gate 4: verification must exist before report.md creation [HARD BLOCK]
+ *   Gate 5: Large change warning (>500 chars edit, >100 lines overwrite) [WARNING]
+ *   Gate 6: Secret/credential detection in code content [HARD BLOCK]
  *
  * stdin: JSON { tool_name, tool_input, session_id }
  * stdout: warning text (if any)
@@ -30,6 +32,24 @@ const CODE_EXTENSIONS = new Set([
 ]);
 
 const SKIP_PATHS = [".forge/", "node_modules/", ".git/", "package-lock.json", "yarn.lock"];
+
+// Secret/credential patterns for Gate 6
+const SECRET_PATTERNS = [
+  /(?:API_KEY|APIKEY|api_key)\s*[=:]\s*["']?[A-Za-z0-9_\-]{16,}/i,
+  /(?:SECRET|secret_key|SECRET_KEY)\s*[=:]\s*["']?[A-Za-z0-9_\-]{16,}/i,
+  /(?:PASSWORD|passwd|PASSWD)\s*[=:]\s*["']?[^\s"']{8,}/i,
+  /Bearer\s+[A-Za-z0-9\-._~+\/]+=*/,
+  /(?:AKIA|ASIA)[A-Z0-9]{16}/,  // AWS access key
+  /-----BEGIN (?:RSA |EC |DSA )?PRIVATE KEY-----/,
+  /(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,}/,  // GitHub token
+  /sk-[A-Za-z0-9]{20,}/,  // OpenAI/Anthropic API key pattern
+  /xox[bpsa]-[A-Za-z0-9\-]{10,}/,  // Slack token
+];
+
+const SENSITIVE_FILES = [".env", ".env.local", ".env.production", "credentials.json", "secrets.yaml", "secrets.yml"];
+
+const LARGE_EDIT_THRESHOLD = 500;  // characters
+const LARGE_WRITE_THRESHOLD = 100; // lines
 
 function isCodeFile(filePath) {
   if (!filePath) return false;
@@ -206,6 +226,67 @@ function main() {
               "🚫 GATE 4 BLOCKED: Cannot create report.md — verification.md does not exist.\n" +
               "Complete verification first.\n" +
               "Run: forge-engine.js transition verify"
+            );
+            process.exit(1);
+            return;
+          }
+        }
+      }
+    }
+
+    // === GATE 5: Large change warning ===
+    if (toolName === "Edit") {
+      const oldString = toolInput.old_string || "";
+      if (oldString.length > LARGE_EDIT_THRESHOLD) {
+        process.stdout.write(
+          `⚠ LARGE EDIT WARNING: Replacing ${oldString.length} characters. ` +
+          `This is a significant change. Verify it's intentional.`
+        );
+        // Warning only, not a block
+      }
+    }
+    if (toolName === "Write") {
+      const filePath = toolInput.file_path || "";
+      if (filePath && !filePath.includes(".forge/")) {
+        try {
+          if (fs.existsSync(filePath)) {
+            const existing = fs.readFileSync(filePath, "utf8");
+            const existingLines = existing.split("\n").length;
+            if (existingLines > LARGE_WRITE_THRESHOLD) {
+              process.stdout.write(
+                `⚠ LARGE OVERWRITE WARNING: Replacing ${existingLines}-line file ${path.basename(filePath)}. ` +
+                `Consider using Edit for targeted changes instead.`
+              );
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // === GATE 6: Secret/credential detection — HARD BLOCK ===
+    if (["Edit", "Write"].includes(toolName)) {
+      const content = toolInput.new_string || toolInput.content || "";
+      const filePath = toolInput.file_path || "";
+      const basename = path.basename(filePath);
+
+      // Check for sensitive file names
+      if (SENSITIVE_FILES.includes(basename)) {
+        process.stdout.write(
+          `⚠ SENSITIVE FILE: Writing to ${basename}. ` +
+          `Ensure no real credentials are included. Use environment variables.`
+        );
+        // Warning for .env files, not block (they may be templates)
+      }
+
+      // Check content for secret patterns — HARD BLOCK
+      if (content.length > 0) {
+        for (const pattern of SECRET_PATTERNS) {
+          if (pattern.test(content)) {
+            process.stdout.write(
+              `🚫 GATE 6 BLOCKED: Detected potential secret/credential in content.\n` +
+              `Pattern matched: ${pattern.toString().slice(0, 60)}...\n` +
+              `DO NOT hardcode secrets. Use environment variables or a secrets manager.\n` +
+              `If this is a false positive (e.g., example/placeholder), note it in your response.`
             );
             process.exit(1);
             return;
