@@ -85,9 +85,18 @@ mkdir -p "$STATE_DIR"
 echo "  → $ACTIVATION_DST/"
 echo "  → $RULES_DST"
 
-# ─── Step 6: Install forge workspace hooks ───
+# ─── Step 6: Install forge workspace hooks (v6.1 — replaces legacy hooks) ───
 echo "[6/7] Installing forge workspace hooks..."
+# install.js automatically removes legacy hooks (context-monitor, session-init, pretool-gate)
+# and installs v6.1 hooks (gate-guard, orchestrator, tracker)
 "$NODE_BIN" "$SKILLS_DIR/forge/hooks/install.js" 2>/dev/null || echo "  (skipped — forge hooks install failed, non-critical)"
+# Remove legacy hook files that are no longer needed
+for LEGACY_FILE in forge-pretool-gate.js forge-session-init.js forge-context-monitor.js; do
+  if [ -f "$SKILLS_DIR/forge/hooks/$LEGACY_FILE" ]; then
+    rm "$SKILLS_DIR/forge/hooks/$LEGACY_FILE"
+    echo "  🗑 Removed legacy: $LEGACY_FILE"
+  fi
+done
 
 # ─── Step 7: Register activation hook in settings.json ───
 echo "[7/7] Registering activation hook in settings.json..."
@@ -150,15 +159,15 @@ echo "║   Installation Complete                  ║"
 echo "╠══════════════════════════════════════════╣"
 echo "║                                          ║"
 echo "║  Skills installed:                       ║"
-echo "║    • forge v6.0  — /forge                ║"
+echo "║    • forge v6.1  — /forge                ║"
 echo "║    • creatework  — /creatework           ║"
 echo "║                                          ║"
-echo "║  Hooks installed:                        ║"
-echo "║    • context-monitor (PostToolUse)       ║"
-echo "║    • statusline (Notification)           ║"
-echo "║    • session-init (UserPromptSubmit)     ║"
-echo "║    • pretool-gate (PreToolUse)           ║"
-echo "║    • skill-activation (UserPromptSubmit) ║"
+echo "║  Hooks installed (v6.1):                 ║"
+echo "║    • forge-gate-guard (PreToolUse)       ║"
+echo "║    • forge-orchestrator (UserPromptSub)  ║"
+echo "║    • forge-tracker (PostToolUse)         ║"
+echo "║    • forge-statusline (Notification)     ║"
+echo "║    • skill-activation (UserPromptSub)    ║"
 echo "║                                          ║"
 echo "║  All hooks are in ~/.claude/skills/forge ║"
 echo "║  Safe to delete the repo after install.  ║"
