@@ -32,6 +32,7 @@
    | `--map` | Codebase mapping | `codebase-mapping.md` (CODEBASE_MAP) |
    | `--quick` | Quick 3-step pipeline | Skip to Step 3 (single task plan) |
    | `--retrospective` | Milestone retrospective | `learning-system.md` (RETROSPECTIVE) |
+   | `--ralph` | Ralph iteration loop | `ralph-mode.md` (RALPH_MODE) |
 
 2. **Load the relevant section** from `references/project-lifecycle.md`
    - Use section markers (e.g., `PROJECT_INIT_START` to `PROJECT_INIT_END`)
@@ -42,7 +43,33 @@
    - For `--status`: display and return (no pipeline execution)
    - For `--init`: create project, then optionally invoke `--phase 1`
 
-4. **Return control**
+4. **Ralph Mode routing** (if `--ralph` detected):
+   - Load `references/ralph-mode.md` §4 (Iteration Flow)
+   - Create artifact directory: `.forge/{date}/ralph-{slug}-{HHMM}/`
+   - Initialize `meta.json` with `mode: "ralph"`, `max_iterations` from flag or config
+   - Create empty `iteration-log.md`
+   - Run completion promise check to capture initial state
+   - Record initial failures in `iteration-log.md` §Initial State
+   - Enter iteration loop:
+     ```
+     for iteration in 1..max_iterations:
+         dispatch ralph-executor (fresh subagent) with:
+           - iteration-log.md path
+           - completion promise command
+           - iteration number
+           - relevant source files
+
+         run completion promise check
+         append result to iteration-log.md
+
+         if PASS → success, exit loop, generate report
+         if FAIL + no progress for 3 iterations → stuck, escalate
+         if iteration == max_iterations → exhausted, present options
+     ```
+   - On completion: generate `report.md`, update `meta.json` state
+   - **Do NOT enter the standard 10-step pipeline**
+
+5. **Return control**
    - If the operation invokes the pipeline (--phase, --autonomous): proceed to Step 1 with injected context
    - If the operation is self-contained (--status, --milestone, --init): return to user
 
@@ -670,6 +697,34 @@ for wave_number in 1..total_waves:
 - Implementer reads the specified files directly (PM does NOT load them).
 - Implementer follows Deep Work structure: read `<read_first>` files, then execute `<action>` items, then verify `<acceptance_criteria>`.
 - Implementer writes `task-{N-M}-summary.md` with: Changes Made, Deviations, Self-Check Results, Acceptance Criteria Status.
+
+**Phase A.5: Backpressure Gate**
+
+> Load `references/backpressure.md` for detailed rules.
+> Skip if: type is docs/analysis/design, or --quick mode, or config backpressure.enabled=false.
+
+After the implementer returns, before dispatching code-reviewer:
+
+1. **Build Check:**
+   - Run the project's build command
+   - If FAIL → dispatch fresh implementer with build error → retry (max 3)
+   - If 3 fails → strategy change: dispatch with all failure summaries → retry (max 3 more)
+   - If 6 total fails → mark task BACKPRESSURE_FAILED, escalate to user
+
+2. **Test Check** (skip if --skip-tests):
+   - Identify tests related to task's changed files
+   - Run identified tests
+   - If FAIL → dispatch fresh implementer with test failures → retry (same loop as build)
+
+3. **Lint Check** (only if config backpressure.checks.lint=true):
+   - Run linter on changed files
+   - If FAIL → dispatch fresh implementer with lint errors → retry
+
+4. **Completion Promise fulfilled** → proceed to Phase B (Code Review)
+
+**Backpressure recording:**
+- Append to trace.jsonl: `{"agent":"implementer","task_id":"{id}","result":"BACKPRESSURE_FAIL","check":"{build|test|lint}","attempt":{N}}`
+- Record final results in task-summary.md under `## Backpressure Results`
 
 **Phase B: Deviation Handling (within implementer)**
 - **R1 (Bug found):** Auto-fix, record `[DEVIATION:R1]` in summary. Continue.

@@ -53,12 +53,22 @@ Follow the `<action>` items in order, implementing each point specifically:
 4. Keep changes minimal and focused on the task
 5. Prefer simple solutions over clever ones
 
-### Step 4: Build & Verify
+### Step 4: Build & Verify (Backpressure Compliance)
 
 1. Run the build command after implementation
-2. Execute each `<acceptance_criteria>` command and record the result
-3. If any acceptance criteria fails — fix the issue before reporting
-4. Run the `<verify>` command from the task block
+2. If build fails → fix immediately (this is your responsibility, not a retry)
+3. Run tests related to your changed files:
+   - Same-directory test files (e.g., `foo.test.ts` for `foo.ts`)
+   - Test files that import your changed modules
+4. If any test fails → analyze and fix before reporting
+5. Execute each `<acceptance_criteria>` command and record the result
+6. If any acceptance criteria fails → fix the issue before reporting
+7. Run the `<verify>` command from the task block
+
+**Completion Promise:** Your task is NOT done until build passes AND related tests pass.
+Do NOT report PASS if build or tests fail — fix them first.
+If you cannot fix after 2 self-attempts, report honestly in your summary.
+PM will handle retries via the Backpressure Gate.
 
 ### Step 5: Write Summary
 
@@ -271,6 +281,15 @@ Write `task-{N-M}-summary.md` to `{output_path}` with the following structure:
 | Criteria | Command | Result |
 |---|---|---|
 | {criteria from task} | {command run} | {PASS/FAIL + output} |
+
+## Backpressure Results
+| Check | Status | Attempts | Details |
+|---|---|---|---|
+| Build | {PASS/FAIL} | {N} | {details} |
+| Test | {PASS/FAIL/SKIP} | {N} | {details} |
+| Lint | {PASS/FAIL/SKIP} | {N} | {details} |
+
+Completion Promise: {FULFILLED/NOT_FULFILLED}
 
 ## Git Commit
 - Hash: `{commit_hash}` (or "N/A — no changes" or "Disabled")

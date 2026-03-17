@@ -10,10 +10,10 @@ description: |
   DO NOT (overrides above): trivial single-line edits (typo, rename one variable, one import), code explanation only, simple commands (git log, npm install), new standalone files from scratch (no integration needed)
 ---
 
-# Forge v3.1
+# Forge v3.2
 
-> Context-Engineered Autonomous Development System — v3.1
-> v3.1 — GSD-inspired: atomic commits, crash recovery, resume, stuck detection, context recovery, decision locking, token tracking, deterministic CLI
+> Context-Engineered Autonomous Development System — v3.2
+> v3.2 "Relentless" — Backpressure system, Ralph Mode + all v3.1 GSD features
 > Single entry point. File-based agent communication. Goal-backward verification.
 > **If context feels incomplete, re-read this SKILL.md to restore the flow.**
 
@@ -68,6 +68,9 @@ implement, build, add feature, bug, crash, broken, fix this, refactor, clean up,
 | `--paradigm` | oop, fp, script, ddd, mixed | auto | Design paradigm override |
 | `--skip-tests` | flag | off | Skip test generation/execution |
 | `--resume` | flag | - | Resume interrupted execution from meta.json |
+| `--ralph` | flag | off | Ralph Mode: iterate until completion promise passes |
+| `--max-iterations` | integer | 10 | Max Ralph iterations (only with --ralph) |
+| `--completion-promise` | string | auto | Custom completion check command (only with --ralph) |
 | `--init` | flag | off | Generate/refresh project profile only |
 | `--phase`     | integer | -    | Execute specific roadmap phase N                              |
 | `--autonomous`| flag    | off  | Chain all remaining phases automatically                      |
@@ -191,6 +194,8 @@ All state is externalized to `.forge/` artifacts (meta.json, research.md, plan.m
 | **Retrospective** | `references/learning-system.md` §3, milestone report.md files, metrics.json | Everything else |
 | **Quick** | `execution-flow.md` Step 3 only (single task). Skip Steps 2,4,5,6,8. | Everything else |
 | **Resume** | `meta.json` (from lock file's artifact dir), `execution-flow.md` §7 (resume protocol) | Everything before the interrupted step |
+| **Ralph** | `references/ralph-mode.md`, `prompts/ralph-executor.md` | Standard pipeline steps |
+| **Backpressure** | `references/backpressure.md` (loaded within Step 7 when backpressure enabled) | — |
 
 **Key rule:** `references/execution-flow.md` is NEVER read in full. Read only the current step's section (from `## Step N:` to the next `---` delimiter).
 
@@ -206,7 +211,7 @@ All state is externalized to `.forge/` artifacts (meta.json, research.md, plan.m
 | 4 | **PLAN-CHECK** | 8-dimension plan verification (max 3 revision loops) | plan.md, research.md | plan.md (annotated with check results) | plan-checker(sonnet) |
 | 5 | **CHECKPOINT** | User approval gate (small: auto-proceed) | plan.md (summary) | User decision (execute/modify/cancel) | PM |
 | 6 | **BRANCH** | Create git feature branch | meta.json (slug) | feature/{slug} branch | PM |
-| 7 | **EXECUTE** | Wave-based parallel implementation with per-task review | plan.md (tasks), checklists | Code changes, task-summaries, qa-reports | implementer, code-reviewer, qa-inspector |
+| 7 | **EXECUTE** | Wave-based parallel implementation with backpressure gate + per-task review | plan.md (tasks), checklists | Code changes, task-summaries, qa-reports | implementer, code-reviewer, qa-inspector |
 | 8 | **VERIFY** | Goal-backward 3-level verification (Exists > Substantive > Wired) | plan.md (must_haves), codebase | verification.md | verifier(sonnet) |
 | 9 | **FINALIZE** | Generate report, capture learnings, propose PR | All summaries + verification | report.md | PM |
 | 10 | **CLEANUP** | Clean intermediate files, finalize meta.json | meta.json | meta.json (state: completed) | PM |
@@ -233,6 +238,7 @@ Twelve specialized agents plus two project-level agents. PM dispatches each with
 | 8 | **doc-reviewer** | Documentation quality review | Document files | Review results | sonnet |
 | 11 | **debugger** | Scientific method bug diagnosis | Bug description, source files | `debug-report.md` | sonnet |
 | 12 | **test-auditor** | Nyquist test coverage analysis | plan.md, source files, test files | `validation.md` | sonnet |
+| 13 | **ralph-executor** | Fresh-context iteration executor for Ralph Mode | `iteration-log.md`, completion promise, source files | `iteration-{N}-summary.md` | sonnet |
 
 **Agent dispatch format:**
 ```xml
@@ -314,6 +320,9 @@ Static matrix (Section 9.1) is used as fallback when `--model quality` or `--mod
       validation.md               # Test coverage gap analysis (Nyquist)
       trace.jsonl                 # Agent dispatch trace log
       report.md                     # Final report
+  ralph-{slug}-{HHMM}/               # Ralph Mode artifacts
+    iteration-log.md                  # Cross-iteration memory
+    iteration-{N}-summary.md          # Per-iteration results
   memory/                           # Learning system (persistent)
     patterns.json                   # Successful implementation patterns
     failures.json                   # Failed approaches + alternatives
@@ -540,6 +549,9 @@ Every reference, prompt, and template file must answer these 3 questions:
 | `references/deviation-rules.md` §7 | Step 7 | Execute | stuck events in task summary |
 | `references/context-engineering.md` §8 | Any step (on compression) | Recovery | — (protocol) |
 | `references/context-engineering.md` §9 | Step 9 | Finalize | token summary in report |
+| `references/backpressure.md` | Step 7 (within execute) | Execute | backpressure results in task summary |
+| `references/ralph-mode.md` | Step 0 (`--ralph`) | Ralph Mode | iteration-log.md, iteration summaries |
+| `prompts/ralph-executor.md` | Step 0 (`--ralph`) | Ralph Mode | iteration-{N}-summary.md |
 | `templates/retrospective.md` | `--retrospective` | Retrospective | retrospective-{ms}.md |
 
 ### 14.3 Rule for New Features
@@ -560,7 +572,8 @@ Step 1 does NOT require loading execution-flow.md. Execute entirely from this fi
 
 ### Procedure
 
-0. **Project flag routing.** Check for project flags (`--init`, `--phase`, `--autonomous`, `--milestone`, `--status`, `--discuss`). If any detected → load `references/project-lifecycle.md` (relevant section only) and follow its flow instead of continuing below. Check for `--debug` → load `references/debug-pipeline.md` and follow its 5-step flow. Check for `--map` → load `references/codebase-mapping.md` and follow its flow. If no special flag → proceed with standard Step 1.
+0. **Project flag routing.** Check for project flags (`--init`, `--phase`, `--autonomous`, `--milestone`, `--status`, `--discuss`). If any detected → load `references/project-lifecycle.md` (relevant section only) and follow its flow instead of continuing below. Check for `--debug` → load `references/debug-pipeline.md` and follow its 5-step flow. Check for `--map` → load `references/codebase-mapping.md` and follow its flow.
+Check for `--ralph` → load `references/ralph-mode.md` and follow its iteration flow. If no special flag → proceed with standard Step 1.
 1. **Parse request.** Extract what the user wants. If unclear, ask a clarifying question.
 2. **Detect type** using Section 3 heuristics. Apply `--type` override if provided.
 3. **Detect scale** using Section 4 criteria. Apply `--scale` override if provided.

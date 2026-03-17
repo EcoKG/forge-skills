@@ -36,6 +36,34 @@ Run the project's test suite if available:
 - Record test count, pass count, fail count
 - If no test suite exists, note "No tests available" (not a failure)
 
+### Step 3.5: Backpressure Verification
+
+Verify that per-task backpressure was properly applied:
+
+1. **Check task summaries** for `## Backpressure Results` section
+   - Every task summary should have this section (unless type is docs/analysis/design)
+   - If missing: flag as `BACKPRESSURE_SKIPPED` (not a failure, but note it)
+
+2. **Verify Completion Promise fulfillment:**
+   - Each task's Backpressure Results should show `Completion Promise: FULFILLED`
+   - If any task shows `NOT_FULFILLED`: this is a GAPS_FOUND condition
+
+3. **Cross-task regression check:**
+   - After all tasks in the wave, re-run the FULL test suite (not just per-task tests)
+   - This catches integration issues that per-task backpressure misses
+   - If full suite fails but per-task passed: flag as `INTEGRATION_REGRESSION`
+
+4. **Record in QA report:**
+   ```markdown
+   ## Backpressure Verification
+   | Task | Build | Test | Lint | Promise |
+   |---|---|---|---|---|
+   | [N-M] | PASS | PASS | SKIP | FULFILLED |
+   | [N-M] | PASS | PASS(2) | SKIP | FULFILLED |
+
+   Cross-Task Regression: {PASS/REGRESSION_FOUND}
+   ```
+
 ### Step 4: File Coverage
 Match changed files against plan requirements:
 - Every file listed in task `<files>` should be modified
@@ -150,6 +178,13 @@ Anti-patterns are informational for PASS/GAPS_FOUND verdict — they don't cause
 | TODO/FIXME/HACK/XXX | {N} | {N} | INFO |
 | Placeholder/Stub | {N} | {N} | WARN |
 | NotImplemented | {N} | {N} | WARN |
+
+## Backpressure Verification
+| Task | Build | Test | Lint | Promise |
+|---|---|---|---|---|
+| [N-M] | {PASS/FAIL} | {PASS/FAIL(attempts)} | {PASS/FAIL/SKIP} | {FULFILLED/NOT_FULFILLED} |
+
+Cross-Task Regression: {PASS/REGRESSION_FOUND}
 
 ## Verdict: {PASS / GAPS_FOUND / BUILD_FAILED}
 

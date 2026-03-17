@@ -335,6 +335,68 @@ function metricsRecordDispatch(jsonData) {
   return { recorded: true, total_dispatches: metrics.dispatches.length };
 }
 
+// === Ralph Mode Functions ===
+
+// Create iteration log for Ralph mode
+function createIterationLog(artifactDir, completionPromise) {
+  const logPath = path.join(artifactDir, "iteration-log.md");
+  const content = `# Ralph Iteration Log\n\n## Completion Promise\n\`${completionPromise}\`\n\n## Initial State\n(pending first check)\n\n---\n`;
+  fs.writeFileSync(logPath, content);
+  return { created: true, path: logPath };
+}
+
+// Record an iteration result
+function recordIteration(artifactDir, iteration, jsonData) {
+  const logPath = path.join(artifactDir, "iteration-log.md");
+  const data = JSON.parse(jsonData);
+
+  let entry = `\n## Iteration ${iteration}\n`;
+  entry += `- **Approach:** ${data.approach || "unknown"}\n`;
+  entry += `- **Result:** ${data.result || "unknown"}\n`;
+  if (data.fixed) entry += `- **Fixed:** ${data.fixed}\n`;
+  if (data.remaining) entry += `- **Remaining:** ${data.remaining}\n`;
+  if (data.commit) entry += `- **Commit:** \`${data.commit}\`\n`;
+  entry += `\n`;
+
+  fs.appendFileSync(logPath, entry);
+
+  // Update meta.json
+  const metaPath = path.join(artifactDir, "meta.json");
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+    if (!meta.ralph) meta.ralph = { iterations: 0, status: "running" };
+    meta.ralph.iterations = parseInt(iteration);
+    meta.ralph.last_result = data.result;
+    if (data.result === "PASS") meta.ralph.status = "success";
+    fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+  } catch {}
+
+  return { recorded: true, iteration: parseInt(iteration) };
+}
+
+// Check if completion promise is satisfied
+function checkCompletionPromise(artifactDir, promise) {
+  try {
+    const output = execSync(promise, { cwd: CWD, encoding: "utf8", timeout: 60000, stdio: ["pipe", "pipe", "pipe"] });
+    return { fulfilled: true, output: output.trim().slice(0, 500) };
+  } catch (err) {
+    const stderr = err.stderr ? err.stderr.trim().slice(0, 500) : "";
+    const stdout = err.stdout ? err.stdout.trim().slice(0, 500) : "";
+    return { fulfilled: false, exit_code: err.status, output: stdout, error: stderr };
+  }
+}
+
+// Get current iteration count from meta.json
+function getIterationCount(artifactDir) {
+  const metaPath = path.join(artifactDir, "meta.json");
+  try {
+    const meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+    return { iterations: meta.ralph?.iterations || 0, status: meta.ralph?.status || "unknown" };
+  } catch {
+    return { iterations: 0, status: "unknown" };
+  }
+}
+
 // Config operations
 function configInit() {
   const configPath = path.join(FORGE_DIR, "config.json");
@@ -465,6 +527,10 @@ try {
     case "remove-lock":         result = removeLock(args[0]); break;
     case "check-lock":          result = checkLock(args[0]); break;
     case "metrics-record-dispatch": result = metricsRecordDispatch(args[0]); break;
+    case "create-iteration-log":   result = createIterationLog(args[0], args.slice(1).join(" ")); break;
+    case "record-iteration":       result = recordIteration(args[0], args[1], args[2]); break;
+    case "check-completion-promise": result = checkCompletionPromise(args[0], args.slice(1).join(" ")); break;
+    case "get-iteration-count":    result = getIterationCount(args[0]); break;
     case "help":
     default:
       result = {
@@ -478,6 +544,10 @@ try {
           "detect-stack", "git-state",
           "create-lock <dir>", "remove-lock <dir>", "check-lock <dir>",
           "metrics-record-dispatch <json>",
+          "create-iteration-log <dir> <promise>",
+          "record-iteration <dir> <N> <json>",
+          "check-completion-promise <dir> <command>",
+          "get-iteration-count <dir>",
           "help"
         ]
       };

@@ -38,5 +38,24 @@
   "token_tracking": {
     "enabled": true,
     "trace_dispatches": true
+  },
+  "backpressure": {
+    "enabled": true,
+    "checks": {
+      "build": true,
+      "test": true,
+      "lint": false
+    },
+    "max_retries": 6,
+    "strategy_change_after": 3,
+    "test_scope": "related",
+    "lint_scope": "changed_files"
+  },
+  "ralph": {
+    "max_iterations": 10,
+    "completion_promise": "auto",
+    "cost_limit": null,
+    "commit_per_iteration": true,
+    "stuck_threshold": 3
   }
 }
