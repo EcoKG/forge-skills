@@ -61,15 +61,28 @@ fi
 
 # ─── Step 5: Deploy activation hook + rules ───
 echo "[5/7] Deploying activation hook + skill-rules.json..."
-# Copy ALL activation files (ESM modules) to isolated subdirectory
-# This subdirectory has its own package.json with "type": "module"
+# The activation JS files live in forge/hooks/activation/ (pre-built, not from TS)
+# Only use TS build as fallback if forge/hooks/activation/ doesn't exist
 mkdir -p "$ACTIVATION_DST"
-cp "$ACTIVATION_SRC"/*.js "$ACTIVATION_DST/"
+FORGE_ACTIVATION="$SKILLS_DIR/forge/hooks/activation"
+if [ -f "$FORGE_ACTIVATION/skill-activation.js" ]; then
+  # forge/hooks/activation/ already deployed by Step 2 — use it as source of truth
+  echo "  Activation files already installed via forge skill (Step 2)"
+else
+  # Fallback: copy from TS build output
+  cp "$ACTIVATION_SRC"/*.js "$ACTIVATION_DST/"
+fi
 echo '{ "type": "module" }' > "$ACTIVATION_DST/package.json"
 cp "$RULES_SRC" "$RULES_DST"
-cp "$RULES_SRC" "$ACTIVATION_DST/"
+# Sync rules from forge/hooks/activation/ if it has smartScoring (newer version)
+if grep -q "smartScoring" "$FORGE_ACTIVATION/skill-rules.json" 2>/dev/null; then
+  cp "$FORGE_ACTIVATION/skill-rules.json" "$RULES_DST"
+  echo "  Rules synced from forge skill (smart scoring enabled)"
+else
+  cp "$RULES_SRC" "$ACTIVATION_DST/"
+fi
 mkdir -p "$STATE_DIR"
-echo "  → $ACTIVATION_DST/ (4 JS files + package.json)"
+echo "  → $ACTIVATION_DST/"
 echo "  → $RULES_DST"
 
 # ─── Step 6: Install forge workspace hooks ───
