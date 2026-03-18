@@ -711,6 +711,37 @@ function engineRecordResult(artifactDir, role, taskId, verdict) {
   const state = readPipelineState(artifactDir);
   if (!state) return { error: "No active pipeline state" };
 
+  // Atomic commit enforcement: implementer PASS requires git commit
+  if (verdict === "PASS" && role === "implementer" && taskId) {
+    let isGitRepo = false;
+    try {
+      execSync("git rev-parse --git-dir", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] });
+      isGitRepo = true;
+    } catch {}
+
+    if (isGitRepo) {
+      // Check if the most recent commit message contains the task_id
+      let lastCommitMsg = "";
+      try {
+        lastCommitMsg = execSync("git log -1 --format=%s", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
+      } catch {}
+
+      if (!lastCommitMsg.includes(taskId)) {
+        const slug = state.session_id || "unknown";
+        const type = state.type || "feat";
+        const typeMap = { "code": "feat", "code-bug": "fix", "code-refactor": "refactor", "docs": "docs", "infra": "chore" };
+        const prefix = typeMap[type] || "feat";
+        return {
+          recorded: false,
+          reason: `Atomic commit required for task ${taskId}. ` +
+            `Commit your changes before recording PASS. ` +
+            `Format: git commit -m "${prefix}(${slug}/${taskId}): <task description>"`
+        };
+      }
+    }
+    // If not a git repo, skip commit check — just record normally
+  }
+
   if (verdict === "PASS" && taskId && !state.tasks_completed.includes(taskId)) {
     state.tasks_completed.push(taskId);
   }

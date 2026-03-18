@@ -160,23 +160,22 @@ For each task in each wave:
 node "$FORGE_TOOLS" engine-dispatch-spec {dir} implementer {task_id}
 # Dispatch implementer → writes code + task-summary.md
 
-# 2. Backpressure gate (if enabled in pipeline.json)
-node "$FORGE_TOOLS" engine-verify-build {dir} "{build_command}"
-# → { result: "pass" } or { result: "fail", error: "..." }
-node "$FORGE_TOOLS" engine-verify-tests {dir} "{test_command}"
-# → { result: "pass" } or { result: "fail", error: "..." }
-# Gate guard will block git commit if these fail
+# 2. Atomic commit (engine-record-result will reject PASS without commit)
+# Implementer must: git add {task_files} && git commit -m "{type}({slug}/{task_id}): {name}"
+# Engine checks: git log -1 must contain task_id
+# Non-git repos: commit check skipped automatically
+git add {task_files}
+git commit -m "{type}({slug}/{task_id}): {task_name}"
 
-# 3. Code review
+# 3. Record result (rejects if no commit in git repo)
+node "$FORGE_TOOLS" engine-record-result {dir} implementer {task_id} {PASS|REVISION}
+
+# 4. Code review
 node "$FORGE_TOOLS" engine-dispatch-spec {dir} code-reviewer {task_id}
 # Dispatch reviewer → appends to task-summary.md
 
-# 4. Record result
-node "$FORGE_TOOLS" engine-record-result {dir} implementer {task_id} {PASS|REVISION}
-
-# 5. Atomic commit (if backpressure passed)
-git add {task_files}
-git commit -m "{type}({slug}/{task_id}): {task_name}"
+# 5. Record final result
+node "$FORGE_TOOLS" engine-record-result {dir} code-reviewer {task_id} {PASS|REVISION}
 ```
 
 ### Wave Boundary

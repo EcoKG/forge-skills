@@ -228,6 +228,8 @@ Self-Correction Attempts: {0-2}
 
 ## Atomic Commit (Post-Review)
 
+**ENGINE ENFORCED:** The engine will reject `engine-record-result PASS` if you haven't committed your changes in a git repository. You MUST commit before your task can be marked as complete. If the project is not a git repo, commits are skipped automatically.
+
 After your task passes code review (or self-check if no review):
 
 1. **Stage files:** `git add` only the files listed in your task's `<files>` section — never `git add .`
