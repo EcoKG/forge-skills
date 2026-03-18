@@ -4,7 +4,7 @@
   "skills": {
     "forge": {
       "type": "domain",
-      "enforcement": "suggest",
+      "enforcement": "block",
       "priority": "high",
       "description": "Autonomous execution engine for complex development tasks",
       "promptTriggers": {

@@ -137,8 +137,12 @@ function main() {
         const filePath = toolInput.file_path || "";
         if (isCodeFile(filePath) && !forgeWasInvoked(sessionId)) {
           process.stdout.write(
-            "⚠ FORGE GATE: Editing code without forge. Consider /forge for complex changes."
+            "🚫 FORGE GATE BLOCKED: Cannot edit code without invoking /forge first.\n" +
+            "Use /forge to start a pipeline, or use --quick for simple changes.\n" +
+            "This gate ensures all code changes go through the forge quality pipeline."
           );
+          process.exit(1);
+          return;
         }
       }
       process.exit(0);
