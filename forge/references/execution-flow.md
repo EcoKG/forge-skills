@@ -151,6 +151,31 @@ node "$FORGE_TOOLS" engine-can-transition {dir} execute
 node "$FORGE_TOOLS" engine-transition {dir} execute
 ```
 
+### Design Type — Architect Dispatch
+
+When `type == design`, the execute step dispatches the **architect** agent instead of implementer:
+
+```bash
+# Subagent mode (default)
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} architect
+# → { role: "architect", prompt_path: "prompts/architect.md", model: "opus", ... }
+# Dispatch architect agent with mode (design|analyze|adr)
+# Agent writes architecture output (architecture.md, analysis.md, or adr.md)
+node "$FORGE_TOOLS" engine-record-result {dir} architect execute PASS
+
+# Team mode (for --init projects with iterative design)
+# 1. TeamCreate({slug}-arch)
+# 2. SendMessage(architect, initial design request)
+# 3. Review output → SendMessage(architect, refinement feedback)
+# 4. Repeat 2-3 until design is satisfactory
+# 5. Record result + TeamDelete
+```
+
+Architect agent supports 3 modes:
+- **design**: Create new system architecture from requirements
+- **analyze**: Analyze existing codebase architecture health
+- **adr**: Document architecture decisions with options and rationale
+
 ### Per-Task Cycle
 
 For each task in each wave:

@@ -747,7 +747,13 @@ function engineDispatchSpec(artifactDir, role, taskId) {
   let promptPath = null;
   let model = "sonnet";
 
-  if (currentStepDef?.agent_role === role) {
+  // Check type_step_overrides first — allows type-specific agent routing
+  // e.g., design type overrides execute step to use architect instead of implementer
+  const typeOverride = pipeline.type_step_overrides?.[state.type]?.[state.current_step];
+  if (typeOverride?.agent_role === role) {
+    promptPath = typeOverride.agent_prompt || `prompts/${role}.md`;
+    model = modelProfile?.[typeOverride.model_key] || modelProfile?.[currentStepDef?.model_key] || "sonnet";
+  } else if (currentStepDef?.agent_role === role) {
     promptPath = currentStepDef.agent_prompt;
     model = modelProfile?.[currentStepDef.model_key] || "sonnet";
   } else if (currentStepDef?.review_agent?.role === role) {

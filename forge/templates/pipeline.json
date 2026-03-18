@@ -285,15 +285,15 @@
     }
   },
   "model_profiles": {
-    "quality": {"research": "sonnet", "planning": "opus", "plan_check": "opus", "implementation": "opus", "code_review": "opus", "qa_inspection": "sonnet", "verification": "opus"},
-    "balanced": {"research": "haiku", "planning": "sonnet", "plan_check": "sonnet", "implementation": "sonnet", "code_review": "sonnet", "qa_inspection": "sonnet", "verification": "sonnet"},
-    "budget": {"research": "haiku", "planning": "sonnet", "plan_check": "haiku", "implementation": "sonnet", "code_review": "haiku", "qa_inspection": "haiku", "verification": "sonnet"}
+    "quality": {"research": "sonnet", "planning": "opus", "plan_check": "opus", "implementation": "opus", "code_review": "opus", "qa_inspection": "sonnet", "verification": "opus", "architecture": "opus"},
+    "balanced": {"research": "haiku", "planning": "sonnet", "plan_check": "sonnet", "implementation": "sonnet", "code_review": "sonnet", "qa_inspection": "sonnet", "verification": "sonnet", "architecture": "opus"},
+    "budget": {"research": "haiku", "planning": "sonnet", "plan_check": "haiku", "implementation": "sonnet", "code_review": "haiku", "qa_inspection": "haiku", "verification": "sonnet", "architecture": "sonnet"}
   },
   "type_step_overrides": {
     "code-bug": {"plan_check": {"dimensions": ["D1","D2","D5","D7"]}, "verify": {"level": "light"}},
     "docs": {"skip": ["plan", "plan_check", "checkpoint", "branch", "verify"]},
     "analysis": {"skip": ["plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"report_only": true}},
     "analysis-security": {"skip": ["plan", "plan_check", "checkpoint", "branch", "verify"], "research": {"model_override": "opus"}},
-    "design": {"skip": ["plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"report_only": true}}
+    "design": {"skip": ["plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"report_only": true, "agent_role": "architect", "agent_prompt": "prompts/architect.md", "model_key": "architecture"}}
   }
 }

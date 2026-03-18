@@ -250,7 +250,7 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 
 ---
 
-## 8. Agents (17 + custom)
+## 8. Agents (18 + custom)
 
 | # | Role | Prompt | When |
 |---|---|---|---|
@@ -270,7 +270,8 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | 13 | ralph-executor | prompts/ralph-executor.md | --ralph |
 | 14 | ui-reviewer | prompts/ui-reviewer.md | Step 7 (UI files) |
 | 15 | test-strategist | prompts/test-strategist.md | Step 4 |
-| 16 | custom:{name} | .forge/agents/{name}.md | Per pipeline.json |
+| 16 | architect | prompts/architect.md | Step 7 (design type), --init (architecture phase) |
+| 17 | custom:{name} | .forge/agents/{name}.md | Per pipeline.json |
 
 **Get dispatch spec from engine:** `engine-dispatch-spec <dir> <role> [task_id]`
 

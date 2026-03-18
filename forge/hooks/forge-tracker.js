@@ -65,6 +65,7 @@ const CODE_EXTENSIONS = new Set([
 // Required sections for agent output validation
 const SUMMARY_REQUIRED_SECTIONS = ["## Status", "## Changes Made", "## Self-Check"];
 const VERIFICATION_REQUIRED_SECTIONS = ["## Verdict"];
+const ARCHITECT_REQUIRED_SECTIONS = ["## Overview"];
 
 function isCodeFile(fp) {
   if (!fp) return false;
@@ -324,6 +325,15 @@ function main() {
             const missing = VERIFICATION_REQUIRED_SECTIONS.filter(s => !content.includes(s));
             if (missing.length > 0) {
               output += `⚠ VERIFICATION INCOMPLETE: missing sections: ${missing.join(", ")}\n`;
+            }
+          }
+
+          // Validate architect output
+          if (files.includes("architect-output.md")) {
+            const content = fs.readFileSync(path.join(pipeline.dir, "architect-output.md"), "utf8");
+            const missing = ARCHITECT_REQUIRED_SECTIONS.filter(s => !content.includes(s));
+            if (missing.length > 0) {
+              output += `⚠ ARCHITECT OUTPUT INCOMPLETE: architect-output.md is missing sections: ${missing.join(", ")}\n`;
             }
           }
         } catch {}
