@@ -261,6 +261,8 @@ VPM issue types and handling:
 
 ## 5. Team Mode vs Subagent Mode
 
+> **Note:** Team mode is PM-managed using Claude's native tools (TeamCreate, SendMessage). The forge engine does not provide team-mode commands — PM must manually manage team lifecycle, message routing, and result collection. Subagent mode (Agent tool) is the engine-supported default.
+
 ### When to Use Each
 
 | Criteria | Subagent Mode | Team Mode |

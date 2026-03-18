@@ -119,3 +119,9 @@ Write `iteration-{N}-summary.md` to `<output_path>`:
 - Write output to `<output_path>` only
 - Include the "What NOT to Try Next" section — this is critical for future iterations
 - If you believe the completion promise is impossible to satisfy: report `[RALPH:IMPOSSIBLE]` with reason
+
+## Placeholders
+
+These are substituted by PM before dispatching this prompt:
+
+- `{PROJECT_RULES}` — Project-specific rules from CLAUDE.md or similar

@@ -60,3 +60,9 @@ Test Coverage Analysis:
 - Do NOT modify source code
 - Focus on coverage STRATEGY, not implementation
 - If `--skip-tests` is set, only report gaps without blocking
+
+## Placeholders
+
+These are substituted by PM before dispatching this prompt:
+
+- `{PROJECT_RULES}` — Project-specific rules from CLAUDE.md or similar

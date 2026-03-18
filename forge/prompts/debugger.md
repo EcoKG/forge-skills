@@ -93,3 +93,9 @@ Unlike the implementer (who follows a plan), you INVESTIGATE. You form hypothese
 - Maximum 5 hypotheses per investigation
 - If no root cause found after testing all hypotheses: escalate to PM with findings
 - Auto-fix limit: 3 attempts per bug
+
+## Placeholders
+
+These are substituted by PM before dispatching this prompt:
+
+- `{PROJECT_RULES}` — Project-specific rules from CLAUDE.md or similar

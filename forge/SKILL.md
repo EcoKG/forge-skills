@@ -137,6 +137,8 @@ node "$FORGE_TOOLS" detect-stack
 node "$FORGE_TOOLS" git-state
 node "$FORGE_TOOLS" create-lock <dir>
 node "$FORGE_TOOLS" remove-lock <dir>
+node "$FORGE_TOOLS" engine-wave-info <artifact_dir>
+node "$FORGE_TOOLS" check-lock <dir>
 ```
 
 ### Engine Response Format

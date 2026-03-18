@@ -217,3 +217,9 @@ Cross-Task Regression: {PASS/REGRESSION_FOUND}
 - Report only to PM (SendMessage or return value)
 - Include all verification step results in the report
 - Prioritize actionable findings over informational notes
+
+## Placeholders
+
+These are substituted by PM before dispatching this prompt:
+
+- `{PROJECT_RULES}` — Project-specific rules from CLAUDE.md or similar

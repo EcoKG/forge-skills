@@ -110,3 +110,9 @@ Write `test-strategy.md` to output_path.
 - Every must_have truth must have at least one mapped test
 - Prioritize: CRITICAL > HIGH > MEDIUM > LOW
 - Do NOT write test code — describe test intent only
+
+## Placeholders
+
+These are substituted by PM before dispatching this prompt:
+
+- `{PROJECT_RULES}` — Project-specific rules from CLAUDE.md or similar

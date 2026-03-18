@@ -201,6 +201,9 @@
           "required": false,
           "skippable_by": ["quick"],
           "actor": "pm",
+          "entry_gate": {
+            "required_state": "finalized"
+          },
           "exit_gate": {
             "state_value": "completed"
           }
@@ -276,8 +279,8 @@
     },
     "ralph": {
       "steps": [
-        {"id": "init", "order": 1, "actor": "pm"},
-        {"id": "iterate", "order": 2, "actor": "agent", "agent_role": "ralph-executor", "loop": true, "max_iterations": 10}
+        {"id": "init", "order": 1, "actor": "pm", "exit_gate": {"state_value": "init_done"}, "next": "iterate"},
+        {"id": "iterate", "order": 2, "actor": "agent", "agent_role": "ralph-executor", "agent_prompt": "prompts/ralph-executor.md", "model_key": "implementation", "loop": true, "max_iterations": 10, "entry_gate": {"required_state": "init_done"}, "exit_gate": {"state_value": "completed"}}
       ]
     }
   },

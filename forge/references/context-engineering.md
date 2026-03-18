@@ -302,7 +302,7 @@ RIGHT: PM reads plan.md summary once (Step 3), then only reads it again if modif
 
 Execute these steps IN ORDER:
 
-1. **Read meta.json** from the artifact directory (`.forge/{date}/{slug}/meta.json`)
+1. **Read pipeline-state.json** from the artifact directory (`.forge/{date}/{slug}/pipeline-state.json`)
    - This gives: `current_step`, `current_wave`, `tasks.completed_tasks[]`, `state`
    - This is the source of truth for execution progress
 

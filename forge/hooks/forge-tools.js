@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
+const { execSync, execFileSync } = require("child_process");
 const os = require("os");
 
+// CWD: CLI tool uses env var or cwd (hooks use input.cwd from stdin — see gate-guard.js, tracker.js)
 const CWD = process.env.FORGE_PROJECT_DIR || process.cwd();
 const FORGE_DIR = path.join(CWD, ".forge");
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
@@ -227,6 +228,8 @@ function detectStack() {
     { lang: "csharp", glob: "**/*.cs", framework: "*.csproj" },
   ];
   let detected = { language: "unknown", framework: null, detected_files_count: 0 };
+  if (!CWD || !path.isAbsolute(CWD)) return detected;
+  try { fs.statSync(CWD); } catch { return detected; }
   for (const p of patterns) {
     try {
       const fwPath = path.join(CWD, p.framework.replace("*", ""));
@@ -237,8 +240,8 @@ function detectStack() {
         // Count source files (limit search depth)
         let count = 0;
         try {
-          const out = execSync(`find "${CWD}" -name "${p.glob.split("/").pop()}" -maxdepth 5 -type f 2>/dev/null | wc -l`, { encoding: "utf8", timeout: 5000 });
-          count = parseInt(out.trim()) || 0;
+          const out = execFileSync("find", [CWD, "-name", p.glob.split("/").pop(), "-maxdepth", "5", "-type", "f"], { encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] });
+          count = out.trim().split("\n").filter(Boolean).length;
         } catch {}
         if (count > detected.detected_files_count) {
           detected = { language: p.lang, framework: p.framework, detected_files_count: count };
@@ -264,9 +267,10 @@ function getGitState() {
 }
 
 // Create execution lock for crash recovery
-function createLock(artifactDir) {
+function createLock(artifactDir, sessionId) {
   const lockPath = path.join(artifactDir, "execution-lock.json");
   const data = {
+    session_id: sessionId || "unknown",
     pid: process.pid,
     started_at: new Date().toISOString(),
     hostname: os.hostname(),
@@ -292,6 +296,8 @@ function checkLock(artifactDir) {
   if (fs.existsSync(lockPath)) {
     try {
       const data = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+      const started = new Date(data.started_at);
+      data.stale = (Date.now() - started.getTime()) > 3600000; // 1 hour
       return { locked: true, ...data, path: lockPath };
     } catch {
       return { locked: true, path: lockPath, corrupt: true };
@@ -405,11 +411,59 @@ function loadPipeline() {
   const localPath = path.join(FORGE_DIR, "pipeline.json");
   const defaultPath = path.join(__dirname, "..", "templates", "pipeline.json");
   try {
-    if (fs.existsSync(localPath)) return JSON.parse(fs.readFileSync(localPath, "utf8"));
-    return JSON.parse(fs.readFileSync(defaultPath, "utf8"));
+    const data = fs.existsSync(localPath)
+      ? JSON.parse(fs.readFileSync(localPath, "utf8"))
+      : JSON.parse(fs.readFileSync(defaultPath, "utf8"));
+    if (!data.pipelines || !data.pipelines.standard || !Array.isArray(data.pipelines.standard.steps)) {
+      return { error: "Invalid pipeline.json: missing pipelines.standard.steps array" };
+    }
+    return data;
   } catch (err) {
     return { error: "Failed to load pipeline.json: " + err.message };
   }
+}
+
+// Resolve steps from pipeline definition (apply only_steps + overrides)
+function resolveSteps(pipelineDef, pipeline) {
+  // 1. Get base steps: own steps or inherited
+  let steps = pipelineDef.steps
+    ? JSON.parse(JSON.stringify(pipelineDef.steps))
+    : pipelineDef.inherits
+      ? JSON.parse(JSON.stringify(pipeline.pipelines[pipelineDef.inherits].steps || []))
+      : [];
+
+  // 2. Filter to only_steps if defined
+  if (pipelineDef.only_steps && pipelineDef.only_steps.length > 0) {
+    const allowed = new Set(pipelineDef.only_steps);
+    steps = steps.filter(s => allowed.has(s.id));
+    // Fix next pointers to form valid chain
+    for (let i = 0; i < steps.length; i++) {
+      steps[i].next = i + 1 < steps.length ? steps[i + 1].id : undefined;
+    }
+    // Re-assign order values
+    for (let i = 0; i < steps.length; i++) {
+      steps[i].order = i + 1;
+    }
+  }
+
+  // 3. Apply overrides via deep merge
+  if (pipelineDef.overrides) {
+    for (const [stepId, overrideObj] of Object.entries(pipelineDef.overrides)) {
+      const step = steps.find(s => s.id === stepId);
+      if (!step) continue;
+      for (const [key, value] of Object.entries(overrideObj)) {
+        if (value === null) {
+          step[key] = null;
+        } else if (typeof value === "object" && !Array.isArray(value) && typeof step[key] === "object" && step[key] !== null) {
+          Object.assign(step[key], value);
+        } else {
+          step[key] = value;
+        }
+      }
+    }
+  }
+
+  return steps;
 }
 
 // Read pipeline state (engine-managed, not meta.json)
@@ -423,7 +477,14 @@ function readPipelineState(artifactDir) {
 function writePipelineState(artifactDir, state) {
   const statePath = path.join(artifactDir, "pipeline-state.json");
   state.updated_at = new Date().toISOString();
-  fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+  const tempPath = statePath + ".tmp." + process.pid;
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(state, null, 2));
+    fs.renameSync(tempPath, statePath);
+  } catch (err) {
+    try { fs.unlinkSync(tempPath); } catch {}
+    throw err;
+  }
   return { written: true, path: statePath };
 }
 
@@ -436,11 +497,13 @@ function engineInit(artifactDir, request, type, scale, options) {
   const pipelineDef = pipeline.pipelines[pipelineName] || pipeline.pipelines.standard;
 
   // Determine which steps to skip based on type
+  // Note: docs/analysis types skip plan step. Implementer prompt handles plan-less execution.
+  // The execute step's entry_gate exempts plan.md because the plan step is in skipped_steps.
   const typeOverrides = pipeline.type_step_overrides?.[type] || {};
   const skippedSteps = typeOverrides.skip || [];
   if (options?.direct) skippedSteps.push("research", "plan_check");
   if (options?.no_research) skippedSteps.push("research");
-  if (options?.quick) skippedSteps.push("research", "plan_check", "checkpoint", "branch", "verify");
+  if (options?.quick) skippedSteps.push("research", "plan_check", "checkpoint", "branch");
 
   const state = {
     session_id: path.basename(artifactDir),
@@ -463,7 +526,8 @@ function engineInit(artifactDir, request, type, scale, options) {
     created_at: new Date().toISOString(),
     request: request,
     type: type,
-    scale: scale
+    scale: scale,
+    options: options || {}
   };
 
   writePipelineState(artifactDir, state);
@@ -479,7 +543,7 @@ function engineCurrentState(artifactDir) {
   if (pipeline.error) return pipeline;
 
   const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
-  const steps = pipelineDef.steps || (pipelineDef.inherits ? pipeline.pipelines[pipelineDef.inherits].steps : []);
+  const steps = resolveSteps(pipelineDef, pipeline);
   const currentStepDef = steps.find(s => s.id === state.current_step);
 
   // Compute allowed transitions
@@ -526,7 +590,7 @@ function engineCanTransition(artifactDir, targetStep) {
   if (pipeline.error) return { allowed: false, reason: pipeline.error };
 
   const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
-  const steps = pipelineDef.steps || (pipelineDef.inherits ? pipeline.pipelines[pipelineDef.inherits].steps : []);
+  const steps = resolveSteps(pipelineDef, pipeline);
 
   const currentStepDef = steps.find(s => s.id === state.current_step);
   const targetStepDef = steps.find(s => s.id === targetStep);
@@ -544,15 +608,30 @@ function engineCanTransition(artifactDir, targetStep) {
     }
   }
 
+  // Simulate skip chain: collect exit_gate values of all skipped intermediate steps
+  const simulatedGates = [...state.gates_passed];
+  if (currentStepDef) {
+    // Add current step's exit gate (will be recorded at transition time)
+    if (currentStepDef.exit_gate?.state_value) {
+      simulatedGates.push(currentStepDef.exit_gate.state_value);
+    }
+    // Walk from current step's next toward target, collecting skipped step gates
+    let walkId = currentStepDef.next;
+    while (walkId && walkId !== targetStep) {
+      const walkDef = steps.find(s => s.id === walkId);
+      if (!walkDef) break;
+      if (state.skipped_steps.includes(walkId) && walkDef.exit_gate?.state_value) {
+        simulatedGates.push(walkDef.exit_gate.state_value);
+      }
+      walkId = walkDef.next;
+    }
+  }
+
   // Check entry gate
   const gate = targetStepDef.entry_gate;
   if (gate) {
-    if (gate.required_state && state.current_step !== "init" && !state.gates_passed.includes(gate.required_state)) {
-      // Check if it's the exit value of current step
-      const exitValue = currentStepDef?.exit_gate?.state_value;
-      if (exitValue !== gate.required_state) {
-        return { allowed: false, reason: `Required gate: ${gate.required_state} not passed. Current: ${state.current_step}` };
-      }
+    if (gate.required_state && state.current_step !== "init" && !simulatedGates.includes(gate.required_state)) {
+      return { allowed: false, reason: `Required gate: ${gate.required_state} not passed. Current: ${state.current_step}` };
     }
     if (gate.required_artifacts) {
       // Collect artifacts produced by skipped steps — these are exempt from the check
@@ -598,7 +677,7 @@ function engineTransition(artifactDir, targetStep) {
   const previousStep = state.current_step;
   const pipeline = loadPipeline();
   const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
-  const steps = pipelineDef.steps || (pipelineDef.inherits ? pipeline.pipelines[pipelineDef.inherits].steps : []);
+  const steps = resolveSteps(pipelineDef, pipeline);
   const targetStepDef = steps.find(s => s.id === targetStep);
 
   // Record exit gate of current step as passed
@@ -661,7 +740,7 @@ function engineDispatchSpec(artifactDir, role, taskId) {
   const modelProfile = pipeline.model_profiles?.[state.options?.model || "balanced"] || pipeline.model_profiles?.balanced;
 
   const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
-  const steps = pipelineDef.steps || (pipelineDef.inherits ? pipeline.pipelines[pipelineDef.inherits].steps : []);
+  const steps = resolveSteps(pipelineDef, pipeline);
   const currentStepDef = steps.find(s => s.id === state.current_step);
 
   // Determine prompt path and model
@@ -685,6 +764,18 @@ function engineDispatchSpec(artifactDir, role, taskId) {
     } else {
       promptPath = `prompts/${role}.md`;
     }
+    // Try to read model from custom agent prompt frontmatter
+    try {
+      const absPath = path.isAbsolute(promptPath) ? promptPath : path.join(__dirname, "..", promptPath);
+      const content = fs.readFileSync(absPath, "utf8");
+      const fmMatch = content.match(/^---\n[\s\S]*?model:\s*(\w+)[\s\S]*?\n---/);
+      if (fmMatch) model = fmMatch[1];
+    } catch {}
+  }
+
+  // Resolve relative prompt_path to absolute using skill directory
+  if (promptPath && !path.isAbsolute(promptPath)) {
+    promptPath = path.join(__dirname, "..", promptPath);
   }
 
   // Build dispatch spec
@@ -711,8 +802,13 @@ function engineRecordResult(artifactDir, role, taskId, verdict) {
   const state = readPipelineState(artifactDir);
   if (!state) return { error: "No active pipeline state" };
 
-  // Atomic commit enforcement: implementer PASS requires git commit
-  if (verdict === "PASS" && role === "implementer" && taskId) {
+  // Atomic commit enforcement: execute-step PASS requires git commit
+  const commitPipeline = loadPipeline();
+  const commitPipelineDef = commitPipeline.pipelines?.[state.pipeline] || commitPipeline.pipelines?.standard;
+  const commitSteps = resolveSteps(commitPipelineDef, commitPipeline);
+  const commitStepDef = commitSteps.find(s => s.id === state.current_step);
+  const isExecuteStep = commitStepDef?.id === "execute" || commitStepDef?.id === "fix";
+  if (verdict === "PASS" && isExecuteStep && taskId) {
     let isGitRepo = false;
     try {
       execSync("git rev-parse --git-dir", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] });
@@ -768,12 +864,13 @@ function engineRecordRevision(artifactDir, type) {
 
   const pipeline = loadPipeline();
   const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
-  const steps = pipelineDef.steps || [];
+  const steps = resolveSteps(pipelineDef, pipeline);
   const currentStepDef = steps.find(s => s.id === state.current_step);
   const limits = currentStepDef?.revision_limits || {};
 
-  state.revision_counts[type] = (state.revision_counts[type] || 0) + 1;
-  const count = state.revision_counts[type];
+  const scopedKey = state.current_step + ":" + type;
+  state.revision_counts[scopedKey] = (state.revision_counts[scopedKey] || 0) + 1;
+  const count = state.revision_counts[scopedKey];
   const limit = limits[type] || 999;
 
   writePipelineState(artifactDir, state);
@@ -850,7 +947,7 @@ function engineReconcile(artifactDir) {
   // Check required artifacts for current step
   const pipeline = loadPipeline();
   const pipelineDef = pipeline.pipelines[state.pipeline] || pipeline.pipelines.standard;
-  const steps = pipelineDef.steps || [];
+  const steps = resolveSteps(pipelineDef, pipeline);
   const currentStepDef = steps.find(s => s.id === state.current_step);
 
   if (currentStepDef?.entry_gate?.required_artifacts) {
@@ -975,6 +1072,14 @@ function markInvoked(sessionId) {
   return { marked: true, session: sessionId };
 }
 
+// Argument validation helper
+function requireArgs(args, count, usage) {
+  if (args.length < count || args.slice(0, count).some(a => a === undefined)) {
+    process.stdout.write(JSON.stringify({ error: "Usage: " + usage }) + "\n");
+    process.exit(1);
+  }
+}
+
 // Main dispatcher
 const [,, command, ...args] = process.argv;
 
@@ -989,14 +1094,14 @@ try {
     case "verify-artifacts":  result = verifyArtifacts(args[0]); break;
     case "verify-key-links":  result = verifyKeyLinks(args[0]); break;
     case "config-init":     result = configInit(); break;
-    case "config-get":      result = configGet(args[0]); break;
-    case "config-set":      result = configSet(args[0], args[1]); break;
+    case "config-get":      requireArgs(args, 1, "config-get <key>"); result = configGet(args[0]); break;
+    case "config-set":      requireArgs(args, 2, "config-set <key> <value>"); result = configSet(args[0], args[1]); break;
     case "metrics-record":  result = metricsRecord(args[0]); break;
     case "metrics-summary": result = metricsSummary(); break;
     case "mark-invoked":    result = markInvoked(args[0]); break;
     case "detect-stack":        result = detectStack(); break;
     case "git-state":           result = getGitState(); break;
-    case "create-lock":         result = createLock(args[0]); break;
+    case "create-lock":         result = createLock(args[0], args[1]); break;
     case "remove-lock":         result = removeLock(args[0]); break;
     case "check-lock":          result = checkLock(args[0]); break;
     case "metrics-record-dispatch": result = metricsRecordDispatch(args[0]); break;
@@ -1004,12 +1109,12 @@ try {
     case "record-iteration":       result = recordIteration(args[0], args[1], args[2]); break;
     case "check-completion-promise": result = checkCompletionPromise(args[0], args.slice(1).join(" ")); break;
     case "get-iteration-count":    result = getIterationCount(args[0]); break;
-    case "engine-init":          result = engineInit(args[0], args[1], args[2], args[3], args[4] ? JSON.parse(args[4]) : {}); break;
-    case "engine-state":         result = engineCurrentState(args[0]); break;
-    case "engine-can-transition": result = engineCanTransition(args[0], args[1]); break;
-    case "engine-transition":    result = engineTransition(args[0], args[1]); break;
-    case "engine-dispatch-spec": result = engineDispatchSpec(args[0], args[1], args[2]); break;
-    case "engine-record-result": result = engineRecordResult(args[0], args[1], args[2], args[3]); break;
+    case "engine-init":          requireArgs(args, 4, "engine-init <dir> <request> <type> <scale> [options_json]"); result = engineInit(args[0], args[1], args[2], args[3], args[4] ? JSON.parse(args[4]) : {}); break;
+    case "engine-state":         requireArgs(args, 1, "engine-state <dir>"); result = engineCurrentState(args[0]); break;
+    case "engine-can-transition": requireArgs(args, 2, "engine-can-transition <dir> <step>"); result = engineCanTransition(args[0], args[1]); break;
+    case "engine-transition":    requireArgs(args, 2, "engine-transition <dir> <step>"); result = engineTransition(args[0], args[1]); break;
+    case "engine-dispatch-spec": requireArgs(args, 2, "engine-dispatch-spec <dir> <role> [task_id]"); result = engineDispatchSpec(args[0], args[1], args[2]); break;
+    case "engine-record-result": requireArgs(args, 4, "engine-record-result <dir> <role> <task_id> <verdict>"); result = engineRecordResult(args[0], args[1], args[2], args[3]); break;
     case "engine-record-revision": result = engineRecordRevision(args[0], args[1]); break;
     case "engine-verify-build":  result = engineVerifyBuild(args[0], args.slice(1).join(" ")); break;
     case "engine-verify-tests":  result = engineVerifyTests(args[0], args.slice(1).join(" ")); break;

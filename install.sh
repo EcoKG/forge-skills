@@ -88,7 +88,7 @@ echo "  → $RULES_DST"
 # ─── Step 6: Install forge workspace hooks (v6.2 — replaces legacy hooks) ───
 echo "[6/7] Installing forge workspace hooks..."
 # install.js automatically removes legacy hooks (context-monitor, session-init, pretool-gate)
-# and installs v6.1 hooks (gate-guard, orchestrator, tracker)
+# and installs v6.2 hooks (gate-guard, orchestrator, tracker, statusline)
 "$NODE_BIN" "$SKILLS_DIR/forge/hooks/install.js" 2>/dev/null || echo "  (skipped — forge hooks install failed, non-critical)"
 # Remove legacy hook files that are no longer needed
 for LEGACY_FILE in forge-pretool-gate.js forge-session-init.js forge-context-monitor.js; do

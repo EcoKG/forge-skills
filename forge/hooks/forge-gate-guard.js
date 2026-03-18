@@ -44,6 +44,16 @@ const SECRET_PATTERNS = [
   /(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,}/,  // GitHub token
   /sk-[A-Za-z0-9]{20,}/,  // OpenAI/Anthropic API key pattern
   /xox[bpsa]-[A-Za-z0-9\-]{10,}/,  // Slack token
+  /AIza[A-Za-z0-9_\-]{35}/,  // Google API key
+  /-----BEGIN OPENSSH PRIVATE KEY-----/,
+  /sk_live_[A-Za-z0-9]{20,}/,  // Stripe live key
+  /sk_test_[A-Za-z0-9]{20,}/,  // Stripe test key
+  /rk_live_[A-Za-z0-9]{20,}/,  // Stripe restricted key
+  /AC[a-z0-9]{32}/,  // Twilio Account SID
+  /npm_[A-Za-z0-9]{36,}/,  // npm auth token
+  /mongodb(\+srv)?:\/\/[^:]+:[^@]+@/,  // MongoDB connection string with credentials
+  /postgres(ql)?:\/\/[^:]+:[^@]+@/,  // PostgreSQL connection string
+  /DefaultEndpointsProtocol=https;AccountName=/,  // Azure connection string
 ];
 
 const SENSITIVE_FILES = [".env", ".env.local", ".env.production", "credentials.json", "secrets.yaml", "secrets.yml"];
@@ -117,10 +127,12 @@ function forgeWasInvoked(sessionId) {
 }
 
 function main() {
+  let input;
   try {
     const raw = fs.readFileSync(0, "utf8").trim();
     if (!raw) { process.exit(0); return; }
-    const input = JSON.parse(raw);
+    input = JSON.parse(raw);
+    if (!input.tool_name) { process.exit(0); return; }
 
     CWD = input.cwd || process.cwd();
     FORGE_DIR = path.join(CWD, ".forge");
@@ -168,7 +180,7 @@ function main() {
             process.stdout.write(
               "🚫 GATE 1 BLOCKED: Cannot create plan.md — research.md does not exist.\n" +
               "Complete research first, or use --direct to skip.\n" +
-              "Run: forge-engine.js transition research"
+              "Run: node forge-tools.js engine-transition <artifact-dir> research"
             );
             process.exit(1);
             return;
@@ -205,7 +217,7 @@ function main() {
         if (lastBuild === "fail") {
           process.stdout.write(
             "🚫 GATE 3 BLOCKED: Cannot git commit — last build FAILED.\n" +
-            "Fix build errors first, then re-run: forge-engine.js verify-build <command>"
+            "Fix build errors first, then re-run: node forge-tools.js engine-verify-build <artifact-dir> <command>"
           );
           process.exit(1);
           return;
@@ -213,7 +225,7 @@ function main() {
         if (lastTest === "fail") {
           process.stdout.write(
             "🚫 GATE 3 BLOCKED: Cannot git commit — last test run FAILED.\n" +
-            "Fix failing tests first, then re-run: forge-engine.js verify-tests <command>"
+            "Fix failing tests first, then re-run: node forge-tools.js engine-verify-tests <artifact-dir> <command>"
           );
           process.exit(1);
           return;
@@ -232,7 +244,7 @@ function main() {
             process.stdout.write(
               "🚫 GATE 4 BLOCKED: Cannot create report.md — verification.md does not exist.\n" +
               "Complete verification first.\n" +
-              "Run: forge-engine.js transition verify"
+              "Run: node forge-tools.js engine-transition <artifact-dir> verify"
             );
             process.exit(1);
             return;
@@ -270,7 +282,19 @@ function main() {
       }
     }
 
-    // === GATE 6: Secret/credential detection — HARD BLOCK ===
+    // No gate violations for gates 1-5 — allow
+  } catch (err) {
+    // Fail-open for gates 1-5: any error in gate logic → allow the tool call
+    // Never block Claude due to our own bugs
+  }
+
+  // === GATE 6: Secret/credential detection — ISOLATED (fail-closed) ===
+  // Separate try-catch so upstream parse errors cannot disable secret detection
+  try {
+    if (!input) { process.exit(0); return; }
+    const toolName = input.tool_name;
+    const toolInput = input.tool_input || {};
+
     if (["Edit", "Write"].includes(toolName)) {
       const content = toolInput.new_string || toolInput.content || "";
       const filePath = toolInput.file_path || "";
@@ -302,10 +326,26 @@ function main() {
       }
     }
 
-    // No gate violations — allow
+    // Gate 6: also scan Bash commands for secrets
+    if (toolName === "Bash") {
+      const command = toolInput.command || "";
+      if (command.length > 0) {
+        for (const pattern of SECRET_PATTERNS) {
+          if (pattern.test(command)) {
+            process.stdout.write(
+              `🚫 GATE 6 BLOCKED: Detected potential secret/credential in Bash command.\n` +
+              `Pattern matched: ${pattern.toString().slice(0, 60)}...\n` +
+              `DO NOT hardcode secrets in commands. Use environment variables.\n` +
+              `If this is a false positive (e.g., example/placeholder), note it in your response.`
+            );
+            process.exit(1);
+            return;
+          }
+        }
+      }
+    }
   } catch (err) {
-    // Fail-open: any error in gate logic → allow the tool call
-    // Never block Claude due to our own bugs
+    process.stderr.write("forge-gate-guard: Gate 6 error: " + err.message + "\n");
   }
   process.exit(0);
 }

@@ -134,7 +134,7 @@ function updatePipelineState(statePath, updater) {
     updater(state);
     state.updated_at = new Date().toISOString();
     fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
-  } catch {}
+  } catch (err) { process.stderr.write("forge-tracker: updatePipelineState error: " + (err.message || String(err)) + "\n"); }
 }
 
 function writeTrackerSignal(forgeDir, signalType, data) {
@@ -162,6 +162,7 @@ function main() {
     const raw = fs.readFileSync(0, "utf8").trim();
     if (!raw) { process.exit(0); return; }
     const input = JSON.parse(raw);
+    if (!input.tool_name || !input.session_id) { process.exit(0); return; }
 
     CWD = input.cwd || process.cwd();
     FORGE_DIR = path.join(CWD, ".forge");
@@ -361,7 +362,7 @@ function main() {
     if (output) {
       process.stdout.write(output);
     }
-  } catch {}
+  } catch (err) { process.stderr.write("forge-tracker: " + (err.message || String(err)) + "\n"); }
   process.exit(0);
 }
 

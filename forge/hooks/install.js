@@ -11,7 +11,7 @@
  *   1. forge-tracker (PostToolUse) — context + agent + build/test tracking
  *   2. forge-statusline (Notification) — project status in statusline
  *   3. forge-orchestrator (UserPromptSubmit) — pipeline state injection
- *   4. forge-gate-guard (PreToolUse) — 4 critical hard gates
+ *   4. forge-gate-guard (PreToolUse) — 6 gates — 5 hard blocks + 1 warning
  */
 
 const fs = require("fs");
@@ -54,7 +54,7 @@ const FORGE_HOOKS = [
     script: path.join(HOOKS_DIR, "forge-gate-guard.js"),
     matcher: "Edit|Write|Bash",
     timeout: 10,
-    description: "Forge v6: 4 critical gates — hard blocks on pipeline violations",
+    description: "Forge v6: 6 gates — 5 hard blocks + 1 warning",
   },
 ];
 

@@ -240,7 +240,7 @@ In `.forge/config.json`:
 
 ## 7. When to Disable Backpressure
 
-- `--quick` mode: backpressure is automatically disabled (speed over safety)
+- `--quick` mode: build and test backpressure remain enabled; only lint and review steps are skipped
 - `--skip-tests`: test backpressure is disabled, build backpressure remains
 - Analysis/design types: no code changes, no backpressure needed
 - Docs type: no backpressure (no build/test for docs)
@@ -254,4 +254,4 @@ In `.forge/config.json`:
 | docs | ❌ | ❌ | ❌ |
 | analysis | ❌ | ❌ | ❌ |
 | design | ❌ | ❌ | ❌ |
-| quick | ❌ | ❌ | ❌ |
+| quick | ✅ | ✅ | ❌ |

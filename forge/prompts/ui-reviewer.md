@@ -96,3 +96,9 @@ PM dispatches you with:
 - Accessibility FAIL → minimum NEEDS_REVISION(major)
 - Maximum output: 100 lines
 - Only activated for UI file types (HTML, CSS, JSX, TSX, Vue, Svelte, SCSS, LESS)
+
+## Placeholders
+
+These are substituted by PM before dispatching this prompt:
+
+- `{PROJECT_RULES}` — Project-specific rules from CLAUDE.md or similar

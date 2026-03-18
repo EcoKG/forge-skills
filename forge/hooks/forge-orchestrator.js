@@ -18,6 +18,7 @@ const fs = require("fs");
 const path = require("path");
 
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
+const FORGE_TOOLS_PATH = path.join(__dirname, "forge-tools.js");
 try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
 
 function readJsonSafe(filePath) {
@@ -107,7 +108,7 @@ function formatPipelineContext(state) {
 
   if (state.allowed_transitions.length > 0) {
     lines.push(`Next allowed: ${state.allowed_transitions.join(", ")}`);
-    lines.push(`Transition: Bash("node "$FORGE_TOOLS" engine-transition ${state.artifact_dir} ${state.allowed_transitions[0]}")`);
+    lines.push(`Transition: Bash("node "${FORGE_TOOLS_PATH}" engine-transition ${state.artifact_dir} ${state.allowed_transitions[0]}")`);
   }
 
   if (state.tasks_completed.length > 0) {
@@ -129,11 +130,11 @@ function formatPipelineContext(state) {
 
   lines.push("");
   lines.push("Engine commands (use via Bash):");
-  lines.push(`  node "$FORGE_TOOLS" engine-state ${state.artifact_dir}`);
-  lines.push(`  node "$FORGE_TOOLS" engine-can-transition ${state.artifact_dir} <step>`);
-  lines.push(`  node "$FORGE_TOOLS" engine-transition ${state.artifact_dir} <step>`);
-  lines.push(`  node "$FORGE_TOOLS" engine-dispatch-spec ${state.artifact_dir} <role> [task_id]`);
-  lines.push(`  node "$FORGE_TOOLS" engine-record-result ${state.artifact_dir} <role> <task_id> <verdict>`);
+  lines.push(`  node "${FORGE_TOOLS_PATH}" engine-state ${state.artifact_dir}`);
+  lines.push(`  node "${FORGE_TOOLS_PATH}" engine-can-transition ${state.artifact_dir} <step>`);
+  lines.push(`  node "${FORGE_TOOLS_PATH}" engine-transition ${state.artifact_dir} <step>`);
+  lines.push(`  node "${FORGE_TOOLS_PATH}" engine-dispatch-spec ${state.artifact_dir} <role> [task_id]`);
+  lines.push(`  node "${FORGE_TOOLS_PATH}" engine-record-result ${state.artifact_dir} <role> <task_id> <verdict>`);
   lines.push("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   lines.push("");
 
