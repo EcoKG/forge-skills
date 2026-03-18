@@ -38,11 +38,32 @@
           },
           "loads": ["resources/type-guides.md"],
           "produces": ["research.md"],
+          "next": "architect_guide"
+        },
+        {
+          "id": "architect_guide",
+          "order": 3,
+          "required": false,
+          "skippable_by": ["direct", "quick"],
+          "actor": "agent",
+          "agent_role": "architect",
+          "agent_prompt": "prompts/architect.md",
+          "model_key": "architecture",
+          "entry_gate": {
+            "required_state": "researched",
+            "required_artifacts": ["research.md"]
+          },
+          "exit_gate": {
+            "artifacts": ["design-guide.md"],
+            "state_value": "arch_guided"
+          },
+          "loads": [],
+          "produces": ["design-guide.md"],
           "next": "plan"
         },
         {
           "id": "plan",
-          "order": 3,
+          "order": 4,
           "required": true,
           "skippable_by": [],
           "actor": "agent",
@@ -50,7 +71,7 @@
           "agent_prompt": "prompts/planner.md",
           "model_key": "planning",
           "entry_gate": {
-            "required_state": "researched",
+            "required_state": "arch_guided",
             "required_artifacts": ["research.md"]
           },
           "exit_gate": {
@@ -64,7 +85,7 @@
         },
         {
           "id": "plan_check",
-          "order": 4,
+          "order": 5,
           "required": true,
           "skippable_by": ["direct", "quick"],
           "actor": "agent",
@@ -88,7 +109,7 @@
         },
         {
           "id": "checkpoint",
-          "order": 5,
+          "order": 6,
           "required": true,
           "actor": "pm",
           "auto_proceed_when": ["scale == small"],
@@ -102,7 +123,7 @@
         },
         {
           "id": "branch",
-          "order": 6,
+          "order": 7,
           "required": false,
           "actor": "pm",
           "skip_when": ["type in docs,analysis,analysis-security,design"],
@@ -116,7 +137,7 @@
         },
         {
           "id": "execute",
-          "order": 7,
+          "order": 8,
           "required": true,
           "actor": "agent",
           "agent_role": "implementer",
@@ -158,7 +179,7 @@
         },
         {
           "id": "verify",
-          "order": 8,
+          "order": 9,
           "required": true,
           "skippable_by": ["quick"],
           "actor": "agent",
@@ -182,7 +203,7 @@
         },
         {
           "id": "finalize",
-          "order": 9,
+          "order": 10,
           "required": true,
           "actor": "pm",
           "entry_gate": {
@@ -197,7 +218,7 @@
         },
         {
           "id": "cleanup",
-          "order": 10,
+          "order": 11,
           "required": false,
           "skippable_by": ["quick"],
           "actor": "pm",
@@ -291,9 +312,9 @@
   },
   "type_step_overrides": {
     "code-bug": {"plan_check": {"dimensions": ["D1","D2","D5","D7"]}, "verify": {"level": "light"}},
-    "docs": {"skip": ["plan", "plan_check", "checkpoint", "branch", "verify"]},
-    "analysis": {"skip": ["plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"report_only": true}},
-    "analysis-security": {"skip": ["plan", "plan_check", "checkpoint", "branch", "verify"], "research": {"model_override": "opus"}},
-    "design": {"skip": ["plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"report_only": true, "agent_role": "architect", "agent_prompt": "prompts/architect.md", "model_key": "architecture"}}
+    "docs": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"]},
+    "analysis": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"report_only": true}},
+    "analysis-security": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"], "research": {"model_override": "opus"}},
+    "design": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"report_only": true, "agent_role": "architect", "agent_prompt": "prompts/architect.md", "model_key": "architecture"}}
   }
 }

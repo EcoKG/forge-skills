@@ -206,6 +206,7 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 |---|---|---|---|---|
 | 1 | init | PM | — | meta.json |
 | 2 | research | agent (researcher) | meta.json exists | research.md |
+| 2.5 | architect_guide | agent (architect) | research.md exists | design-guide.md |
 | 3 | plan | agent (planner) | research.md exists | plan.md |
 | 4 | plan_check | agent (plan-checker) | plan.md exists | plan.md (verified) |
 | 5 | checkpoint | PM | plan_check PASS | user approval |
@@ -270,7 +271,7 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | 13 | ralph-executor | prompts/ralph-executor.md | --ralph |
 | 14 | ui-reviewer | prompts/ui-reviewer.md | Step 7 (UI files) |
 | 15 | test-strategist | prompts/test-strategist.md | Step 4 |
-| 16 | architect | prompts/architect.md | Step 7 (design type), --init (architecture phase) |
+| 16 | architect | prompts/architect.md | Step 2.5 (architect_guide), Step 7 (design type), --init (architecture phase) |
 | 17 | custom:{name} | .forge/agents/{name}.md | Per pipeline.json |
 
 **Get dispatch spec from engine:** `engine-dispatch-spec <dir> <role> [task_id]`

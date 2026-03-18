@@ -79,6 +79,24 @@ node "$FORGE_TOOLS" engine-record-result {dir} researcher research PASS
 
 ---
 
+## Step 2.5: ARCHITECT GUIDE
+
+```bash
+node "$FORGE_TOOLS" engine-can-transition {dir} architect_guide
+node "$FORGE_TOOLS" engine-transition {dir} architect_guide
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} architect
+# Dispatch architect in guide mode → analyzes codebase patterns → writes design-guide.md
+node "$FORGE_TOOLS" engine-record-result {dir} architect architect_guide PASS
+```
+
+**Architect guide details:** `prompts/architect.md` (Guide Mode)
+**Skip conditions:** `--direct`, `--quick`, docs/analysis/design types
+**Produces:** `design-guide.md` — contains identified pattern, directory rules, dependency rules
+
+The planner (Step 3) reads design-guide.md to ensure the implementation plan follows the project's architecture pattern.
+
+---
+
 ## Step 3: PLAN
 
 ```bash
@@ -91,7 +109,7 @@ node "$FORGE_TOOLS" engine-record-result {dir} planner plan PASS
 
 **Planner details:** `prompts/planner.md`
 **Plan template:** `templates/plan.md`
-**Planner reads:** research.md (summary), type-guides.md, patterns.json
+**Planner reads:** research.md (summary), design-guide.md (if exists), type-guides.md, patterns.json
 
 ---
 

@@ -501,9 +501,9 @@ function engineInit(artifactDir, request, type, scale, options) {
   // The execute step's entry_gate exempts plan.md because the plan step is in skipped_steps.
   const typeOverrides = pipeline.type_step_overrides?.[type] || {};
   const skippedSteps = typeOverrides.skip || [];
-  if (options?.direct) skippedSteps.push("research", "plan_check");
+  if (options?.direct) skippedSteps.push("research", "architect_guide", "plan_check");
   if (options?.no_research) skippedSteps.push("research");
-  if (options?.quick) skippedSteps.push("research", "plan_check", "checkpoint", "branch");
+  if (options?.quick) skippedSteps.push("research", "architect_guide", "plan_check", "checkpoint", "branch");
 
   const state = {
     session_id: path.basename(artifactDir),

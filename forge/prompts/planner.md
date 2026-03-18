@@ -31,6 +31,7 @@ You will receive:
 - `<output_path>` — where to write plan.md
 - `<revision_feedback>` — (optional) feedback from plan-checker on a previous version
 - `<context_path>` — (optional) path to phase context.md with locked decisions
+- `<design_guide_path>` — (optional) path to design-guide.md from architect agent. Contains identified architecture pattern, directory rules, and dependency rules for the project.
 
 {LANG_CHECKLIST}
 {GENERAL_CHECKLIST}
@@ -60,6 +61,21 @@ If `<context_path>` is provided:
 - Add a `[LOCKED:{topic}]` tag to the relevant task's `<ref>` field to trace compliance
 - In the plan's Risk & Mitigation section, note any locked decisions that increase technical risk
 
+### Step 1.7: Read Design Guide (if design-guide.md provided)
+
+If `<design_guide_path>` is provided:
+1. Read the file completely
+2. Extract the **Identified Pattern** — this tells you what architecture pattern the project uses (DDD, Clean Architecture, Hexagonal, Layered, MVC, Module, etc.)
+3. Extract **Directory Rules** — these define where new files must be placed
+4. Extract **Dependency Rules** — these define what can import what
+5. Extract **Implementation Guide** — specific guidance for this feature
+
+**Enforcement rules:**
+- Every task's `<files>` paths MUST comply with Directory Rules. If the guide says domain entities go in `src/domain/`, a new entity MUST be placed there.
+- Every task's `<action>` must respect Dependency Rules. If domain→infra imports are forbidden, do not instruct the implementer to import from infra in domain code.
+- When creating new modules/files, follow the pattern structure identified in the guide. If the project uses Clean Architecture, new features must have domain, application, and infrastructure layers.
+- If no design guide is provided (path is empty or file doesn't exist), proceed without architecture constraints — the planner has full discretion.
+
 ### Step 2: Read Type Guide and Determine Workflow
 
 1. Read `<type_guide_path>` for the detected type.
@@ -81,6 +97,7 @@ For each phase:
 
 For each task:
 
+3.5. If design-guide.md was provided, verify each task's file placement against Directory Rules. If a task creates `src/payment/handler.go` but the guide says handlers go in `src/handlers/`, adjust the path to match.
 4. Assign `<files>` — the files this task will create or modify.
 5. Assign `<read_first>` — files the implementer MUST read before modifying.
    - **Verify every read_first path exists** using Glob. If it does not exist, either:
@@ -267,3 +284,4 @@ These are substituted by PM before dispatching this prompt:
 - `<output_path>` — Absolute path where plan.md must be written
 - `<revision_feedback>` — (Optional) Plan-checker feedback for revision
 - `<context_path>` — (Optional) Path to phase context.md with locked/deferred/discretion decisions
+- `<design_guide_path>` — (Optional) Path to design-guide.md from architect agent

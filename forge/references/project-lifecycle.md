@@ -73,6 +73,36 @@
    PM reads only the summary from the output: milestone count, phase count, phase names.
    Display to user: roadmap overview table.
 
+4.5. **Dispatch architect agent**
+   After the roadmapper has created the project roadmap, dispatch the architect to design the project's overall architecture. This establishes the technical foundation that all subsequent phases will follow.
+
+   ```xml
+   <agent_dispatch>
+     <role>architect</role>
+     <mode>design</mode>
+     <files_to_read>
+       .forge/project.json
+       .forge/roadmap.md
+       {project-profile.json if exists — for brownfield context}
+     </files_to_read>
+     <template_path>templates/architecture.md</template_path>
+     <output_path>.forge/architecture.md</output_path>
+   </agent_dispatch>
+   ```
+   See `prompts/architect.md` (Design Mode) for agent behavior.
+
+   The architect will:
+   - Analyze project requirements from project.json and roadmap.md
+   - Select an appropriate architecture pattern (DDD, Clean Architecture, Hexagonal, Layered, etc.) based on project complexity and domain
+   - Define component structure, data models, dependency rules
+   - Record architecture decisions as ADRs within the design
+   - For brownfield projects: analyze existing codebase patterns first
+
+   PM reads only the summary from the output: pattern name, component count, key decisions.
+   Display to user: architecture overview.
+
+   **This step is critical for new projects.** The architecture.md becomes the reference document that all phase-level planners and architects will use. Each `/forge --phase N` execution will have the architect agent produce a design-guide.md that is consistent with this master architecture.
+
 5. **Create state.md**
    - Fill `templates/state.md` with initial state:
      - Project name from project.json
@@ -88,6 +118,7 @@
    Core Value: {core_value}
    Milestone:  {milestone_name} ({N} phases)
    Phases:     {phase list with names}
+   Architecture: {pattern_name} — .forge/architecture.md
    Config:     {granularity} | {model} | git:{branching}
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ```
