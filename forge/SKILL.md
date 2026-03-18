@@ -107,30 +107,36 @@ Scale affects:
 
 ## 3. Engine Commands (the core of v6.0)
 
-**ALL pipeline logic is in forge-tools.js.** Call via Bash tool:
+**ALL pipeline logic is in forge-tools.js.** The skill base directory is provided when the skill loads (see "Base directory for this skill" at the top of the context). Set this variable at the start of every forge session and use it for ALL engine commands:
+
+```bash
+FORGE_TOOLS="$HOME/.claude/skills/forge/hooks/forge-tools.js"
+```
+
+Call via Bash tool using `node "$FORGE_TOOLS" <command>` (NEVER use relative path `node "$FORGE_TOOLS"` — it will fail because CWD is the project directory, not the skill directory):
 
 ```bash
 # Pipeline lifecycle
-node hooks/forge-tools.js engine-init <artifact_dir> <request> <type> <scale> [options_json]
-node hooks/forge-tools.js engine-state <artifact_dir>
-node hooks/forge-tools.js engine-can-transition <artifact_dir> <target_step>
-node hooks/forge-tools.js engine-transition <artifact_dir> <target_step>
+node "$FORGE_TOOLS" engine-init <artifact_dir> <request> <type> <scale> [options_json]
+node "$FORGE_TOOLS" engine-state <artifact_dir>
+node "$FORGE_TOOLS" engine-can-transition <artifact_dir> <target_step>
+node "$FORGE_TOOLS" engine-transition <artifact_dir> <target_step>
 
 # Agent management
-node hooks/forge-tools.js engine-dispatch-spec <artifact_dir> <role> [task_id]
-node hooks/forge-tools.js engine-record-result <artifact_dir> <role> <task_id> <verdict>
-node hooks/forge-tools.js engine-record-revision <artifact_dir> <type>
+node "$FORGE_TOOLS" engine-dispatch-spec <artifact_dir> <role> [task_id]
+node "$FORGE_TOOLS" engine-record-result <artifact_dir> <role> <task_id> <verdict>
+node "$FORGE_TOOLS" engine-record-revision <artifact_dir> <type>
 
 # Verification
-node hooks/forge-tools.js engine-verify-build <artifact_dir> <build_command>
-node hooks/forge-tools.js engine-verify-tests <artifact_dir> <test_command>
-node hooks/forge-tools.js engine-reconcile <artifact_dir>
+node "$FORGE_TOOLS" engine-verify-build <artifact_dir> <build_command>
+node "$FORGE_TOOLS" engine-verify-tests <artifact_dir> <test_command>
+node "$FORGE_TOOLS" engine-reconcile <artifact_dir>
 
 # Existing tools (unchanged)
-node hooks/forge-tools.js detect-stack
-node hooks/forge-tools.js git-state
-node hooks/forge-tools.js create-lock <dir>
-node hooks/forge-tools.js remove-lock <dir>
+node "$FORGE_TOOLS" detect-stack
+node "$FORGE_TOOLS" git-state
+node "$FORGE_TOOLS" create-lock <dir>
+node "$FORGE_TOOLS" remove-lock <dir>
 ```
 
 ### Engine Response Format

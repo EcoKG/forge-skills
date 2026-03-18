@@ -41,11 +41,11 @@ If no special flag → proceed to Step 1.
 mkdir -p .forge/{date}/{slug}-{HHMM}
 
 # 3. Initialize engine
-node hooks/forge-tools.js engine-init {artifact_dir} "{request}" {type} {scale}
+node "$FORGE_TOOLS" engine-init {artifact_dir} "{request}" {type} {scale}
 # Returns: { initialized: true, pipeline: "standard", skipped_steps: [...] }
 
 # 4. Create execution lock
-node hooks/forge-tools.js create-lock {artifact_dir}
+node "$FORGE_TOOLS" create-lock {artifact_dir}
 
 # 5. Display banner
 # Forge v6.0 | type: {type} | scale: {scale} | lang: {lang}
@@ -57,21 +57,21 @@ node hooks/forge-tools.js create-lock {artifact_dir}
 
 ```bash
 # Check transition
-node hooks/forge-tools.js engine-can-transition {dir} research
+node "$FORGE_TOOLS" engine-can-transition {dir} research
 # → { allowed: true, loads: ["resources/type-guides.md"], agent_role: "researcher" }
 
 # Transition
-node hooks/forge-tools.js engine-transition {dir} research
+node "$FORGE_TOOLS" engine-transition {dir} research
 
 # Get dispatch spec
-node hooks/forge-tools.js engine-dispatch-spec {dir} researcher
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} researcher
 # → { role, prompt_path, model, output_path, ... }
 
 # Dispatch researcher agent with the spec
 # Agent reads codebase, writes research.md
 
 # Record result
-node hooks/forge-tools.js engine-record-result {dir} researcher research PASS
+node "$FORGE_TOOLS" engine-record-result {dir} researcher research PASS
 ```
 
 **Research agent details:** `prompts/researcher.md`
@@ -82,11 +82,11 @@ node hooks/forge-tools.js engine-record-result {dir} researcher research PASS
 ## Step 3: PLAN
 
 ```bash
-node hooks/forge-tools.js engine-can-transition {dir} plan
-node hooks/forge-tools.js engine-transition {dir} plan
-node hooks/forge-tools.js engine-dispatch-spec {dir} planner
+node "$FORGE_TOOLS" engine-can-transition {dir} plan
+node "$FORGE_TOOLS" engine-transition {dir} plan
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} planner
 # Dispatch planner → writes plan.md
-node hooks/forge-tools.js engine-record-result {dir} planner plan PASS
+node "$FORGE_TOOLS" engine-record-result {dir} planner plan PASS
 ```
 
 **Planner details:** `prompts/planner.md`
@@ -98,23 +98,23 @@ node hooks/forge-tools.js engine-record-result {dir} planner plan PASS
 ## Step 4: PLAN-CHECK
 
 ```bash
-node hooks/forge-tools.js engine-can-transition {dir} plan_check
-node hooks/forge-tools.js engine-transition {dir} plan_check
-node hooks/forge-tools.js engine-dispatch-spec {dir} plan-checker
+node "$FORGE_TOOLS" engine-can-transition {dir} plan_check
+node "$FORGE_TOOLS" engine-transition {dir} plan_check
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} plan-checker
 # Dispatch plan-checker → annotates plan.md
-node hooks/forge-tools.js engine-record-result {dir} plan-checker plan_check {PASS|FAIL}
+node "$FORGE_TOOLS" engine-record-result {dir} plan-checker plan_check {PASS|FAIL}
 ```
 
 **If FAIL:** engine handles revision loop (max 3, defined in pipeline.json)
 ```bash
-node hooks/forge-tools.js engine-record-revision {dir} plan
+node "$FORGE_TOOLS" engine-record-revision {dir} plan
 # → { recorded: true, count: 1, limit: 3, exceeded: false }
 # Re-dispatch planner with feedback, then re-check
 ```
 
 **After plan-check PASS:** dispatch test-strategist
 ```bash
-node hooks/forge-tools.js engine-dispatch-spec {dir} test-strategist
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} test-strategist
 # → writes test-strategy.md
 ```
 
@@ -123,8 +123,8 @@ node hooks/forge-tools.js engine-dispatch-spec {dir} test-strategist
 ## Step 5: CHECKPOINT
 
 ```bash
-node hooks/forge-tools.js engine-can-transition {dir} checkpoint
-node hooks/forge-tools.js engine-transition {dir} checkpoint
+node "$FORGE_TOOLS" engine-can-transition {dir} checkpoint
+node "$FORGE_TOOLS" engine-transition {dir} checkpoint
 ```
 
 - **small scale:** auto-proceed (pipeline.json `auto_proceed_when`)
@@ -135,8 +135,8 @@ node hooks/forge-tools.js engine-transition {dir} checkpoint
 ## Step 6: BRANCH
 
 ```bash
-node hooks/forge-tools.js engine-can-transition {dir} branch
-node hooks/forge-tools.js engine-transition {dir} branch
+node "$FORGE_TOOLS" engine-can-transition {dir} branch
+node "$FORGE_TOOLS" engine-transition {dir} branch
 git checkout -b feature/{slug}
 ```
 
@@ -147,8 +147,8 @@ git checkout -b feature/{slug}
 The most complex step. Wave-based parallel execution with backpressure.
 
 ```bash
-node hooks/forge-tools.js engine-can-transition {dir} execute
-node hooks/forge-tools.js engine-transition {dir} execute
+node "$FORGE_TOOLS" engine-can-transition {dir} execute
+node "$FORGE_TOOLS" engine-transition {dir} execute
 ```
 
 ### Per-Task Cycle
@@ -157,22 +157,22 @@ For each task in each wave:
 
 ```bash
 # 1. Get implementer spec
-node hooks/forge-tools.js engine-dispatch-spec {dir} implementer {task_id}
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} implementer {task_id}
 # Dispatch implementer → writes code + task-summary.md
 
 # 2. Backpressure gate (if enabled in pipeline.json)
-node hooks/forge-tools.js engine-verify-build {dir} "{build_command}"
+node "$FORGE_TOOLS" engine-verify-build {dir} "{build_command}"
 # → { result: "pass" } or { result: "fail", error: "..." }
-node hooks/forge-tools.js engine-verify-tests {dir} "{test_command}"
+node "$FORGE_TOOLS" engine-verify-tests {dir} "{test_command}"
 # → { result: "pass" } or { result: "fail", error: "..." }
 # Gate guard will block git commit if these fail
 
 # 3. Code review
-node hooks/forge-tools.js engine-dispatch-spec {dir} code-reviewer {task_id}
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} code-reviewer {task_id}
 # Dispatch reviewer → appends to task-summary.md
 
 # 4. Record result
-node hooks/forge-tools.js engine-record-result {dir} implementer {task_id} {PASS|REVISION}
+node "$FORGE_TOOLS" engine-record-result {dir} implementer {task_id} {PASS|REVISION}
 
 # 5. Atomic commit (if backpressure passed)
 git add {task_files}
@@ -184,14 +184,14 @@ git commit -m "{type}({slug}/{task_id}): {task_name}"
 After all tasks in a wave:
 ```bash
 # QA inspection
-node hooks/forge-tools.js engine-dispatch-spec {dir} qa-inspector
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} qa-inspector
 # Dispatch QA → writes qa-report.md
 
 # UI review (if UI files changed)
-node hooks/forge-tools.js engine-dispatch-spec {dir} ui-reviewer
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} ui-reviewer
 
 # VPM cross-check (after QA, before git commit)
-node hooks/forge-tools.js engine-dispatch-spec {dir} verification-pm {wave_number}
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} verification-pm {wave_number}
 # Dispatch VPM in wave_check mode → writes vpm-wave-{N}.md
 # If ISSUES_FOUND: create fix tasks, re-execute, re-check (max 2 re-checks)
 # If PASS: proceed to git commit
@@ -200,7 +200,7 @@ node hooks/forge-tools.js engine-dispatch-spec {dir} verification-pm {wave_numbe
 ### Revision Handling
 
 ```bash
-node hooks/forge-tools.js engine-record-revision {dir} code_minor
+node "$FORGE_TOOLS" engine-record-revision {dir} code_minor
 # → { count: 2, limit: 5, exceeded: false }
 # If exceeded: { exceeded: true, action: "escalate_to_user" }
 ```
@@ -215,12 +215,12 @@ Details: `references/deviation-rules.md`
 ## Step 8: VERIFY (VPM Final Verify Mode)
 
 ```bash
-node hooks/forge-tools.js engine-can-transition {dir} verify
-node hooks/forge-tools.js engine-transition {dir} verify
-node hooks/forge-tools.js engine-dispatch-spec {dir} verification-pm
+node "$FORGE_TOOLS" engine-can-transition {dir} verify
+node "$FORGE_TOOLS" engine-transition {dir} verify
+node "$FORGE_TOOLS" engine-dispatch-spec {dir} verification-pm
 # Dispatch VPM in final_verify mode (goal-backward 3-level verification)
 # VPM writes verification.md
-node hooks/forge-tools.js engine-record-result {dir} verification-pm verify {VERIFIED|GAPS_FOUND|FAILED}
+node "$FORGE_TOOLS" engine-record-result {dir} verification-pm verify {VERIFIED|GAPS_FOUND|FAILED}
 ```
 
 **If GAPS_FOUND (max 2 fix cycles):** create fix tasks, return to execute step, re-dispatch VPM
@@ -228,8 +228,8 @@ node hooks/forge-tools.js engine-record-result {dir} verification-pm verify {VER
 
 ```bash
 # Verify artifacts with code
-node hooks/forge-tools.js verify-artifacts {dir}/plan.md
-node hooks/forge-tools.js verify-key-links {dir}/plan.md
+node "$FORGE_TOOLS" verify-artifacts {dir}/plan.md
+node "$FORGE_TOOLS" verify-key-links {dir}/plan.md
 ```
 
 ---
@@ -237,12 +237,12 @@ node hooks/forge-tools.js verify-key-links {dir}/plan.md
 ## Step 9: FINALIZE
 
 ```bash
-node hooks/forge-tools.js engine-can-transition {dir} finalize
-node hooks/forge-tools.js engine-transition {dir} finalize
+node "$FORGE_TOOLS" engine-can-transition {dir} finalize
+node "$FORGE_TOOLS" engine-transition {dir} finalize
 ```
 
 1. Generate `report.md` using `templates/report.md`
-2. Record metrics: `node hooks/forge-tools.js metrics-record '{...}'`
+2. Record metrics: `node "$FORGE_TOOLS" metrics-record '{...}'`
 3. Write memory: patterns.json, failures.json, decisions.json
 4. Knowledge transfer (if quality > 0.8): write to `~/.forge/knowledge/{stack}/`
 5. Propose PR if on feature branch
@@ -252,8 +252,8 @@ node hooks/forge-tools.js engine-transition {dir} finalize
 ## Step 10: CLEANUP
 
 ```bash
-node hooks/forge-tools.js engine-can-transition {dir} cleanup
-node hooks/forge-tools.js engine-transition {dir} cleanup
+node "$FORGE_TOOLS" engine-can-transition {dir} cleanup
+node "$FORGE_TOOLS" engine-transition {dir} cleanup
 
 # Team cleanup (if team mode was used in Step 7)
 # Check meta.json options.exec_mode — if "team" or "hybrid":
@@ -262,7 +262,7 @@ node hooks/forge-tools.js engine-transition {dir} cleanup
 #   3. TeamDelete to destroy the team
 # This prevents "Already leading team" errors in subsequent forge runs.
 
-node hooks/forge-tools.js remove-lock {dir}
+node "$FORGE_TOOLS" remove-lock {dir}
 # → pipeline-state.json: current_step = "completed"
 ```
 
@@ -287,7 +287,7 @@ node hooks/forge-tools.js remove-lock {dir}
 At any point, check if actual state matches desired state:
 
 ```bash
-node hooks/forge-tools.js engine-reconcile {dir}
+node "$FORGE_TOOLS" engine-reconcile {dir}
 # → { status: "CONSISTENT" } or { status: "DRIFT_DETECTED", drift: [...] }
 ```
 
