@@ -17,8 +17,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const CWD = process.cwd();
-const FORGE_DIR = path.join(CWD, ".forge");
+let CWD;
+let FORGE_DIR;
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
 try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
 
@@ -148,7 +148,13 @@ function writeTrackerSignal(forgeDir, signalType, data) {
   });
   // Keep only last 20 signals to prevent unbounded growth
   if (signals.length > 20) signals = signals.slice(-20);
-  try { fs.writeFileSync(signalPath, JSON.stringify(signals, null, 2)); } catch {}
+  const tempPath = signalPath + ".tmp." + process.pid;
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(signals, null, 2));
+    fs.renameSync(tempPath, signalPath);
+  } catch {
+    try { fs.unlinkSync(tempPath); } catch {}
+  }
 }
 
 function main() {
@@ -156,6 +162,9 @@ function main() {
     const raw = fs.readFileSync(0, "utf8").trim();
     if (!raw) { process.exit(0); return; }
     const input = JSON.parse(raw);
+
+    CWD = input.cwd || process.cwd();
+    FORGE_DIR = path.join(CWD, ".forge");
 
     const state = readState(input.session_id);
     state.toolUseCount = (state.toolUseCount || 0) + 1;

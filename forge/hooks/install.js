@@ -31,18 +31,21 @@ const FORGE_HOOKS = [
     event: "PostToolUse",
     id: "forge-tracker",
     script: path.join(HOOKS_DIR, "forge-tracker.js"),
+    timeout: 30,
     description: "Forge v6: context monitor + agent dispatch tracker + build/test detector",
   },
   {
     event: "Notification",
     id: "forge-statusline",
     script: path.join(HOOKS_DIR, "forge-statusline.js"),
+    timeout: 5,
     description: "Forge: displays project/phase status in statusline",
   },
   {
     event: "UserPromptSubmit",
     id: "forge-orchestrator",
     script: path.join(HOOKS_DIR, "forge-orchestrator.js"),
+    timeout: 5,
     description: "Forge v6: pipeline state injection + crash recovery + project context",
   },
   {
@@ -50,6 +53,7 @@ const FORGE_HOOKS = [
     id: "forge-gate-guard",
     script: path.join(HOOKS_DIR, "forge-gate-guard.js"),
     matcher: "Edit|Write|Bash",
+    timeout: 10,
     description: "Forge v6: 4 critical gates — hard blocks on pipeline violations",
   },
 ];
@@ -131,7 +135,7 @@ function install() {
         {
           type: "command",
           command: `"${nodeBin}" "${hook.script}"`,
-          timeout: 5,
+          timeout: hook.timeout || 5,
         },
       ],
     });

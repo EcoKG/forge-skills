@@ -4,7 +4,7 @@ const path = require("path");
 const { execSync } = require("child_process");
 const os = require("os");
 
-const CWD = process.cwd();
+const CWD = process.env.FORGE_PROJECT_DIR || process.cwd();
 const FORGE_DIR = path.join(CWD, ".forge");
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
 

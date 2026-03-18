@@ -21,8 +21,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const CWD = process.cwd();
-const FORGE_DIR = path.join(CWD, ".forge");
+let CWD;
+let FORGE_DIR;
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
 
 const CODE_EXTENSIONS = new Set([
@@ -121,6 +121,9 @@ function main() {
     const raw = fs.readFileSync(0, "utf8").trim();
     if (!raw) { process.exit(0); return; }
     const input = JSON.parse(raw);
+
+    CWD = input.cwd || process.cwd();
+    FORGE_DIR = path.join(CWD, ".forge");
 
     const toolName = input.tool_name;
     const toolInput = input.tool_input || {};

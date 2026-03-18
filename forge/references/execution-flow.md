@@ -21,7 +21,13 @@ Check for special flags before entering the standard pipeline:
 | `--debug` | Load `references/debug-pipeline.md` |
 | `--map` | Load `references/codebase-mapping.md` |
 | `--ralph` | Load `references/ralph-mode.md` |
-| `--quick` | Skip to Step 1 with quick pipeline |
+| `--quick` | Validate quick eligibility, then skip to Step 1 with quick pipeline |
+
+**Quick mode validation** (before accepting `--quick`):
+1. Check scope: request must target ≤1 file and ≤50 LOC
+2. Check clarity: request must be unambiguous (no "figure out", "investigate", "explore")
+3. Check risk: no API/schema/interface changes implied
+4. If validation fails → downgrade to `--direct` (skip research only) and warn user
 
 If no special flag → proceed to Step 1.
 

@@ -77,6 +77,32 @@ GATE GUARD (PreToolUse): blocks if pipeline state is violated
 | `--debug` | flag | off | Scientific debug pipeline |
 | `--map` | flag | off | Codebase mapping |
 
+### Quick Mode Rules
+
+`--quick` skips research, plan-check, checkpoint, branch, and verify steps. Use it **only** when ALL conditions are met:
+
+1. **Single-file change** — the request touches exactly one file (or a tightly coupled pair like component + test)
+2. **Clear scope** — the user's request is unambiguous; no research needed to understand what to do
+3. **No integration risk** — the change doesn't affect APIs, schemas, or shared interfaces
+4. **Small scale** — the change is ≤50 lines of code
+
+If ANY condition is NOT met, use the standard pipeline (or `--direct` to skip only research).
+
+### Scale Auto-Detection
+
+When `--scale` is not provided, auto-detect from the request:
+
+| Scale | Criteria |
+|---|---|
+| **small** | 1 file, ≤50 LOC, no new dependencies, no API changes |
+| **medium** | 2–5 files, ≤300 LOC, minor interface changes, ≤2 tasks |
+| **large** | 6+ files, >300 LOC, new APIs/schemas, cross-cutting concerns, 3+ tasks |
+
+Scale affects:
+- **Checkpoint behavior**: small auto-proceeds, medium/large asks user
+- **Model selection**: large uses higher-quality models for planning
+- **Wave structure**: medium uses 1 wave, large uses 2+ waves
+
 ---
 
 ## 3. Engine Commands (the core of v6.0)
