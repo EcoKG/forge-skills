@@ -63,7 +63,7 @@ GATE GUARD (PreToolUse): blocks if pipeline state is violated
 | `--scale` | small, medium, large | auto | Override scale |
 | `--model` | quality, balanced, budget | balanced | Model profile |
 | `--direct` | flag | off | Skip research + plan-check |
-| `--quick` | flag | off | 3-step: plan → execute → finalize |
+| `--quick` | flag | off | Lightweight: plan → execute → verify → finalize (no research/plan-check) |
 | `--skip-tests` | flag | off | Skip test execution |
 | `--resume` | flag | off | Resume interrupted execution |
 | `--ralph` | flag | off | Ralph Mode: iterate until tests pass |
@@ -214,7 +214,7 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | 10 | cleanup | PM | finalized | completed |
 
 ### Variants
-- **quick**: init → plan → execute → finalize (no research, plan-check, verify)
+- **quick**: init → plan → execute → verify → finalize (no research, plan-check; backpressure build+test ON, VPM verify ON)
 - **debug**: reproduce → hypothesize → test → fix → verify_fix
 - **ralph**: init → iterate (loop until completion promise passes)
 
