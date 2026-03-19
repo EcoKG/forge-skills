@@ -1070,13 +1070,6 @@ function metricsSummary() {
   }
 }
 
-// Mark forge as invoked (for pretool gate)
-function markInvoked(sessionId) {
-  try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
-  const flagPath = path.join(STATE_DIR, `forge-invoked-${sessionId || "default"}.json`);
-  fs.writeFileSync(flagPath, JSON.stringify({ invoked: true, at: new Date().toISOString() }));
-  return { marked: true, session: sessionId };
-}
 
 // Argument validation helper
 function requireArgs(args, count, usage) {
@@ -1104,7 +1097,6 @@ try {
     case "config-set":      requireArgs(args, 2, "config-set <key> <value>"); result = configSet(args[0], args[1]); break;
     case "metrics-record":  result = metricsRecord(args[0]); break;
     case "metrics-summary": result = metricsSummary(); break;
-    case "mark-invoked":    result = markInvoked(args[0]); break;
     case "detect-stack":        result = detectStack(); break;
     case "git-state":           result = getGitState(); break;
     case "create-lock":         result = createLock(args[0], args[1]); break;
@@ -1135,7 +1127,6 @@ try {
           "verify-artifacts <plan>", "verify-key-links <plan>",
           "config-init", "config-get <key>", "config-set <key> <value>",
           "metrics-record <json>", "metrics-summary",
-          "mark-invoked <session-id>",
           "detect-stack", "git-state",
           "create-lock <dir>", "remove-lock <dir>", "check-lock <dir>",
           "metrics-record-dispatch <json>",

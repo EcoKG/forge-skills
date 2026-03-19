@@ -6,9 +6,10 @@
  * Reads .forge/pipeline-state.json for current state.
  * Exit(1) = hard block. Exit(0) = allow.
  *
- * 6 Gates:
+ * 7 Gates:
  *   Gate 1: research.md must exist before plan.md creation [HARD BLOCK]
  *   Gate 2: plan_check PASS before source code edits [HARD BLOCK]
+ *   Gate 2B: Bash file-writing commands on code files [HARD BLOCK]
  *   Gate 3: build/test must pass before git commit [HARD BLOCK]
  *   Gate 4: verification must exist before report.md creation [HARD BLOCK]
  *   Gate 5: Large change warning (>500 chars edit, >100 lines overwrite) [WARNING]
@@ -26,12 +27,24 @@ let FORGE_DIR;
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
 
 const CODE_EXTENSIONS = new Set([
+  // Languages
   ".js", ".ts", ".jsx", ".tsx", ".py", ".go", ".rs", ".java",
   ".c", ".cpp", ".h", ".hpp", ".cs", ".rb", ".php", ".swift",
   ".kt", ".scala", ".vue", ".svelte", ".ex", ".exs",
+  ".lua", ".r", ".pl", ".groovy", ".gradle",
+  // Web/Markup
+  ".html", ".css", ".scss", ".sass", ".less",
+  ".ejs", ".pug", ".hbs", ".njk",
+  // Data/Config (code-like)
+  ".sql", ".graphql", ".proto",
+  ".yaml", ".yml", ".toml", ".json", ".xml",
+  // Shell
+  ".sh", ".bash", ".zsh",
+  // Infrastructure
+  ".tf", ".hcl", ".dockerfile",
 ]);
 
-const SKIP_PATHS = [".forge/", "node_modules/", ".git/", "package-lock.json", "yarn.lock"];
+const SKIP_PATHS = [".forge/", "node_modules/", ".git/", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "package.json", "tsconfig.json", "composer.json", "Cargo.lock", "go.sum"];
 
 // Secret/credential patterns for Gate 6
 const SECRET_PATTERNS = [
@@ -109,66 +122,59 @@ function artifactExists(artifactDir, filename) {
   } catch { return false; }
 }
 
-// Check if forge was invoked (for non-forge edits)
-function forgeWasInvoked(sessionId) {
-  try {
-    const flagFile = path.join(STATE_DIR, `forge-invoked-${sessionId || "default"}.json`);
-    const data = JSON.parse(fs.readFileSync(flagFile, "utf8"));
-    if (data.invoked === true) return true;
-  } catch {}
-  try {
-    const entries = fs.readdirSync(FORGE_DIR);
-    for (const entry of entries) {
-      const stat = fs.statSync(path.join(FORGE_DIR, entry));
-      if (Date.now() - stat.mtimeMs < 3600000) return true;
-    }
-  } catch {}
-  return false;
-}
 
 function main() {
   let input;
+  let toolName, toolInput;
+  let state, artifactDir, currentStep, stepOrder;
+
   try {
     const raw = fs.readFileSync(0, "utf8").trim();
-    if (!raw) { process.exit(0); return; }
+    if (!raw) { process.exit(0); }
     input = JSON.parse(raw);
-    if (!input.tool_name) { process.exit(0); return; }
+    if (!input.tool_name) { process.exit(0); }
 
     CWD = input.cwd || process.cwd();
     FORGE_DIR = path.join(CWD, ".forge");
 
-    const toolName = input.tool_name;
-    const toolInput = input.tool_input || {};
-    const sessionId = input.session_id;
+    toolName = input.tool_name;
+    toolInput = input.tool_input || {};
 
     // Only check Edit, Write, Bash
-    if (!["Edit", "Write", "Bash"].includes(toolName)) { process.exit(0); return; }
+    if (!["Edit", "Write", "Bash"].includes(toolName)) { process.exit(0); }
 
-    const state = findPipelineState();
+    state = findPipelineState();
 
-    // If no active pipeline, fall back to basic forge-invoked check
+    // If no active pipeline, block ALL code file edits
     if (!state) {
       if (["Edit", "Write"].includes(toolName)) {
         const filePath = toolInput.file_path || "";
-        if (isCodeFile(filePath) && !forgeWasInvoked(sessionId)) {
+        if (isCodeFile(filePath)) {
           process.stdout.write(
-            "🚫 FORGE GATE BLOCKED: Cannot edit code without invoking /forge first.\n" +
-            "Use /forge to start a pipeline, or use --quick for simple changes.\n" +
+            "🚫 FORGE GATE BLOCKED: Cannot edit code without an active forge pipeline.\n" +
+            "Start a pipeline first:\n" +
+            "  /forge --trivial  (한 줄 수정: 오타, 변수명, import)\n" +
+            "  /forge --quick    (소규모 변경: 단일 파일, ≤50줄)\n" +
+            "  /forge            (표준 파이프라인: 기능 추가/수정)\n" +
             "This gate ensures all code changes go through the forge quality pipeline."
           );
           process.exit(1);
-          return;
         }
       }
       process.exit(0);
-      return;
     }
 
-    const artifactDir = findArtifactDir(state);
-    const currentStep = state.current_step;
-    const stepOrder = state.current_step_order || 0;
+    artifactDir = findArtifactDir(state);
+    currentStep = state.current_step;
+    stepOrder = state.current_step_order || 0;
 
-    // === GATE 1: research.md must exist before plan.md ===
+  } catch (err) {
+    // Fail-open for input parsing: if we can't parse input, we can't check anything
+    process.exit(0);
+  }
+
+  // === GATE 1: research.md must exist before plan.md ===
+  try {
     if (toolName === "Write") {
       const filePath = toolInput.file_path || "";
       const basename = path.basename(filePath);
@@ -188,8 +194,13 @@ function main() {
         }
       }
     }
+  } catch (err) {
+    process.stderr.write("forge-gate-guard: Gate 1 error: " + err.message + "\n");
+    process.exit(1);
+  }
 
-    // === GATE 2: plan_check PASS before source code edits ===
+  // === GATE 2: plan_check PASS before source code edits ===
+  try {
     if (["Edit", "Write"].includes(toolName)) {
       const filePath = toolInput.file_path || "";
       if (isCodeFile(filePath) && stepOrder < 7) {
@@ -202,12 +213,68 @@ function main() {
             `Current pipeline state requires: ${state.gates_pending?.join(", ") || "complete earlier steps"}`
           );
           process.exit(1);
-          return;
         }
       }
     }
+  } catch (err) {
+    process.stderr.write("forge-gate-guard: Gate 2 error: " + err.message + "\n");
+    process.exit(1);
+  }
 
-    // === GATE 3: build/test pass before git commit ===
+  // === GATE 2B: Bash file-writing commands on code files ===
+  try {
+    if (toolName === "Bash") {
+      const cmd = toolInput.command || "";
+      // Skip known safe commands
+      if (!cmd.match(/^(git|npm|npx|yarn|pnpm|pip|cargo|go |dotnet|mvn|gradle|make|cmake)\b/)) {
+        // Detect file-writing patterns
+        const writePatterns = [
+          /(?:echo|printf)\s+.*?>\s*(\S+)/,
+          /cat\s+.*?>\s*(\S+)/,
+          /tee\s+(?:-a\s+)?(\S+)/,
+          /sed\s+-i\S*\s+.*?(\S+)\s*$/,
+          /perl\s+-(?:i|pi)\S*\s+.*?(\S+)\s*$/,
+          /cp\s+\S+\s+(\S+)/,
+          /mv\s+\S+\s+(\S+)/,
+          /curl\s+.*?-o\s+(\S+)/,
+          /wget\s+.*?-O\s+(\S+)/,
+          /patch\s+(?:.*?\s)?(\S+)/,
+        ];
+        for (const pattern of writePatterns) {
+          const match = cmd.match(pattern);
+          if (match && match[1]) {
+            const targetFile = match[1].replace(/["']/g, "");
+            if (isCodeFile(targetFile)) {
+              if (!state) {
+                process.stdout.write(
+                  `🚫 GATE 2B BLOCKED: Bash command writes to code file "${path.basename(targetFile)}" without active pipeline.\n` +
+                  "Start a forge pipeline first: /forge --trivial, --quick, or /forge"
+                );
+                process.exit(1);
+                return;
+              }
+              const allowedSteps = ["execute", "verify", "finalize", "completed"];
+              if (!allowedSteps.includes(currentStep)) {
+                process.stdout.write(
+                  `🚫 GATE 2B BLOCKED: Bash writes to code file "${path.basename(targetFile)}" at step "${currentStep}".\n` +
+                  "Code file writes are only allowed at step 7 (execute) or later."
+                );
+                process.exit(1);
+                return;
+              }
+            }
+            break; // Only check first match
+          }
+        }
+      }
+    }
+  } catch (err) {
+    process.stderr.write("forge-gate-guard: Gate 2B error: " + err.message + "\n");
+    process.exit(1);
+  }
+
+  // === GATE 3: build/test pass before git commit ===
+  try {
     if (toolName === "Bash") {
       const cmd = toolInput.command || "";
       if (cmd.match(/git\s+commit/)) {
@@ -220,7 +287,6 @@ function main() {
             "Fix build errors first, then re-run: node forge-tools.js engine-verify-build <artifact-dir> <command>"
           );
           process.exit(1);
-          return;
         }
         if (lastTest === "fail") {
           process.stdout.write(
@@ -228,12 +294,16 @@ function main() {
             "Fix failing tests first, then re-run: node forge-tools.js engine-verify-tests <artifact-dir> <command>"
           );
           process.exit(1);
-          return;
         }
       }
     }
+  } catch (err) {
+    process.stderr.write("forge-gate-guard: Gate 3 error: " + err.message + "\n");
+    process.exit(1);
+  }
 
-    // === GATE 4: verification before report.md ===
+  // === GATE 4: verification before report.md ===
+  try {
     if (toolName === "Write") {
       const filePath = toolInput.file_path || "";
       const basename = path.basename(filePath);
@@ -252,8 +322,13 @@ function main() {
         }
       }
     }
+  } catch (err) {
+    process.stderr.write("forge-gate-guard: Gate 4 error: " + err.message + "\n");
+    process.exit(1);
+  }
 
-    // === GATE 5: Large change warning ===
+  // === GATE 5: Large change warning ===
+  try {
     if (toolName === "Edit") {
       const oldString = toolInput.old_string || "";
       if (oldString.length > LARGE_EDIT_THRESHOLD) {
@@ -281,24 +356,21 @@ function main() {
         } catch {}
       }
     }
-
-    // No gate violations for gates 1-5 — allow
   } catch (err) {
-    // Fail-open for gates 1-5: any error in gate logic → allow the tool call
-    // Never block Claude due to our own bugs
+    // Gate 5 is warning-only, fail-open
   }
 
   // === GATE 6: Secret/credential detection — ISOLATED (fail-closed) ===
   // Separate try-catch so upstream parse errors cannot disable secret detection
   try {
-    if (!input) { process.exit(0); return; }
-    const toolName = input.tool_name;
-    const toolInput = input.tool_input || {};
+    if (!input) { process.exit(0); }
+    const toolName6 = input.tool_name;
+    const toolInput6 = input.tool_input || {};
 
-    if (["Edit", "Write"].includes(toolName)) {
-      const content = toolInput.new_string || toolInput.content || "";
-      const filePath = toolInput.file_path || "";
-      const basename = path.basename(filePath);
+    if (["Edit", "Write"].includes(toolName6)) {
+      const content = toolInput6.new_string || toolInput6.content || "";
+      const filePath6 = toolInput6.file_path || "";
+      const basename = path.basename(filePath6);
 
       // Check for sensitive file names
       if (SENSITIVE_FILES.includes(basename)) {
@@ -306,7 +378,6 @@ function main() {
           `⚠ SENSITIVE FILE: Writing to ${basename}. ` +
           `Ensure no real credentials are included. Use environment variables.`
         );
-        // Warning for .env files, not block (they may be templates)
       }
 
       // Check content for secret patterns — HARD BLOCK
@@ -320,15 +391,14 @@ function main() {
               `If this is a false positive (e.g., example/placeholder), note it in your response.`
             );
             process.exit(1);
-            return;
           }
         }
       }
     }
 
     // Gate 6: also scan Bash commands for secrets
-    if (toolName === "Bash") {
-      const command = toolInput.command || "";
+    if (toolName6 === "Bash") {
+      const command = toolInput6.command || "";
       if (command.length > 0) {
         for (const pattern of SECRET_PATTERNS) {
           if (pattern.test(command)) {
@@ -339,7 +409,6 @@ function main() {
               `If this is a false positive (e.g., example/placeholder), note it in your response.`
             );
             process.exit(1);
-            return;
           }
         }
       }
