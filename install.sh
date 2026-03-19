@@ -73,13 +73,16 @@ else
   cp "$ACTIVATION_SRC"/*.js "$ACTIVATION_DST/"
 fi
 echo '{ "type": "module" }' > "$ACTIVATION_DST/package.json"
-cp "$RULES_SRC" "$RULES_DST"
-# Sync rules from forge/hooks/activation/ if it has smartScoring (newer version)
-if grep -q "smartScoring" "$FORGE_ACTIVATION/skill-rules.json" 2>/dev/null; then
+# Source of truth: forge/hooks/activation/skill-rules.json (deployed by Step 2)
+# Always use the forge skill's version — it has the latest scoring config
+if [ -f "$FORGE_ACTIVATION/skill-rules.json" ]; then
   cp "$FORGE_ACTIVATION/skill-rules.json" "$RULES_DST"
-  echo "  Rules synced from forge skill (smart scoring enabled)"
+  echo "  Rules: using forge skill version (source of truth)"
 else
+  # Fallback: use repo root hooks/ version
+  cp "$RULES_SRC" "$RULES_DST"
   cp "$RULES_SRC" "$ACTIVATION_DST/"
+  echo "  Rules: fallback to repo hooks/ version"
 fi
 mkdir -p "$STATE_DIR"
 echo "  → $ACTIVATION_DST/"

@@ -8,6 +8,10 @@
       "priority": "high",
       "description": "Autonomous execution engine for complex development tasks",
       "promptTriggers": {
+        "skillNamePatterns": [
+          "forge",
+          "포지"
+        ],
         "keywords": [
           "forge",
           "포지",
@@ -78,7 +82,25 @@
           "upgrade",
           "설정 파일",
           "config",
-          "properties"
+          "properties",
+          "오류",
+          "에러",
+          "error",
+          "리뷰",
+          "review",
+          "로그인",
+          "버튼",
+          "화면",
+          "로딩",
+          "느림",
+          "표시",
+          "안보임",
+          "보이지",
+          "작동",
+          "work",
+          "설계",
+          "아키텍처",
+          "architecture"
         ],
         "intentPatterns": [
           "(create|add|implement|build|만들|구현|추가).*?(feature|기능|module|모듈|component|컴포넌트)",
@@ -120,10 +142,12 @@
       "skipConditions": {
         "sessionSkillUsed": false
       },
-      "smartScoring": {
+      "unifiedScoring": {
         "enabled": true,
-        "threshold": 60,
+        "threshold": 30,
         "weights": {
+          "keyword": 15,
+          "intent": 20,
           "fileExtension": 50,
           "actionVerb": 30,
           "codeIdentifier": 20,
