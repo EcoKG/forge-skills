@@ -89,6 +89,21 @@ export class RulesMatcher {
         // === Unified Scoring (v2.0) ===
         // All signals are weighted inputs to a single score. No instant triggers.
         // Negative signals always apply and can suppress keyword matches.
+        // Exception: skill name itself (e.g., "forge", "/forge") is an instant trigger.
+
+        // Direct skill name invocation — always trigger
+        const skillNamePatterns = triggers.skillNamePatterns || [skillName.toLowerCase()];
+        for (const snp of skillNamePatterns) {
+            if (promptLower.includes(snp) || promptLower.startsWith("/" + snp)) {
+                const matchedKw = this.matchKeywordsDeduped(triggers.keywords, promptLower);
+                const matchedInt = this.matchIntentPatterns(triggers.intentPatterns, prompt);
+                return {
+                    skillName, rule, matchedKeywords: matchedKw, matchedIntents: matchedInt,
+                    smartScore: { skillNameMatch: true, total: 100, threshold: 0 },
+                    score: 100,
+                };
+            }
+        }
 
         const matchedKeywords = this.matchKeywordsDeduped(triggers.keywords, promptLower);
         const matchedIntents = this.matchIntentPatterns(triggers.intentPatterns, prompt);
