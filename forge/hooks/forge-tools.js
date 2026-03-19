@@ -1045,6 +1045,13 @@ function configGet(key) {
 }
 
 function configSet(key, value) {
+  // Prototype pollution defense
+  const DANGEROUS_KEYS = ["__proto__", "constructor", "prototype"];
+  const keys = key.split(".");
+  if (keys.some(k => DANGEROUS_KEYS.includes(k))) {
+    return { error: "Rejected: key contains dangerous property name (" + keys.filter(k => DANGEROUS_KEYS.includes(k)).join(", ") + ")" };
+  }
+
   const configPath = path.join(FORGE_DIR, "config.json");
   let config = {};
   try { config = JSON.parse(fs.readFileSync(configPath, "utf8")); } catch {}
@@ -1055,7 +1062,6 @@ function configSet(key, value) {
   else if (value === "false") parsed = false;
   else if (!isNaN(value)) parsed = Number(value);
 
-  const keys = key.split(".");
   let obj = config;
   for (let i = 0; i < keys.length - 1; i++) {
     if (!obj[keys[i]]) obj[keys[i]] = {};

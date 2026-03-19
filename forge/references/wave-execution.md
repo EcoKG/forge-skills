@@ -294,6 +294,32 @@ VPM issue types and handling:
   - More complex lifecycle management.
   - Higher token cost for long sessions.
 
+### Team Mode Wave Execution Flow
+
+When using team mode, wave execution differs from subagent mode:
+
+1. **Setup (once, at Step 7 start):**
+   - PM calls `TeamCreate({slug})` to create the team
+   - PM creates persistent agents: implementer(s), code-reviewer, qa-inspector
+   - Each agent receives its prompt + project context at creation time
+
+2. **Per-wave task dispatch:**
+   - PM sends each task to an implementer via `SendMessage` (not by spawning a new agent)
+   - Multiple implementers can receive tasks in parallel (up to max concurrency)
+   - PM waits for each implementer to reply with `Output written to: {path}`
+   - PM then routes to code-reviewer via `SendMessage` for review
+   - Same-file conflict rules still apply: two tasks modifying the same file cannot execute in the same wave
+
+3. **Wave boundary:**
+   - PM sends wave summary to qa-inspector via `SendMessage`
+   - QA inspector and VPM run the same checks as subagent mode
+   - After wave completes, PM drops completed task context from agents (via a "context reset" message) to mitigate context rot
+
+4. **Teardown (at Step 10 or on failure):**
+   - PM destroys the team and all persistent agents
+
+**Key difference:** In team mode, agents accumulate context across tasks within a wave. This means the second task an implementer handles benefits from context learned during the first task, but also risks context rot if the wave is large.
+
 ### Hybrid Approach (recommended for medium)
 - Use subagent mode for the first wave (fresh context, clean start).
 - If revision rates are low: continue with subagent mode.

@@ -223,3 +223,9 @@ Cross-Task Regression: {PASS/REGRESSION_FOUND}
 These are substituted by PM before dispatching this prompt:
 
 - `{PROJECT_RULES}` — Project-specific rules from CLAUDE.md or similar
+- `<task_summaries>` — Paths to all task-{N-M}-summary.md files from the current wave
+- `<plan_path>` — Path to plan.md (phase/wave completion criteria and task list)
+- `<build_command>` — Project build command (from project profile or plan.md)
+- `<test_command>` — Project test command (from project profile or plan.md)
+- `<changed_files>` — List of all files modified in the current wave (aggregated from task summaries)
+- `<output_path>` — Absolute path where QA report must be written

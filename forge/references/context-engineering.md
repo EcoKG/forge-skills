@@ -324,7 +324,7 @@ Execute these steps IN ORDER:
 - Do NOT re-read completed step artifacts (research.md, previous task summaries)
 - Do NOT re-read the full plan.md (only task list for progress tracking)
 - Do NOT attempt to reconstruct agent dispatch history — it's in trace.jsonl if needed
-- Trust meta.json as the source of truth, not your memory
+- Trust pipeline-state.json as the source of truth, not your memory
 
 ### 8.3 Recovery Essentials per Step
 
@@ -332,24 +332,24 @@ This table defines the MINIMUM files needed to resume each step after context lo
 
 | Step | Must Re-Read | Can Safely Ignore |
 |---|---|---|
-| **1. Init** | meta.json, SKILL.md §1-4 | Everything else |
-| **2. Research** | meta.json, execution-flow.md §2 | Previous init details |
-| **3. Plan** | meta.json, execution-flow.md §3, research.md (summary only) | Full research, init details |
-| **4. Plan-Check** | meta.json, execution-flow.md §4, plan.md (frontmatter only) | research.md, init/research details |
-| **5. Checkpoint** | meta.json, plan.md (overview + task count) | Everything else |
-| **6. Branch** | meta.json, execution-flow.md §6 | Everything else |
-| **7. Execute** | meta.json, execution-flow.md §7, plan.md (task list only), wave-execution.md | Completed tasks, research, plan rationale |
-| **8. Verify** | meta.json, execution-flow.md §8, plan.md (must_haves section only) | All previous step details |
-| **9. Finalize** | meta.json, execution-flow.md §9, verification.md (verdict only) | All previous step details |
-| **10. Cleanup** | meta.json only | Everything |
+| **1. Init** | pipeline-state.json, meta.json, SKILL.md §1-4 | Everything else |
+| **2. Research** | pipeline-state.json, meta.json, execution-flow.md §2 | Previous init details |
+| **3. Plan** | pipeline-state.json, meta.json, execution-flow.md §3, research.md (summary only) | Full research, init details |
+| **4. Plan-Check** | pipeline-state.json, meta.json, execution-flow.md §4, plan.md (frontmatter only) | research.md, init/research details |
+| **5. Checkpoint** | pipeline-state.json, meta.json, plan.md (overview + task count) | Everything else |
+| **6. Branch** | pipeline-state.json, meta.json, execution-flow.md §6 | Everything else |
+| **7. Execute** | pipeline-state.json, meta.json, execution-flow.md §7, plan.md (task list only), wave-execution.md | Completed tasks, research, plan rationale |
+| **8. Verify** | pipeline-state.json, meta.json, execution-flow.md §8, plan.md (must_haves section only) | All previous step details |
+| **9. Finalize** | pipeline-state.json, meta.json, execution-flow.md §9, verification.md (verdict only) | All previous step details |
+| **10. Cleanup** | pipeline-state.json only | Everything |
 
 ### 8.4 Post-Recovery Verification
 
 After completing recovery, PM should verify:
-1. Current step number matches meta.json `current_step`
-2. Completed task count matches meta.json `tasks.completed`
-3. Current wave matches meta.json `current_wave` (if in Step 7)
-4. If any mismatch: trust meta.json and re-read the relevant artifact
+1. Current step number matches pipeline-state.json `current_step`
+2. Completed task count matches pipeline-state.json `tasks.completed`
+3. Current wave matches pipeline-state.json `current_wave` (if in Step 7)
+4. If any mismatch: trust pipeline-state.json and re-read the relevant artifact
 
 ---
 

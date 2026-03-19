@@ -74,6 +74,11 @@ const SECRET_PATTERNS = [
   // String concatenation patterns for split secrets
   /"sk-"\s*\+\s*"/,  // "sk-" + "abc..." split key
   /"(?:api[_-]?key|secret|token|password)"\s*[:=]\s*["'][^"']{4,}["']\s*\+\s*["']/i,  // key = "part1" + "part2"
+  /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,  // JWT token (base64 header.payload)
+  /CF[A-Za-z0-9_-]{37,}/,  // Cloudflare API token
+  /heroku[A-Za-z0-9_\-]{30,}/i,  // Heroku API key
+  /do[0-9a-f]{64}/,  // DigitalOcean token
+  /jdbc:[a-z]+:\/\/[^:]+:[^@]+@/,  // JDBC connection string with credentials
 ];
 
 const SENSITIVE_FILES = [".env", ".env.local", ".env.production", "credentials.json", "secrets.yaml", "secrets.yml"];
@@ -243,6 +248,22 @@ function main() {
                 process.exit(2);
               }
             }
+          }
+        }
+      }
+      // Gate 6 pre-check: block sensitive files even without pipeline
+      if (["Edit", "Write"].includes(toolName)) {
+        const filePath = toolInput.file_path || "";
+        const basename = path.basename(filePath);
+        if (SENSITIVE_FILES.includes(basename)) {
+          const SAFE_SENSITIVE = [".env.example", ".env.template", ".env.sample"];
+          if (!SAFE_SENSITIVE.includes(basename)) {
+            process.stderr.write(
+              `🚫 GATE 6 BLOCKED: Cannot write to sensitive file "${basename}" — no pipeline active.\n` +
+              "Use environment variables or a secrets manager instead."
+            );
+            writeAuditLog("Gate 6 No-Pipeline", toolName, filePath, input.session_id);
+            process.exit(2);
           }
         }
       }

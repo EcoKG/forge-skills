@@ -63,6 +63,7 @@ GATE GUARD (PreToolUse): blocks if pipeline state is violated
 | `--scale` | small, medium, large | auto | Override scale |
 | `--model` | quality, balanced, budget | balanced | Model profile |
 | `--direct` | flag | off | Skip research + plan-check |
+| `--trivial` | flag | off | Minimal: init → execute → cleanup (single-line fixes, no plan/verify) |
 | `--quick` | flag | off | Lightweight: plan → execute → verify → finalize (no research/plan-check) |
 | `--skip-tests` | flag | off | Skip test execution |
 | `--resume` | flag | off | Resume interrupted execution |
