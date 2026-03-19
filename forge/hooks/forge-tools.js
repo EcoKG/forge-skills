@@ -737,8 +737,10 @@ function engineTransition(artifactDir, targetStep) {
     state.allowed_transitions.push(actualStepDef.next);
   }
 
-  // Auto-complete: if cleanup step has no next, mark pipeline as completed
-  if (actualTarget === "cleanup" && !actualStepDef?.next) {
+  // Auto-complete: if this is the last step (no next), mark pipeline as completed
+  // Handles: standard (cleanup has no next), quick (finalize has no next after resolveSteps),
+  // trivial (cleanup has no next), and any future pipeline variants.
+  if (!actualStepDef?.next) {
     state.current_step = "completed";
     if (actualStepDef?.exit_gate?.state_value) {
       state.gates_passed.push(actualStepDef.exit_gate.state_value);
