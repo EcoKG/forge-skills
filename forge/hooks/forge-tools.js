@@ -815,6 +815,11 @@ function engineDispatchSpec(artifactDir, role, taskId) {
     promptPath = path.join(__dirname, "..", promptPath);
   }
 
+  // Verify prompt file exists
+  if (promptPath && !fs.existsSync(promptPath)) {
+    return { error: `Prompt file not found: ${promptPath}`, role, step: state.current_step };
+  }
+
   // Build dispatch spec
   const spec = {
     role: role,
@@ -1116,40 +1121,40 @@ const [,, command, ...args] = process.argv;
 try {
   let result;
   switch (command) {
-    case "get-phase":       result = getPhase(args[0]); break;
-    case "advance-phase":   result = advancePhase(args[0]); break;
+    case "get-phase":       requireArgs(args, 1, "get-phase <N>"); result = getPhase(args[0]); break;
+    case "advance-phase":   requireArgs(args, 1, "advance-phase <N>"); result = advancePhase(args[0]); break;
     case "get-status":      result = getStatus(); break;
-    case "update-state":    result = updateState(args[0], args.slice(1).join(" ")); break;
-    case "parse-frontmatter": result = parseFrontmatter(fs.readFileSync(args[0], "utf8")); break;
-    case "verify-artifacts":  result = verifyArtifacts(args[0]); break;
-    case "verify-key-links":  result = verifyKeyLinks(args[0]); break;
+    case "update-state":    requireArgs(args, 1, "update-state <field> <value>"); result = updateState(args[0], args.slice(1).join(" ")); break;
+    case "parse-frontmatter": requireArgs(args, 1, "parse-frontmatter <file>"); result = parseFrontmatter(fs.readFileSync(args[0], "utf8")); break;
+    case "verify-artifacts":  requireArgs(args, 1, "verify-artifacts <plan>"); result = verifyArtifacts(args[0]); break;
+    case "verify-key-links":  requireArgs(args, 1, "verify-key-links <plan>"); result = verifyKeyLinks(args[0]); break;
     case "config-init":     result = configInit(); break;
     case "config-get":      requireArgs(args, 1, "config-get <key>"); result = configGet(args[0]); break;
     case "config-set":      requireArgs(args, 2, "config-set <key> <value>"); result = configSet(args[0], args[1]); break;
-    case "metrics-record":  result = metricsRecord(args[0]); break;
+    case "metrics-record":  requireArgs(args, 1, "metrics-record <json>"); result = metricsRecord(args[0]); break;
     case "metrics-summary": result = metricsSummary(); break;
     case "detect-stack":        result = detectStack(); break;
     case "git-state":           result = getGitState(); break;
-    case "create-lock":         result = createLock(args[0], args[1]); break;
-    case "remove-lock":         result = removeLock(args[0]); break;
+    case "create-lock":         requireArgs(args, 1, "create-lock <dir> [session_id]"); result = createLock(args[0], args[1]); break;
+    case "remove-lock":         requireArgs(args, 1, "remove-lock <dir>"); result = removeLock(args[0]); break;
     case "cleanup-state":       result = cleanupStaleStateFiles(); break;
-    case "check-lock":          result = checkLock(args[0]); break;
-    case "metrics-record-dispatch": result = metricsRecordDispatch(args[0]); break;
-    case "create-iteration-log":   result = createIterationLog(args[0], args.slice(1).join(" ")); break;
-    case "record-iteration":       result = recordIteration(args[0], args[1], args[2]); break;
-    case "check-completion-promise": result = checkCompletionPromise(args[0], args.slice(1).join(" ")); break;
-    case "get-iteration-count":    result = getIterationCount(args[0]); break;
+    case "check-lock":          requireArgs(args, 1, "check-lock <dir>"); result = checkLock(args[0]); break;
+    case "metrics-record-dispatch": requireArgs(args, 1, "metrics-record-dispatch <json>"); result = metricsRecordDispatch(args[0]); break;
+    case "create-iteration-log":   requireArgs(args, 1, "create-iteration-log <dir> <promise>"); result = createIterationLog(args[0], args.slice(1).join(" ")); break;
+    case "record-iteration":       requireArgs(args, 3, "record-iteration <dir> <N> <json>"); result = recordIteration(args[0], args[1], args[2]); break;
+    case "check-completion-promise": requireArgs(args, 1, "check-completion-promise <dir> <command>"); result = checkCompletionPromise(args[0], args.slice(1).join(" ")); break;
+    case "get-iteration-count":    requireArgs(args, 1, "get-iteration-count <dir>"); result = getIterationCount(args[0]); break;
     case "engine-init":          requireArgs(args, 4, "engine-init <dir> <request> <type> <scale> [options_json]"); result = engineInit(args[0], args[1], args[2], args[3], args[4] ? JSON.parse(args[4]) : {}); break;
     case "engine-state":         requireArgs(args, 1, "engine-state <dir>"); result = engineCurrentState(args[0]); break;
     case "engine-can-transition": requireArgs(args, 2, "engine-can-transition <dir> <step>"); result = engineCanTransition(args[0], args[1]); break;
     case "engine-transition":    requireArgs(args, 2, "engine-transition <dir> <step>"); result = engineTransition(args[0], args[1]); break;
     case "engine-dispatch-spec": requireArgs(args, 2, "engine-dispatch-spec <dir> <role> [task_id]"); result = engineDispatchSpec(args[0], args[1], args[2]); break;
     case "engine-record-result": requireArgs(args, 4, "engine-record-result <dir> <role> <task_id> <verdict>"); result = engineRecordResult(args[0], args[1], args[2], args[3]); break;
-    case "engine-record-revision": result = engineRecordRevision(args[0], args[1]); break;
-    case "engine-verify-build":  result = engineVerifyBuild(args[0], args.slice(1).join(" ")); break;
-    case "engine-verify-tests":  result = engineVerifyTests(args[0], args.slice(1).join(" ")); break;
-    case "engine-wave-info":     result = engineWaveInfo(args[0]); break;
-    case "engine-reconcile":     result = engineReconcile(args[0]); break;
+    case "engine-record-revision": requireArgs(args, 2, "engine-record-revision <dir> <type>"); result = engineRecordRevision(args[0], args[1]); break;
+    case "engine-verify-build":  requireArgs(args, 1, "engine-verify-build <dir> <command...>"); result = engineVerifyBuild(args[0], args.slice(1).join(" ")); break;
+    case "engine-verify-tests":  requireArgs(args, 1, "engine-verify-tests <dir> <command...>"); result = engineVerifyTests(args[0], args.slice(1).join(" ")); break;
+    case "engine-wave-info":     requireArgs(args, 1, "engine-wave-info <dir>"); result = engineWaveInfo(args[0]); break;
+    case "engine-reconcile":     requireArgs(args, 1, "engine-reconcile <dir>"); result = engineReconcile(args[0]); break;
     case "help":
     default:
       result = {

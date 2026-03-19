@@ -58,8 +58,24 @@ const LINT_MAP = {
 };
 
 const CODE_EXTENSIONS = new Set([
-  ".js", ".ts", ".jsx", ".tsx", ".py", ".go", ".rs", ".java",
-  ".c", ".cpp", ".cs", ".rb", ".php", ".vue", ".svelte",
+  // Languages
+  ".js", ".ts", ".jsx", ".tsx", ".mjs", ".mts", ".cjs", ".cts",
+  ".py", ".go", ".rs", ".java",
+  ".c", ".cpp", ".h", ".hpp", ".cs", ".rb", ".php", ".swift",
+  ".kt", ".scala", ".vue", ".svelte", ".astro", ".ex", ".exs",
+  ".lua", ".r", ".pl", ".groovy", ".gradle",
+  // Web/Markup + Server Pages
+  ".html", ".css", ".scss", ".sass", ".less",
+  ".ejs", ".pug", ".hbs", ".njk",
+  ".jsp", ".jspx", ".asp", ".aspx", ".erb", ".twig", ".blade.php",
+  // Data/Config (code-like)
+  ".sql", ".graphql", ".proto",
+  ".yaml", ".yml", ".toml", ".json", ".xml",
+  // Shell
+  ".sh", ".bash", ".zsh",
+  // Infrastructure
+  ".tf", ".hcl", ".dockerfile",
+  ".ipynb",
 ]);
 
 // Required sections for agent output validation

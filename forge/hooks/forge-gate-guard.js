@@ -29,9 +29,10 @@ const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claud
 
 const CODE_EXTENSIONS = new Set([
   // Languages
-  ".js", ".ts", ".jsx", ".tsx", ".py", ".go", ".rs", ".java",
+  ".js", ".ts", ".jsx", ".tsx", ".mjs", ".mts", ".cjs", ".cts",
+  ".py", ".go", ".rs", ".java",
   ".c", ".cpp", ".h", ".hpp", ".cs", ".rb", ".php", ".swift",
-  ".kt", ".scala", ".vue", ".svelte", ".ex", ".exs",
+  ".kt", ".scala", ".vue", ".svelte", ".astro", ".ex", ".exs",
   ".lua", ".r", ".pl", ".groovy", ".gradle",
   // Web/Markup + Server Pages
   ".html", ".css", ".scss", ".sass", ".less",
