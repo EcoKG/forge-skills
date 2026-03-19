@@ -231,7 +231,7 @@
       "only_steps": ["init", "plan", "execute", "verify", "finalize"],
       "overrides": {
         "plan": {"agent_role": "planner", "entry_gate": {"required_state": "init_done", "required_artifacts": ["meta.json"]}},
-        "execute": {"review_agent": null, "qa_agent": null, "backpressure": {"build": true, "test": true, "lint": false}},
+        "execute": {"review_agent": null, "qa_agent": null, "entry_gate": {"required_state": "planned", "required_artifacts": ["plan.md"]}, "backpressure": {"build": true, "test": true, "lint": false}},
         "verify": {"agent_role": "verification-pm", "agent_prompt": "prompts/verification-pm.md"}
       }
     },
