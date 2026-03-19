@@ -1,7 +1,7 @@
 /**
  * Integration tests for install.js — hook registration idempotency and correctness.
  *
- * Verifies that install.js correctly registers 4 hooks in ~/.claude/settings.json,
+ * Verifies that install.js correctly registers 5 hooks in ~/.claude/settings.json,
  * removes legacy hooks, and behaves idempotently on repeated runs.
  */
 
@@ -69,7 +69,7 @@ describe("install.js — hook registration", () => {
       for (const event of EXPECTED_EVENTS) {
         expect(settings.hooks[event]).toBeDefined();
         expect(Array.isArray(settings.hooks[event])).toBe(true);
-        expect(settings.hooks[event]).toHaveLength(1);
+        expect(settings.hooks[event]).toHaveLength(event === "UserPromptSubmit" ? 2 : 1);
       }
     });
 
@@ -122,7 +122,7 @@ describe("install.js — hook registration", () => {
       const settings = env.readSettings();
 
       for (const event of EXPECTED_EVENTS) {
-        expect(settings.hooks[event]).toHaveLength(1);
+        expect(settings.hooks[event]).toHaveLength(event === "UserPromptSubmit" ? 2 : 1);
       }
     });
   });
@@ -255,7 +255,7 @@ describe("install.js — hook registration", () => {
       expect(forgeEntries).toHaveLength(1);
 
       // Total should be 2
-      expect(settings.hooks.UserPromptSubmit).toHaveLength(2);
+      expect(settings.hooks.UserPromptSubmit).toHaveLength(3);
     });
 
     it("preserves custom hooks in other events too", () => {

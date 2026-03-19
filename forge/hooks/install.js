@@ -12,6 +12,7 @@
  *   2. forge-statusline (Notification) — project status in statusline
  *   3. forge-orchestrator (UserPromptSubmit) — pipeline state injection
  *   4. forge-gate-guard (PreToolUse) — 10 gates — 9 hard blocks + 1 warning
+ *   5. skill-activation (UserPromptSubmit) — prompt analysis + skill auto-activation
  */
 
 const fs = require("fs");
@@ -55,6 +56,13 @@ const FORGE_HOOKS = [
     matcher: "",
     timeout: 10,
     description: "Forge v7.0: 10 gates — 9 hard blocks + 1 warning (catch-all matcher)",
+  },
+  {
+    event: "UserPromptSubmit",
+    id: "skill-activation",
+    script: path.join(HOOKS_DIR, "activation", "skill-activation.js"),
+    timeout: 5,
+    description: "Forge v7.0: prompt analysis + skill auto-activation (unified scoring)",
   },
 ];
 
