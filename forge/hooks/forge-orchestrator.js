@@ -236,6 +236,17 @@ function main() {
       }
     }
 
+    // First prompt: show user-visible banner via systemMessage
+    if (healthCheck) {
+      let sysMsg = `⚒ Forge v6.2 "Ironclad" | 4 hooks | 9 gates`;
+      if (activePipeline) {
+        sysMsg += ` | Step ${activePipeline.current_step_order}: ${activePipeline.current_step.toUpperCase()}`;
+      }
+      // systemMessage JSON on its own line — user sees "{hookName} says: {content}"
+      process.stdout.write(JSON.stringify({ systemMessage: sysMsg }) + "\n");
+    }
+
+    // Context injection for Claude (every prompt)
     if (output) {
       process.stdout.write(output);
     }
