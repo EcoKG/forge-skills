@@ -134,6 +134,28 @@ function artifactExists(artifactDir, filename) {
 }
 
 
+function writeAuditLog(gate, tool, file, sessionId) {
+  try {
+    const auditPath = path.join(FORGE_DIR, "gate-guard-audit.jsonl");
+    const entry = JSON.stringify({
+      timestamp: new Date().toISOString(),
+      gate: gate,
+      tool: tool,
+      file: file || "",
+      session_id: sessionId || ""
+    }) + "\n";
+    fs.appendFileSync(auditPath, entry);
+    // Trim to 100 lines max
+    try {
+      const content = fs.readFileSync(auditPath, "utf8");
+      const lines = content.trim().split("\n");
+      if (lines.length > 100) {
+        fs.writeFileSync(auditPath, lines.slice(-100).join("\n") + "\n");
+      }
+    } catch {}
+  } catch {}
+}
+
 function main() {
   let input;
   let toolName, toolInput;
@@ -169,6 +191,7 @@ function main() {
             "  /forge            (표준 파이프라인: 기능 추가/수정)\n" +
             "This gate ensures all code changes go through the forge quality pipeline."
           );
+          writeAuditLog("No Pipeline", toolName, filePath, input.session_id);
           process.exit(1);
         }
       }
@@ -199,6 +222,7 @@ function main() {
               "Complete research first, or use --direct to skip.\n" +
               "Run: node forge-tools.js engine-transition <artifact-dir> research"
             );
+            writeAuditLog("Gate 1", toolName, filePath, input.session_id);
             process.exit(1);
             return;
           }
@@ -223,6 +247,7 @@ function main() {
             `Code edits are only allowed at step 7 (execute) or later.\n` +
             `Current pipeline state requires: ${state.gates_pending?.join(", ") || "complete earlier steps"}`
           );
+          writeAuditLog("Gate 2", toolName, filePath, input.session_id);
           process.exit(1);
         }
       }
@@ -261,6 +286,7 @@ function main() {
                   `🚫 GATE 2B BLOCKED: Bash command writes to code file "${path.basename(targetFile)}" without active pipeline.\n` +
                   "Start a forge pipeline first: /forge --trivial, --quick, or /forge"
                 );
+                writeAuditLog("Gate 2B", toolName, targetFile, input.session_id);
                 process.exit(1);
                 return;
               }
@@ -270,6 +296,7 @@ function main() {
                   `🚫 GATE 2B BLOCKED: Bash writes to code file "${path.basename(targetFile)}" at step "${currentStep}".\n` +
                   "Code file writes are only allowed at step 7 (execute) or later."
                 );
+                writeAuditLog("Gate 2B", toolName, targetFile, input.session_id);
                 process.exit(1);
                 return;
               }
@@ -297,6 +324,7 @@ function main() {
             "🚫 GATE 3 BLOCKED: Cannot git commit — last build FAILED.\n" +
             "Fix build errors first, then re-run: node forge-tools.js engine-verify-build <artifact-dir> <command>"
           );
+          writeAuditLog("Gate 3", toolName, "", input.session_id);
           process.exit(1);
         }
         if (lastTest === "fail") {
@@ -304,6 +332,7 @@ function main() {
             "🚫 GATE 3 BLOCKED: Cannot git commit — last test run FAILED.\n" +
             "Fix failing tests first, then re-run: node forge-tools.js engine-verify-tests <artifact-dir> <command>"
           );
+          writeAuditLog("Gate 3", toolName, "", input.session_id);
           process.exit(1);
         }
       }
@@ -327,6 +356,7 @@ function main() {
               "Complete verification first.\n" +
               "Run: node forge-tools.js engine-transition <artifact-dir> verify"
             );
+            writeAuditLog("Gate 4", toolName, filePath, input.session_id);
             process.exit(1);
             return;
           }
@@ -384,6 +414,7 @@ function main() {
           "  /forge --quick    (단일 파일, ≤50줄)\n" +
           "  /forge            (표준 파이프라인)"
         );
+        writeAuditLog("Gate 5T", toolName, "", input.session_id);
         process.exit(1);
       }
     }
@@ -406,10 +437,21 @@ function main() {
 
       // Check for sensitive file names
       if (SENSITIVE_FILES.includes(basename)) {
-        process.stdout.write(
-          `⚠ SENSITIVE FILE: Writing to ${basename}. ` +
-          `Ensure no real credentials are included. Use environment variables.`
-        );
+        // Allow template/example files
+        const SAFE_SENSITIVE = [".env.example", ".env.template", ".env.sample"];
+        if (SAFE_SENSITIVE.includes(basename)) {
+          process.stdout.write(
+            `⚠ SENSITIVE TEMPLATE: Writing to ${basename}. Ensure no real credentials.`
+          );
+        } else {
+          writeAuditLog("Gate 6 Sensitive", toolName6, filePath6, input?.session_id);
+          process.stdout.write(
+            `🚫 GATE 6 BLOCKED: Cannot write to sensitive file "${basename}".\n` +
+            `Use environment variables or a secrets manager instead.\n` +
+            `Allowed: .env.example, .env.template, .env.sample`
+          );
+          process.exit(1);
+        }
       }
 
       // Check content for secret patterns — HARD BLOCK
@@ -422,6 +464,7 @@ function main() {
               `DO NOT hardcode secrets. Use environment variables or a secrets manager.\n` +
               `If this is a false positive (e.g., example/placeholder), note it in your response.`
             );
+            writeAuditLog("Gate 6", toolName6, filePath6, input?.session_id);
             process.exit(1);
           }
         }
@@ -440,6 +483,7 @@ function main() {
               `DO NOT hardcode secrets in commands. Use environment variables.\n` +
               `If this is a false positive (e.g., example/placeholder), note it in your response.`
             );
+            writeAuditLog("Gate 6", toolName6, "", input?.session_id);
             process.exit(1);
           }
         }
@@ -447,6 +491,7 @@ function main() {
     }
   } catch (err) {
     process.stderr.write("forge-gate-guard: Gate 6 error: " + err.message + "\n");
+    process.exit(1);
   }
   process.exit(0);
 }

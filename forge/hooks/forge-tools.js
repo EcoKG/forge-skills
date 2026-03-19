@@ -290,6 +290,26 @@ function removeLock(artifactDir) {
   }
 }
 
+// Clean up stale forge state files from ~/.claude/hooks/state/
+function cleanupStaleStateFiles() {
+  try {
+    const entries = fs.readdirSync(STATE_DIR);
+    for (const entry of entries) {
+      if (entry.startsWith("forge-invoked-") || entry.startsWith("forge-session-") || entry.startsWith("forge-ctx-")) {
+        const filePath = path.join(STATE_DIR, entry);
+        try {
+          const stat = fs.statSync(filePath);
+          // Delete files older than 24 hours
+          if (Date.now() - stat.mtimeMs > 86400000) {
+            fs.unlinkSync(filePath);
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+  return { cleaned: true };
+}
+
 // Check if execution lock exists (crash detection)
 function checkLock(artifactDir) {
   const lockPath = path.join(artifactDir, "execution-lock.json");
@@ -1101,6 +1121,7 @@ try {
     case "git-state":           result = getGitState(); break;
     case "create-lock":         result = createLock(args[0], args[1]); break;
     case "remove-lock":         result = removeLock(args[0]); break;
+    case "cleanup-state":       result = cleanupStaleStateFiles(); break;
     case "check-lock":          result = checkLock(args[0]); break;
     case "metrics-record-dispatch": result = metricsRecordDispatch(args[0]); break;
     case "create-iteration-log":   result = createIterationLog(args[0], args.slice(1).join(" ")); break;
@@ -1128,7 +1149,7 @@ try {
           "config-init", "config-get <key>", "config-set <key> <value>",
           "metrics-record <json>", "metrics-summary",
           "detect-stack", "git-state",
-          "create-lock <dir>", "remove-lock <dir>", "check-lock <dir>",
+          "create-lock <dir>", "remove-lock <dir>", "cleanup-state", "check-lock <dir>",
           "metrics-record-dispatch <json>",
           "create-iteration-log <dir> <promise>",
           "record-iteration <dir> <N> <json>",
