@@ -17,7 +17,9 @@ const ACTION_VERBS_KO = [
   '리팩토링', '최적화', '개선', '해결', '수정해', '고쳐줘', '바꿔줘', '만들어',
   '추가해', '삭제해', '제거해', '처리해', '구현해', '작성해', '분리해',
   '넣어', '빼', '옮겨', '교체', '전환', '업그레이드', '업데이트',
-  '하게', '되게', '시켜', '해줘'
+  '하게', '되게', '시켜', '해줘',
+  '손봐', '정리해', '잡아', '고장', '안돼', '안됨', '안 됨', '이상해', '죽어',
+  '느려', '깨져', '에러', '컴파일', '빌드'
 ];
 
 const ACTION_VERBS_EN = [
@@ -84,60 +86,44 @@ export class RulesMatcher {
         if (!triggers)
             return null;
 
-        // Legacy matching (keywords + intents)
-        const matchedKeywords = this.matchKeywords(triggers.keywords, promptLower);
+        // === Unified Scoring (v2.0) ===
+        // All signals are weighted inputs to a single score. No instant triggers.
+        // Negative signals always apply and can suppress keyword matches.
+
+        const matchedKeywords = this.matchKeywordsDeduped(triggers.keywords, promptLower);
         const matchedIntents = this.matchIntentPatterns(triggers.intentPatterns, prompt);
-        const legacyScore = matchedKeywords.length * 2 + matchedIntents.length * 3;
 
-        // Smart scoring
-        const smartScoring = rule.smartScoring || this.rules.smartScoring;
-        let smartScore = 0;
-        let smartDetails = {};
+        const scoring = rule.smartScoring || rule.unifiedScoring || this.rules.smartScoring || {};
+        const weights = scoring?.weights || {
+            keyword: 15, intent: 20,
+            fileExtension: 50, actionVerb: 30, codeIdentifier: 20, negativeSignal: -40
+        };
+        const threshold = scoring?.threshold || 40;
 
-        if (smartScoring?.enabled !== false) {
-            const weights = smartScoring?.weights || { fileExtension: 50, actionVerb: 30, codeIdentifier: 20, negativeSignal: -40 };
-            const threshold = smartScoring?.threshold || 60;
+        // Component scores
+        const keywordScore = matchedKeywords.length * (weights.keyword || 15);
+        const intentScore = matchedIntents.length * (weights.intent || 20);
+        const extScore = this.scoreFileExtensions(promptLower) > 0 ? (weights.fileExtension || 50) : 0;
+        const verbScore = this.scoreActionVerbs(promptLower) > 0 ? (weights.actionVerb || 30) : 0;
+        const idScore = this.scoreCodeIdentifiers(prompt) > 0 ? (weights.codeIdentifier || 20) : 0;
+        const negScore = this.scoreNegativeSignals(prompt) > 0 ? (weights.negativeSignal || -40) : 0;
 
-            const extScore = this.scoreFileExtensions(promptLower);
-            const verbScore = this.scoreActionVerbs(promptLower);
-            const idScore = this.scoreCodeIdentifiers(prompt);
-            const negScore = this.scoreNegativeSignals(prompt);
+        const totalScore = keywordScore + intentScore + extScore + verbScore + idScore + negScore;
 
-            smartScore = (extScore > 0 ? weights.fileExtension : 0)
-                       + (verbScore > 0 ? weights.actionVerb : 0)
-                       + (idScore > 0 ? weights.codeIdentifier : 0)
-                       + (negScore > 0 ? weights.negativeSignal : 0);
+        const smartDetails = {
+            keyword: keywordScore,
+            intent: intentScore,
+            fileExtension: extScore,
+            actionVerb: verbScore,
+            codeIdentifier: idScore,
+            negativeSignal: negScore,
+            total: totalScore,
+            threshold
+        };
 
-            smartDetails = {
-                fileExtension: extScore,
-                actionVerb: verbScore,
-                codeIdentifier: idScore,
-                negativeSignal: negScore,
-                total: smartScore,
-                threshold
-            };
-
-            // Smart score alone can trigger (even without keyword match)
-            if (smartScore >= threshold && legacyScore === 0) {
-                return {
-                    skillName,
-                    rule,
-                    matchedKeywords: [],
-                    matchedIntents: [],
-                    smartScore: smartDetails,
-                    score: smartScore,
-                };
-            }
-        }
-
-        // No meaningful match: no legacy match AND smart score below threshold
-        const threshold = (smartScoring?.threshold || 60);
-        if (matchedKeywords.length === 0 && matchedIntents.length === 0 && smartScore < threshold) {
+        if (totalScore < threshold) {
             return null;
         }
-
-        // Combined score (legacy + smart, but only count smart if above 0)
-        const combinedScore = legacyScore + Math.max(0, smartScore);
 
         return {
             skillName,
@@ -145,8 +131,22 @@ export class RulesMatcher {
             matchedKeywords,
             matchedIntents,
             smartScore: smartDetails,
-            score: combinedScore,
+            score: totalScore,
         };
+    }
+
+    // Deduplicated keyword matching — avoids double-counting "구현" and "기능 구현"
+    matchKeywordsDeduped(keywords, promptLower) {
+        if (!keywords || keywords.length === 0) return [];
+        const matched = keywords.filter(kw => promptLower.includes(kw.toLowerCase()));
+        // Remove shorter keywords that are substrings of longer matched keywords
+        return matched.filter(kw => {
+            const kwLower = kw.toLowerCase();
+            return !matched.some(other => {
+                const otherLower = other.toLowerCase();
+                return otherLower !== kwLower && otherLower.includes(kwLower) && otherLower.length > kwLower.length;
+            });
+        });
     }
 
     // --- Smart Scoring Methods ---

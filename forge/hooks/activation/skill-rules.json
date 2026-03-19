@@ -190,10 +190,12 @@
       "skipConditions": {
         "sessionSkillUsed": false
       },
-      "smartScoring": {
+      "unifiedScoring": {
         "enabled": true,
-        "threshold": 60,
+        "threshold": 40,
         "weights": {
+          "keyword": 15,
+          "intent": 20,
           "fileExtension": 50,
           "actionVerb": 30,
           "codeIdentifier": 20,
