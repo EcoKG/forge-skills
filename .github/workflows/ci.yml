@@ -1,4 +1,4 @@
-name: CI
+name: Forge CI
 
 on:
   push:
@@ -6,12 +6,21 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: "Test (Node ${{ matrix.node-version }}, ${{ matrix.os }})"
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         node-version: [18, 20, 22]
+        os: [ubuntu-latest]
+        # To add macOS testing when budget allows, uncomment the line below.
+        # macOS runners consume 10x the GitHub Actions minutes vs ubuntu.
+        # os: [ubuntu-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +34,11 @@ jobs:
         run: npm ci
 
       - name: Run tests
-        run: npm test
+        run: npx vitest run --reporter=verbose
+        id: tests
+
+      - name: Test coverage check
+        run: npx vitest run tests/e2e/coverage-check --reporter=verbose
 
       - name: Syntax check hooks
         run: |
@@ -36,3 +49,13 @@ jobs:
 
       - name: Validate pipeline.json
         run: node -e "JSON.parse(require('fs').readFileSync('forge/templates/pipeline.json','utf8')); console.log('pipeline.json: valid')"
+
+      - name: Upload test results on failure
+        if: failure() && steps.tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-node${{ matrix.node-version }}-${{ matrix.os }}
+          path: |
+            tests/**/*.log
+            coverage/
+          retention-days: 7
