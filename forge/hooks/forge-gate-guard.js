@@ -161,6 +161,7 @@ function main() {
   let input;
   let toolName, toolInput;
   let state, artifactDir, currentStep, stepOrder;
+  let isMcpExec = false;
 
   try {
     const raw = fs.readFileSync(0, "utf8").trim();
@@ -176,7 +177,7 @@ function main() {
 
     // Only check tools that can modify files
     const CHECKED_TOOLS = ["Edit", "Write", "Bash", "NotebookEdit"];
-    const isMcpExec = toolName.startsWith("mcp__") && (toolName.includes("execute") || toolName.includes("write") || toolName.includes("edit"));
+    isMcpExec = toolName.startsWith("mcp__") && (toolName.includes("execute") || toolName.includes("write") || toolName.includes("edit"));
     if (!CHECKED_TOOLS.includes(toolName) && !isMcpExec) { process.exit(0); }
 
     state = findPipelineState();
@@ -390,6 +391,59 @@ function main() {
   } catch (err) {
     process.stderr.write("forge-gate-guard: Gate 3 error: " + err.message + "\n");
     process.exit(1);
+  }
+
+  // === GATE 7: VPM verification before git push / gh pr create ===
+  try {
+    if (toolName === "Bash" || isMcpExec) {
+      const cmd = toolInput.command || toolInput.code || "";
+      const isPushCmd = cmd.match(/\bgit\b[\s\S]*\bpush\b/) && !cmd.match(/\bgit\s+stash\s+push\b/);
+      const isGhPrCmd = cmd.match(/\bgh\b.*\bpr\b.*\b(create|push)\b/);
+
+      if (isPushCmd || isGhPrCmd) {
+        if (state) {
+          const pipelineType = state.pipeline || "standard";
+          const taskType = state.type || "";
+          const EXEMPT_PIPELINES = ["trivial"];
+          const EXEMPT_TYPES = ["analysis", "analysis-security", "design", "docs"];
+          const isExempt = EXEMPT_PIPELINES.includes(pipelineType)
+            || EXEMPT_TYPES.includes(taskType)
+            || (state.skipped_steps || []).includes("verify");
+
+          if (!isExempt) {
+            const gatesPassed = state.gates_passed || [];
+            const hasVerifiedGate = gatesPassed.includes("verified");
+
+            // Dual verification: gates_passed + verification.md content check
+            let hasValidVerification = false;
+            if (artifactDir) {
+              const vPath = path.join(artifactDir, "verification.md");
+              try {
+                const vContent = fs.readFileSync(vPath, "utf8");
+                hasValidVerification = vContent.length > 200 && vContent.includes("## Verdict");
+              } catch {}
+            }
+
+            if (!hasVerifiedGate || !hasValidVerification) {
+              const reasons = [];
+              if (!hasVerifiedGate) reasons.push("VPM verification not completed (\"verified\" not in gates_passed)");
+              if (!hasValidVerification) reasons.push("verification.md missing or incomplete (need ## Verdict + >200 bytes)");
+              process.stderr.write(
+                "GATE 7 BLOCKED: Cannot push — VPM verification not completed.\n" +
+                reasons.join("\n") + "\n" +
+                "Complete verification: engine-transition <dir> verify → dispatch verification-pm\n"
+              );
+              writeAuditLog("Gate 7", toolName, "", input?.session_id);
+              process.exit(2);
+            }
+          }
+        }
+        // No active pipeline (state===null) → allow push (completed pipeline or non-forge project)
+      }
+    }
+  } catch (err) {
+    process.stderr.write("forge-gate-guard: Gate 7 error: " + err.message + "\n");
+    process.exit(2);
   }
 
   // === GATE 4: verification before report.md ===
