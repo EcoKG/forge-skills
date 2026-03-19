@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Forge Orchestrator — UserPromptSubmit Hook (v6.0 Ironclad)
+ * Forge Orchestrator — UserPromptSubmit Hook (v7.0 Bastion)
  *
  * On EVERY user message:
  * 1. If active pipeline → inject current state + allowed actions
@@ -55,7 +55,7 @@ function getSessionHealthCheck(sessionId) {
   const lines = [
     "",
     "╔══════════════════════════════════════════╗",
-    "║  ⚒ Forge v6.2 \"Ironclad\"                ║",
+    "║  ⚒ Forge v7.0 \"Bastion\"                 ║",
     "║  Engine-driven autonomous development    ║",
     "╠══════════════════════════════════════════╣",
   ];
@@ -271,7 +271,7 @@ function main() {
 
     // First prompt: show user-visible banner via systemMessage
     if (healthCheck) {
-      let sysMsg = `⚒ Forge v6.2 "Ironclad" | 4 hooks | 9 gates`;
+      let sysMsg = `⚒ Forge v7.0 "Bastion" | 4 hooks | 10 gates`;
       if (activePipeline) {
         sysMsg += ` | Step ${activePipeline.current_step_order}: ${activePipeline.current_step.toUpperCase()}`;
       }

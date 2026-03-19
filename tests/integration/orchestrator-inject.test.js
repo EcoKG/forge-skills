@@ -6,7 +6,7 @@
  * - Active pipeline → FORGE PIPELINE STATE
  * - Completed pipeline → no pipeline output
  * - /clear prompt → deletes session flag
- * - First prompt → Forge v6.2 banner
+ * - First prompt → Forge v7.0 banner
  */
 
 const { runHook, createTempForge, mockPipelineState } = require("../helpers/test-utils");
@@ -149,9 +149,9 @@ describe("Orchestrator — Context Injection Integration", () => {
     });
   });
 
-  // ─── Scenario 5: First prompt → Forge v6.2 banner ──────────────────
+  // ─── Scenario 5: First prompt → Forge v7.0 banner ──────────────────
   describe("Session health check on first prompt", () => {
-    it("outputs Forge v6.2 banner on first prompt of session", () => {
+    it("outputs Forge v7.0 banner on first prompt of session", () => {
       const sessionId = "orch-test-first-" + Date.now();
 
       // Ensure the session flag does NOT exist (first prompt)
@@ -164,7 +164,7 @@ describe("Orchestrator — Context Injection Integration", () => {
       });
 
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain("Forge v6.2");
+      expect(result.stdout).toContain("Forge v7.0");
 
       // Clean up
       cleanSessionFlag(sessionId);
@@ -187,7 +187,7 @@ describe("Orchestrator — Context Injection Integration", () => {
       });
 
       expect(result.exitCode).toBe(0);
-      expect(result.stdout).not.toContain("Forge v6.2");
+      expect(result.stdout).not.toContain("Forge v7.0");
 
       cleanSessionFlag(sessionId);
     });

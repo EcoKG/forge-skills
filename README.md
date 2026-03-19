@@ -12,10 +12,12 @@ Claude Code skills and hooks for autonomous development workflow.
 forge-skills/
 ├── setup.sh               # One-line setup (clone + install)
 ├── install.sh              # Full installer (installs everything)
-├── forge/                  # Forge v6.2 "Ironclad" — Context-Engineered Autonomous Dev System
+├── package.json            # Dependencies + test scripts
+├── vitest.config.js        # Test configuration
+├── forge/                  # Forge v7.0 "Bastion" — Context-Engineered Autonomous Dev System
 │   ├── SKILL.md            # Main skill definition (engine-driven pipeline)
-│   ├── hooks/              # Runtime hooks (v6.2)
-│   │   ├── forge-gate-guard.js      # PreToolUse: 9 gates (8 hard blocks + 1 warning)
+│   ├── hooks/              # Runtime hooks (v7.0)
+│   │   ├── forge-gate-guard.js      # PreToolUse: 10 gates (all exit(2) hard blocks)
 │   │   ├── forge-orchestrator.js    # UserPromptSubmit: pipeline state injection
 │   │   ├── forge-tracker.js         # PostToolUse: trace logging + build/test detection
 │   │   ├── forge-statusline.js      # Notification: IDE status display
@@ -25,7 +27,7 @@ forge-skills/
 │   │       ├── skill-activation.js  # Prompt analysis + skill suggestion
 │   │       ├── rules-matcher.js     # 3-layer scoring (keywords + intent + smart)
 │   │       ├── session-tracker.js   # Session dedup
-│   │       └── skill-rules.json     # 113 keywords + 35 intent patterns
+│   │       └── skill-rules.json     # 100+ keywords + 35 intent patterns
 │   ├── references/         # PM execution manuals (loaded per-section)
 │   │   ├── execution-flow.md        # 11-step pipeline (inc. architect_guide)
 │   │   ├── project-lifecycle.md     # Project operations (init/phase/auto/milestone)
@@ -73,6 +75,14 @@ forge-skills/
 │   └── resources/
 │       └── type-guides.md  # Per-type workflow guides (8 types)
 │
+├── tests/                  # 196 automated tests (unit + integration + E2E)
+│   ├── unit/               # 112 unit tests
+│   ├── integration/        # 59 integration tests
+│   └── e2e/                # 25 end-to-end tests
+│
+├── .github/
+│   └── workflows/          # CI: Node 18/20/22, auto on push
+│
 ├── creatework/             # CreateWork skill — workspace bootstrapper
 │   └── SKILL.md
 │
@@ -83,23 +93,29 @@ forge-skills/
     └── skill-rules.json    # Trigger rules (master copy)
 ```
 
-## Forge v6.2 "Ironclad" — Overview
+## Forge v7.0 "Bastion" — Overview
 
 Context-Engineered Autonomous Development System with engine-driven pipeline execution, architecture-guided planning, and 7-layer quality enforcement.
 
-### What's New in v6.2
+### What's New in v7.0
 
 | Feature | Description |
 |---|---|
-| **Architect Agent** | 4-mode agent (design/analyze/ADR/guide) for architecture-guided development |
-| **architect_guide Step** | Auto-analyzes codebase patterns before planning — ensures new code follows existing architecture |
-| **9D Plan Checker** | D9: Architecture Compliance — verifies plan follows identified design patterns |
-| **--trivial Pipeline** | 3-step ultra-light pipeline (init→execute→cleanup) for typo/rename fixes, max 3 lines |
-| **Gate Guard v2** | 9 gates with per-gate fail-closed isolation, Bash file-write detection, 57 file types, audit log |
-| **Gate 7 (VPM Push Gate)** | Blocks git push / gh pr create without VPM verification — exit(2) hard block |
-| **Unified Smart Scoring** | Keywords as weighted inputs (+15), single threshold (40), negative signals always apply |
-| **VPM Default** | verification-pm is now the default verifier in standard pipeline (replaces legacy verifier) |
-| **Staleness Check** | Stale pipelines (>24h) auto-skipped by gate guard |
+| **exit(2) Migration** | All 10 gates now use exit(2) for proper Claude Code blocking — no more silent failures |
+| **196 Automated Tests** | Unit (112) + Integration (59) + E2E (25) with 100% pass rate across 20 test files |
+| **GitHub Actions CI** | Node 18/20/22 matrix, auto-runs on every push |
+| **Scoring Corpus** | 105 prompts validated — Precision 100%, Recall 100% |
+| **24 SECRET_PATTERNS** | Was 19 — added JWT, Cloudflare, Heroku, DigitalOcean, JDBC patterns |
+| **.env Protection** | .env files blocked even without an active pipeline |
+| **Prototype Pollution Defense** | configSet now guards against `__proto__`, `constructor`, `prototype` keys |
+| **63 CODE_EXTENSIONS** | Was 47 — added .mjs, .mts, .cjs, .cts, .astro and more |
+| **17 SKIP_PATHS** | Was 10 — added dist/, build/, vendor/, __pycache__/, .next/, target/ |
+| **Lock TTL** | 2-hour stale lock detection prevents stuck pipelines |
+| **docs Type Routing** | `docs` type now routes to doc-reviewer agent |
+| **Custom Agent Model Routing** | Profile-defined model routing for custom agents |
+| **Dead Config Cleanup** | 6 unused config fields removed |
+| **Quick Pipeline Fix** | entry_gate corrected from "approved" to "planned" |
+| **Fail-Closed stdin Parsing** | Malformed JSON input triggers safe denial instead of silent pass |
 
 ### Two Modes
 
@@ -192,37 +208,57 @@ Step 10:  CLEANUP          → State update, agent cleanup
 | `code` | Full pipeline with TDD + architecture guide |
 | `code-bug` | Lightweight: reproduce → diagnose → fix |
 | `code-refactor` | Behavior-preserving: baseline tests → refactor → regression |
-| `docs` | Research → write → doc-review (skip plan/QA/verify) |
+| `docs` | Research → write → doc-review (routed to doc-reviewer agent) |
 | `analysis` | Research → report only (no code changes) |
 | `analysis-security` | OWASP Top 10 audit with CWE IDs (opus model) |
 | `infra` | Dry-run → approve → execute with rollback plan |
 | `design` | Architect agent: design / analyze / ADR |
 
-### Gate Guard (9 Gates)
+### Gate Guard (10 Gates)
 
 | Gate | What It Blocks | How |
 |---|---|---|
-| **Gate 1** | plan.md Write without research.md | hard block |
-| **Gate 2** | Source code Edit/Write before execute step | hard block |
-| **Gate 2B** | Bash file-writing commands (echo/sed/cp/etc.) on code files | hard block |
-| **Gate 3** | git commit with failed build/test | hard block |
-| **Gate 7** | git push / gh pr create without VPM verification | hard block (exit 2) |
-| **Gate 4** | report.md Write without verification.md | hard block |
-| **Gate 5** | Large edits (>500 chars) or overwrites (>100 lines) | warning |
-| **Gate 5T** | Trivial pipeline: >3 lines per edit | hard block |
-| **Gate 6** | Secret/credential detection + .env file blocking | hard block (fail-closed) |
+| **Gate 1** | plan.md Write without research.md | exit(2) hard block |
+| **Gate 2** | Source code Edit/Write before execute step | exit(2) hard block |
+| **Gate 2B** | Bash file-writing commands (echo/sed/cp/etc.) on code files | exit(2) hard block |
+| **Gate 3** | git commit with failed build/test | exit(2) hard block |
+| **Gate 7** | git push / gh pr create without VPM verification | exit(2) hard block |
+| **Gate 4** | report.md Write without verification.md | exit(2) hard block |
+| **Gate 5** | Large edits (>500 chars) or overwrites (>100 lines) | exit(2) hard block |
+| **Gate 5T** | Trivial pipeline: >3 lines per edit | exit(2) hard block |
+| **Gate 6** | Secret/credential detection (24 patterns) + .env file blocking | exit(2) hard block |
+| **Gate 6E** | .env file protection (active even without pipeline) | exit(2) hard block |
 
-**Features:** Per-gate try-catch isolation (fail-closed), 57 file type coverage, audit log (`.forge/gate-guard-audit.jsonl`), 24h staleness check, unified smart scoring (140 keywords + threshold 40).
+**Features:** All gates use exit(2) for proper Claude Code blocking. Per-gate try-catch isolation (fail-closed). 63 file type coverage. 17 skip paths. Audit log (`.forge/gate-guard-audit.jsonl`). Lock TTL (2h stale detection). Fail-closed stdin parsing. Prototype pollution defense.
 
-### Workspace Hooks (v6.2)
+### Testing
+
+Forge v7.0 includes a comprehensive test suite with **196 automated tests** across 20 test files.
+
+| Category | Count | Coverage |
+|---|---|---|
+| **Unit** | 112 | Gate logic, scoring, config, secret patterns, extensions |
+| **Integration** | 59 | Gate interactions, pipeline state, orchestrator, tracker |
+| **E2E** | 25 | Full pipeline flows, CI simulation, hook lifecycle |
+| **Total** | **196** | **100% pass rate** |
+
+```bash
+npm test              # Run all 196 tests
+```
+
+**CI:** GitHub Actions runs automatically on every push, testing against Node.js 18, 20, and 22.
+
+**Scoring validation:** 105-prompt corpus achieves Precision 100% and Recall 100%.
+
+### Workspace Hooks (v7.0)
 
 | Hook | Trigger | What It Does |
 |---|---|---|
-| `forge-gate-guard` | PreToolUse | 9 gates: pipeline enforcement + secret detection + audit log |
+| `forge-gate-guard` | PreToolUse | 10 gates: pipeline enforcement + secret detection + audit log (all exit(2)) |
 | `forge-orchestrator` | UserPromptSubmit | Injects pipeline state + engine commands every turn |
 | `forge-tracker` | PostToolUse | Context pressure monitor + build/test detection + agent output validation |
 | `forge-statusline` | Notification | Shows project/phase/step status in terminal |
-| `skill-activation` | UserPromptSubmit | 3-layer prompt analysis (113 keywords + 35 intents + smart scoring) |
+| `skill-activation` | UserPromptSubmit | 3-layer prompt analysis (100+ keywords + 35 intents + smart scoring) |
 
 ### Quality System (7-Layer Defense)
 
@@ -235,7 +271,7 @@ L4:   QA Gate (Wave Boundary)     — Build, test, caller impact, anti-patterns
 L4.5: VPM Cross-Check (Code)      — Independent verification at wave boundary + final
 L5:   Goal-Backward (Verification) — Exists → Substantive → Wired
 L6:   Auto-Ralph (Code)           — Auto-enter Ralph on verify failure
-L7:   Gate Guard (Code)           — 9 gates, per-gate fail-closed, audit log
+L7:   Gate Guard (Code)           — 10 gates, all exit(2), per-gate fail-closed, audit log
 ```
 
 ### Usage Examples
@@ -282,9 +318,9 @@ Creates a new workspace directory under `~/` and opens it in VSCode.
 A `UserPromptSubmit` hook that analyzes every prompt and suggests relevant skills automatically.
 
 **3-layer scoring:**
-1. **Keyword match** — 113 keywords (Korean + English) → +2 per match
+1. **Keyword match** — 100+ keywords (Korean + English) → +2 per match
 2. **Intent patterns** — 35 regex patterns → +3 per match
-3. **Smart scoring** — file extensions (+50), action verbs (+30), code identifiers (+20), negative signals (-40)
+3. **Smart scoring** — file extensions (+50), action verbs (+30), code identifiers (+20), negative signals (-40), threshold 30
 
 **Design principles:**
 - **Zero-dependency** — only Node.js built-in APIs
@@ -365,15 +401,17 @@ Claude Code용 스킬과 훅을 제공하는 자율 개발 워크플로우 도�
 
 | 디렉토리 | 설명 |
 |---|---|
-| `forge/` | Forge v6.2 "Ironclad" — 엔진 기반 자율 개발 시스템 |
+| `forge/` | Forge v7.0 "Bastion" — 엔진 기반 자율 개발 시스템 |
+| `tests/` | 196개 자동화 테스트 (unit 112 + integration 59 + e2e 25) |
+| `.github/` | GitHub Actions CI (Node 18/20/22) |
 | `creatework/` | CreateWork — 워크스페이스 생성 + VSCode 실행 |
 | `hooks/` | Hook 자동 활성화 시스템 — 프롬프트 분석 후 관련 스킬 자동 제안 |
 
-### Forge v6.2
+### Forge v7.0
 
 엔진 기반 파이프라인으로 개발 전체 라이프사이클을 자율 관리하는 시스템입니다.
 
-**v6.2 신규:** Architect Agent (4모드), architect_guide 단계, 9차원 Plan Checker, --trivial 파이프라인, Gate Guard v2 (9게이트 + Gate 7 VPM push 차단), Unified Smart Scoring, VPM 기본 활성화, 감사 로그
+**v7.0 신규:** exit(2) 마이그레이션 (10게이트 전체), 196개 자동화 테스트 (100% pass), GitHub Actions CI (Node 18/20/22), 스코어링 코퍼스 105개 프롬프트 (Precision/Recall 100%), 24개 SECRET_PATTERNS (+JWT/Cloudflare/Heroku/DO/JDBC), .env 보호 (파이프라인 없이도 동작), prototype pollution 방어, 63개 CODE_EXTENSIONS (+.mjs/.mts/.cjs/.cts/.astro), 17개 SKIP_PATHS (+dist/build/vendor/__pycache__/.next/target), Lock TTL (2시간 stale 감지), docs 타입 doc-reviewer 라우팅, 커스텀 에이전트 모델 라우팅, dead config 정리 (6개 필드 제거), quick 파이프라인 entry_gate 수정, fail-closed stdin 파싱
 
 #### 두 가지 모드
 
@@ -429,23 +467,39 @@ INIT → RESEARCH → ARCHITECT GUIDE → PLAN → PLAN-CHECK(9D) → CHECKPOINT
 | 11 | **integration-checker** | 크로스 페이즈 통합 검증 |
 | 12 | **debugger** | 과학적 디버깅 (재현 → 가설 → 테스트 → 수정) |
 | 13-17 | test-auditor, test-strategist, ralph-executor, ui-reviewer, verifier | 전문 검증 에이전트 |
-| 18 | **custom:{name}** | `.forge/agents/{name}.md`로 프로젝트별 커스텀 |
+| 18 | **custom:{name}** | `.forge/agents/{name}.md`로 프로젝트별 커스텀 (프로필 기반 모델 라우팅 지원) |
 
-#### Gate Guard (9 게이트)
+#### Gate Guard (10 게이트)
 
 | 게이트 | 차단 대상 | 동작 |
 |---|---|---|
-| Gate 1 | research.md 없이 plan.md 작성 | 차단 |
-| Gate 2 | execute 단계 전 코드 편집 | 차단 |
-| Gate 2B | Bash 파일 쓰기 명령 (echo/sed/cp 등) | 차단 |
-| Gate 3 | 빌드/테스트 실패 시 git commit | 차단 |
-| Gate 7 | VPM 검증 없이 git push / gh pr create | 차단 (exit 2) |
-| Gate 4 | verification.md 없이 report.md 작성 | 차단 |
-| Gate 5 | 대규모 편집 (500자+ 또는 100줄+) | 경고 |
-| Gate 5T | trivial 파이프라인에서 3줄 초과 편집 | 차단 |
-| Gate 6 | 시크릿/인증정보 감지 + .env 파일 차단 | 차단 (fail-closed) |
+| Gate 1 | research.md 없이 plan.md 작성 | exit(2) 차단 |
+| Gate 2 | execute 단계 전 코드 편집 | exit(2) 차단 |
+| Gate 2B | Bash 파일 쓰기 명령 (echo/sed/cp 등) | exit(2) 차단 |
+| Gate 3 | 빌드/테스트 실패 시 git commit | exit(2) 차단 |
+| Gate 7 | VPM 검증 없이 git push / gh pr create | exit(2) 차단 |
+| Gate 4 | verification.md 없이 report.md 작성 | exit(2) 차단 |
+| Gate 5 | 대규모 편집 (500자+ 또는 100줄+) | exit(2) 차단 |
+| Gate 5T | trivial 파이프라인에서 3줄 초과 편집 | exit(2) 차단 |
+| Gate 6 | 시크릿/인증정보 감지 (24패턴) + .env 파일 차단 | exit(2) 차단 |
+| Gate 6E | .env 파일 보호 (파이프라인 없이도 동작) | exit(2) 차단 |
 
-50개 파일 확장자 보호, 게이트별 독립 fail-closed, 감사 로그 (`.forge/gate-guard-audit.jsonl`).
+**10 게이트 전체 exit(2).** 63개 파일 확장자 보호. 17개 skip 경로. 게이트별 독립 fail-closed. Lock TTL (2시간). 감사 로그 (`.forge/gate-guard-audit.jsonl`). Prototype pollution 방어. Fail-closed stdin 파싱.
+
+#### 테스트
+
+| 카테고리 | 개수 | 범위 |
+|---|---|---|
+| **Unit** | 112 | 게이트 로직, 스코어링, 설정, 시크릿 패턴, 확장자 |
+| **Integration** | 59 | 게이트 상호작용, 파이프라인 상태, 오케스트레이터, 트래커 |
+| **E2E** | 25 | 전체 파이프라인 흐름, CI 시뮬레이션, 훅 생명주기 |
+| **합계** | **196** | **100% pass rate** |
+
+```bash
+npm test              # 196개 테스트 전체 실행
+```
+
+CI가 push마다 자동 실행 (Node.js 18, 20, 22). 스코어링 코퍼스 105개 프롬프트 — Precision 100%, Recall 100%.
 
 #### 사용 예시
 
@@ -471,7 +525,7 @@ L4:   QA Gate (Wave 경계)     — 빌드, 테스트, caller impact, anti-patte
 L4.5: VPM Cross-Check (코드)  — Wave 경계 + 최종 독립 검증
 L5:   Goal-Backward (검증)    — Exists → Substantive → Wired
 L6:   Auto-Ralph (코드)       — 검증 실패 시 자동 Ralph 모드
-L7:   Gate Guard (코드)       — 9 게이트, fail-closed, 감사 로그
+L7:   Gate Guard (코드)       — 10 게이트, 전체 exit(2), fail-closed, 감사 로그
 ```
 
 ### 설치

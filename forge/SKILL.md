@@ -10,7 +10,7 @@ description: |
   DO NOT (overrides above): trivial single-line edits (typo, rename one variable, one import), code explanation only, simple commands (git log, npm install), new standalone files from scratch (no integration needed)
 ---
 
-# Forge v6.0 "Ironclad"
+# Forge v7.0 "Bastion"
 
 > Code-enforced autonomous development engine.
 > Pipeline defined in `pipeline.json`. State managed by `forge-tools.js`. Gates enforced by hooks.

@@ -1,6 +1,6 @@
 {
   "name": "forge-skills",
-  "version": "6.2.0",
+  "version": "7.0.0",
   "private": true,
   "description": "Forge — Context-Engineered Autonomous Development System",
   "scripts": {

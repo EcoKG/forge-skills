@@ -26,7 +26,7 @@ const SETTINGS_PATH = path.join(
 const HOOKS_DIR = path.dirname(__filename);
 
 const FORGE_HOOKS = [
-  // v6.0 Ironclad hooks
+  // v7.0 Bastion hooks
   {
     event: "PostToolUse",
     id: "forge-tracker",
@@ -54,7 +54,7 @@ const FORGE_HOOKS = [
     script: path.join(HOOKS_DIR, "forge-gate-guard.js"),
     matcher: "",
     timeout: 10,
-    description: "Forge v6.2: 10 gates — 9 hard blocks + 1 warning (catch-all matcher)",
+    description: "Forge v7.0: 10 gates — 9 hard blocks + 1 warning (catch-all matcher)",
   },
 ];
 
