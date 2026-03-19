@@ -31,18 +31,49 @@ const ACTION_VERBS_EN = [
 
 // Negative signals — question-only or explanation-only patterns
 const NEGATIVE_PATTERNS_KO = [
+  // Pure questions
   /^.{0,5}(뭐야|뭔가요|뭐지|뭘까)\s*[\?\？]?\s*$/,
   /^.{0,10}(설명|알려|말해|가르쳐).*?(줘|주세요|달라)\s*$/,
   /^(이게|이거|이건)\s+(뭐|무엇|무슨|어떤)/,
-  /^.{0,5}(왜|어떻게|어디서|언제)\s+.{0,20}[\?\？]\s*$/
+  /^.{0,5}(왜|어떻게|어디서|언제)\s+.{0,20}[\?\？]\s*$/,
+  // Explanation requests (no action)
+  /^.{0,20}(설명|의미|뜻|차이|개념).*?(해줘|해주세요|알려|줘)\s*$/,
+  /^.{0,20}(어떤|무슨)\s+(의미|뜻|차이)/,
+  // Short questions ending with 야?/거야?/까?/나?
+  /^.{0,30}(뭐야|거야|인가|일까|는지|건지|나요|습니까|인지)[\?\？]?\s*$/,
+  // "이거 X야?" pattern
+  /^(이거|이게|이건|이것|저거|저건|그거|그건)\s+.{0,15}(야|인가|일까)[\?\？]?\s*$/,
+  // "X 보여줘/보여주세요" (show me, not modify)
+  /^.{0,20}(보여|보여줘|보여주세요|보여주|알려줘|알려주세요)\s*$/,
+  // "코드 설명" (too short, no action verb)
+  /^.{0,10}(코드|함수|클래스|모듈)\s+(설명|리뷰)\s*$/,
+  // "로그 보여줘" (show logs)
+  /^.{0,10}(로그|상태|결과|목록|리스트)\s+(보여|보여줘|봐|봐줘|줘)\s*$/,
+  // Simple greetings / chat / acknowledgments
+  /^(안녕|하이|hello|hi|hey|감사|고마워|고맙|thanks|thank|ok|okay|ㅇㅇ|ㅋ+|ㅎ+|네|예|응|아니|좋아|알겠|알았|잘했|다음에|나중에|수고|좋겠).{0,10}$/i,
+  // CLI commands (user asking to run, not implement)
+  /^(git\s+(log|status|diff|branch|stash|show|remote|fetch|pull)|npm\s+(install|test|start|run|ci)|yarn|pnpm|ls|cd|pwd|cat|head|tail|echo|which|env|node\s+--version|claude\s+--version|docker\s+(compose|build|run|ps|logs|pull)|kubectl\s+(get|describe|apply|logs)|terraform\s+(plan|apply|init|destroy)|cargo\s+(test|build|run|check)|make\b|cmake\b)\b/i,
+  // Slash commands
+  /^\//,
 ];
 
 const NEGATIVE_PATTERNS_EN = [
+  // Pure questions
   /^what (is|are|does|do)\s/i,
   /^(explain|describe|tell me about|show me)\s/i,
   /^how does\s/i,
   /^(can you|could you)\s+(explain|describe|tell)/i,
-  /^why (is|are|does|do)\s/i
+  /^why (is|are|does|do)\s/i,
+  /^where (is|are|do|does|can)\s/i,
+  /^when (did|does|will|should)\s/i,
+  // "how do I" questions (not action requests)
+  /^how (do|can|should) (I|we)\s/i,
+  // "is this a X?" questions
+  /^is (this|that|it)\s/i,
+  // "run the X" / "start the X" (CLI-like)
+  /^(run|start|stop|restart|execute)\s+(the|my|a)\s/i,
+  // Simple acknowledgments
+  /^(ok|okay|thanks|thank you|got it|understood|sure|yes|no|yep|nope|sounds good|great|nice|cool|awesome|perfect|alright|right|agreed)\s*[!.]?\s*$/i,
 ];
 
 // Code identifier patterns
@@ -105,48 +136,48 @@ export class RulesMatcher {
             }
         }
 
+        // === Reverse Matching (v3.0) ===
+        // Instead of detecting what NEEDS forge (infinite keywords),
+        // detect what DOESN'T need forge (finite exclusions).
+        // If not excluded → trigger forge.
+
+        const isNegative = this.scoreNegativeSignals(prompt) > 0;
+        const promptTrimmed = prompt.trim();
+
+        // Too short to be a real request (< 2 chars)
+        if (promptTrimmed.length < 2) return null;
+
+        // Negative signal detected → don't trigger
+        if (isNegative) return null;
+
+        // Passed all exclusions → trigger forge
+        // Still compute positive scores for diagnostics/logging
         const matchedKeywords = this.matchKeywordsDeduped(triggers.keywords, promptLower);
         const matchedIntents = this.matchIntentPatterns(triggers.intentPatterns, prompt);
+        const extScore = this.scoreFileExtensions(promptLower);
+        const verbScore = this.scoreActionVerbs(promptLower);
+        const idScore = this.scoreCodeIdentifiers(prompt);
 
-        const scoring = rule.smartScoring || rule.unifiedScoring || this.rules.smartScoring || {};
-        const weights = scoring?.weights || {
-            keyword: 15, intent: 20,
-            fileExtension: 50, actionVerb: 30, codeIdentifier: 20, negativeSignal: -40
-        };
-        const threshold = scoring?.threshold || 40;
-
-        // Component scores
-        const keywordScore = matchedKeywords.length * (weights.keyword || 15);
-        const intentScore = matchedIntents.length * (weights.intent || 20);
-        const extScore = this.scoreFileExtensions(promptLower) > 0 ? (weights.fileExtension || 50) : 0;
-        const verbScore = this.scoreActionVerbs(promptLower) > 0 ? (weights.actionVerb || 30) : 0;
-        const idScore = this.scoreCodeIdentifiers(prompt) > 0 ? (weights.codeIdentifier || 20) : 0;
-        const negScore = this.scoreNegativeSignals(prompt) > 0 ? (weights.negativeSignal || -40) : 0;
-
-        const totalScore = keywordScore + intentScore + extScore + verbScore + idScore + negScore;
-
-        const smartDetails = {
-            keyword: keywordScore,
-            intent: intentScore,
-            fileExtension: extScore,
-            actionVerb: verbScore,
-            codeIdentifier: idScore,
-            negativeSignal: negScore,
-            total: totalScore,
-            threshold
-        };
-
-        if (totalScore < threshold) {
-            return null;
-        }
+        const totalScore = matchedKeywords.length * 15 + matchedIntents.length * 20
+            + (extScore > 0 ? 50 : 0) + (verbScore > 0 ? 30 : 0) + (idScore > 0 ? 20 : 0);
 
         return {
             skillName,
             rule,
             matchedKeywords,
             matchedIntents,
-            smartScore: smartDetails,
-            score: totalScore,
+            smartScore: {
+                mode: 'reverse',
+                keyword: matchedKeywords.length * 15,
+                intent: matchedIntents.length * 20,
+                fileExtension: extScore > 0 ? 50 : 0,
+                actionVerb: verbScore > 0 ? 30 : 0,
+                codeIdentifier: idScore > 0 ? 20 : 0,
+                negativeSignal: 0,
+                total: Math.max(totalScore, 30),
+                threshold: 0
+            },
+            score: Math.max(totalScore, 30),
         };
     }
 

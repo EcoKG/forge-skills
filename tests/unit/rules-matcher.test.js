@@ -114,7 +114,7 @@ describe("RulesMatcher — Unified Scoring", () => {
   // ─── Edge cases ────────────────────────────────────────────────────
 
   describe("Edge cases", () => {
-    it('"변경" alone → keyword(15) + actionVerb(30) = 45 → triggers', () => {
+    it('"변경" alone → triggers (reverse matching: not excluded)', () => {
       const results = matcher.matchPrompt("변경");
       const forge = results.find((r) => r.skillName === "forge");
 
