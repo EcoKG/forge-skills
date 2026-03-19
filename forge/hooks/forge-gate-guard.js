@@ -179,9 +179,9 @@ function main() {
 
     state = findPipelineState();
 
-    // If no active pipeline, block ALL code file edits
+    // If no active pipeline, block ALL code file edits (Edit/Write + Bash file-writing)
     if (!state) {
-      if (["Edit", "Write"].includes(toolName)) {
+      if (["Edit", "Write", "NotebookEdit"].includes(toolName)) {
         const filePath = toolInput.file_path || "";
         if (isCodeFile(filePath)) {
           process.stdout.write(
@@ -194,6 +194,41 @@ function main() {
           );
           writeAuditLog("No Pipeline", toolName, filePath, input.session_id);
           process.exit(1);
+        }
+      }
+      // FBP-8 fix: Also check Bash file-writing commands without pipeline
+      if (toolName === "Bash") {
+        const cmd = toolInput.command || "";
+        if (!cmd.match(/^(git\b|npm\s+(install|test|ci|start)\b|npx\s+(tsc|jest|vitest|eslint)\b|yarn\s+(install|test|build)\b|pnpm\s+(install|test|build)\b|pip\s+install\b|cargo\s+(build|test|run)\b|go\s+(build|test|run|get|mod)\b|dotnet\s+(build|test|run)\b|mvn\s+(compile|test|package)\b|gradle\s+(build|test)\b|make\b|cmake\b|ls\b|cd\b|pwd\b|cat\b|head\b|tail\b|wc\b|find\b|grep\b|which\b|env\b|echo\s+\$)/)) {
+          const bashWritePatterns = [
+            /(?:echo|printf)\s+.*?>\s*(\S+)/,
+            /cat\s+.*?>\s*(\S+)/,
+            /tee\s+(?:-a\s+)?(\S+)/,
+            /sed\s+-i\S*\s+.*?(\S+)\s*$/,
+            /perl\s+-(?:i|pi)\S*\s+.*?(\S+)\s*$/,
+            /cp\s+\S+\s+(\S+)/,
+            /mv\s+\S+\s+(\S+)/,
+            /curl\s+.*?-o\s+(\S+)/,
+            /wget\s+.*?-O\s+(\S+)/,
+            /patch\s+(?:.*?\s)?(\S+)/,
+            /python[3]?\s+-c\s+.*?(?:open|write).*?["'](\S+?)["']/,
+            /node\s+-e\s+.*?(?:writeFile|appendFile).*?["'](\S+?)["']/,
+            /ruby\s+-e\s+.*?(?:File\.write|IO\.write).*?["'](\S+?)["']/,
+          ];
+          for (const pattern of bashWritePatterns) {
+            const match = cmd.match(pattern);
+            if (match && match[1]) {
+              const targetFile = match[1].replace(/["']/g, "");
+              if (isCodeFile(targetFile)) {
+                process.stdout.write(
+                  `🚫 FORGE GATE BLOCKED: Bash writes to code file "${path.basename(targetFile)}" without active pipeline.\n` +
+                  "Start a forge pipeline first: /forge --trivial, --quick, or /forge"
+                );
+                writeAuditLog("No Pipeline Bash", toolName, targetFile, input.session_id);
+                process.exit(1);
+              }
+            }
+          }
         }
       }
       process.exit(0);
@@ -263,8 +298,8 @@ function main() {
     if (toolName === "Bash") {
       const cmd = toolInput.command || "";
       // Skip known safe commands
-      if (!cmd.match(/^(git|npm|npx|yarn|pnpm|pip|cargo|go |dotnet|mvn|gradle|make|cmake)\b/)) {
-        // Detect file-writing patterns
+      if (!cmd.match(/^(git\b|npm\s+(install|test|run|ci|start)\b|npx\s+(tsc|jest|vitest|eslint)\b|yarn\s+(install|test|build)\b|pnpm\s+(install|test|build)\b|pip\s+install\b|cargo\s+(build|test|run)\b|go\s+(build|test|run|get|mod)\b|dotnet\s+(build|test|run)\b|mvn\s+(compile|test|package)\b|gradle\s+(build|test)\b|make\b|cmake\b)/)) {
+        // Detect file-writing patterns (FBP-9: added python/node/ruby -c/-e)
         const writePatterns = [
           /(?:echo|printf)\s+.*?>\s*(\S+)/,
           /cat\s+.*?>\s*(\S+)/,
@@ -276,6 +311,9 @@ function main() {
           /curl\s+.*?-o\s+(\S+)/,
           /wget\s+.*?-O\s+(\S+)/,
           /patch\s+(?:.*?\s)?(\S+)/,
+          /python[3]?\s+-c\s+.*?(?:open|write).*?["'](\S+?)["']/,
+          /node\s+-e\s+.*?(?:writeFile|appendFile).*?["'](\S+?)["']/,
+          /ruby\s+-e\s+.*?(?:File\.write|IO\.write).*?["'](\S+?)["']/,
         ];
         for (const pattern of writePatterns) {
           const match = cmd.match(pattern);
