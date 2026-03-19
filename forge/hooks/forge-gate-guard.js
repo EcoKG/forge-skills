@@ -174,13 +174,24 @@ function main() {
     toolName = input.tool_name;
     toolInput = input.tool_input || {};
 
-    // Only check Edit, Write, Bash
-    if (!["Edit", "Write", "Bash", "NotebookEdit"].includes(toolName)) { process.exit(0); }
+    // Only check tools that can modify files
+    const CHECKED_TOOLS = ["Edit", "Write", "Bash", "NotebookEdit"];
+    const isMcpExec = toolName.startsWith("mcp__") && (toolName.includes("execute") || toolName.includes("write") || toolName.includes("edit"));
+    if (!CHECKED_TOOLS.includes(toolName) && !isMcpExec) { process.exit(0); }
 
     state = findPipelineState();
 
-    // If no active pipeline, block ALL code file edits (Edit/Write + Bash file-writing)
+    // If no active pipeline, block ALL code file edits (Edit/Write + Bash + MCP execute)
     if (!state) {
+      // FBP-6: Block MCP execution tools without pipeline
+      if (isMcpExec) {
+        process.stdout.write(
+          `🚫 FORGE GATE BLOCKED: Cannot use ${toolName} without an active forge pipeline.\n` +
+          "Start a pipeline first: /forge --trivial, --quick, or /forge"
+        );
+        writeAuditLog("No Pipeline MCP", toolName, "", input.session_id);
+        process.exit(1);
+      }
       if (["Edit", "Write", "NotebookEdit"].includes(toolName)) {
         const filePath = toolInput.file_path || "";
         if (isCodeFile(filePath)) {

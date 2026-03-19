@@ -52,9 +52,9 @@ const FORGE_HOOKS = [
     event: "PreToolUse",
     id: "forge-gate-guard",
     script: path.join(HOOKS_DIR, "forge-gate-guard.js"),
-    matcher: "Edit|Write|Bash|NotebookEdit",
+    matcher: "",
     timeout: 10,
-    description: "Forge v6.2: 8 gates — 7 hard blocks + 1 warning",
+    description: "Forge v6.2: 8 gates — 7 hard blocks + 1 warning (catch-all matcher)",
   },
 ];
 
