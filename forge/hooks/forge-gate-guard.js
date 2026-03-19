@@ -67,6 +67,9 @@ const SECRET_PATTERNS = [
   /mongodb(\+srv)?:\/\/[^:]+:[^@]+@/,  // MongoDB connection string with credentials
   /postgres(ql)?:\/\/[^:]+:[^@]+@/,  // PostgreSQL connection string
   /DefaultEndpointsProtocol=https;AccountName=/,  // Azure connection string
+  // String concatenation patterns for split secrets
+  /"sk-"\s*\+\s*"/,  // "sk-" + "abc..." split key
+  /"(?:api[_-]?key|secret|token|password)"\s*[:=]\s*["'][^"']{4,}["']\s*\+\s*["']/i,  // key = "part1" + "part2"
 ];
 
 const SENSITIVE_FILES = [".env", ".env.local", ".env.production", "credentials.json", "secrets.yaml", "secrets.yml"];
@@ -96,7 +99,15 @@ function findPipelineState() {
           if (fs.existsSync(statePath)) {
             const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
             // Only use active (non-completed) sessions
-            if (state.current_step !== "completed") return state;
+            if (state.current_step !== "completed") {
+              // Staleness check: skip pipelines not updated in 24 hours
+              const updatedAt = state.updated_at || state.created_at;
+              if (updatedAt) {
+                const age = Date.now() - new Date(updatedAt).getTime();
+                if (age > 86400000) continue; // 24 hours — stale, skip
+              }
+              return state;
+            }
           }
         }
       } catch {}
@@ -141,7 +152,7 @@ function main() {
     toolInput = input.tool_input || {};
 
     // Only check Edit, Write, Bash
-    if (!["Edit", "Write", "Bash"].includes(toolName)) { process.exit(0); }
+    if (!["Edit", "Write", "Bash", "NotebookEdit"].includes(toolName)) { process.exit(0); }
 
     state = findPipelineState();
 
@@ -203,9 +214,9 @@ function main() {
   try {
     if (["Edit", "Write"].includes(toolName)) {
       const filePath = toolInput.file_path || "";
-      if (isCodeFile(filePath) && stepOrder < 7) {
+      if (isCodeFile(filePath)) {
         // Allow if step is execute (7) or later
-        const allowedSteps = ["execute", "verify", "finalize", "completed"];
+        const allowedSteps = ["execute", "verify", "finalize", "completed", "cleanup"];
         if (!allowedSteps.includes(currentStep)) {
           process.stdout.write(
             `🚫 GATE 2 BLOCKED: Cannot edit source code at step "${currentStep}" (order ${stepOrder}).\n` +
@@ -253,7 +264,7 @@ function main() {
                 process.exit(1);
                 return;
               }
-              const allowedSteps = ["execute", "verify", "finalize", "completed"];
+              const allowedSteps = ["execute", "verify", "finalize", "completed", "cleanup"];
               if (!allowedSteps.includes(currentStep)) {
                 process.stdout.write(
                   `🚫 GATE 2B BLOCKED: Bash writes to code file "${path.basename(targetFile)}" at step "${currentStep}".\n` +
@@ -277,7 +288,7 @@ function main() {
   try {
     if (toolName === "Bash") {
       const cmd = toolInput.command || "";
-      if (cmd.match(/git\s+commit/)) {
+      if (cmd.match(/\bgit\b.*\bcommit\b/)) {
         const lastBuild = state.last_build_result;
         const lastTest = state.last_test_result;
 
@@ -367,7 +378,7 @@ function main() {
     const toolName6 = input.tool_name;
     const toolInput6 = input.tool_input || {};
 
-    if (["Edit", "Write"].includes(toolName6)) {
+    if (["Edit", "Write", "NotebookEdit"].includes(toolName6)) {
       const content = toolInput6.new_string || toolInput6.content || "";
       const filePath6 = toolInput6.file_path || "";
       const basename = path.basename(filePath6);
