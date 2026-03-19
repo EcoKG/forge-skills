@@ -121,17 +121,15 @@ function install() {
       settings.hooks[hook.event] = [];
     }
 
-    // Check if already installed (search in nested hooks format)
-    const existing = settings.hooks[hook.event].find(
+    // Remove any existing entry for this hook (ensures upgrade replaces old config)
+    const beforeLen = settings.hooks[hook.event].length;
+    settings.hooks[hook.event] = settings.hooks[hook.event].filter(
       (entry) =>
-        entry.hooks?.some((h) => h.command?.includes(hook.id)) ||
-        (entry.command && entry.command.includes(hook.id))
+        !(entry.hooks?.some((h) => h.command?.includes(hook.id))) &&
+        !(entry.command && entry.command.includes(hook.id))
     );
-
-    if (existing) {
-      console.log(`  ⏭ ${hook.id} — already installed`);
-      skipped++;
-      continue;
+    if (beforeLen > settings.hooks[hook.event].length) {
+      console.log(`  🔄 ${hook.id} — upgrading (replacing old entry)`);
     }
 
     // Use correct Claude Code hook format: {matcher, hooks: [...]}
