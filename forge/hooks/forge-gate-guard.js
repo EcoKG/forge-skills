@@ -48,7 +48,20 @@ const CODE_EXTENSIONS = new Set([
   ".ipynb",
 ]);
 
-const SKIP_PATHS = [".forge/", "node_modules/", ".git/", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "package.json", "tsconfig.json", "composer.json", "Cargo.lock", "go.sum"];
+const SKIP_PATHS = [
+  ".forge/", "node_modules/", ".git/",
+  "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "package.json", "tsconfig.json", "composer.json", "Cargo.lock", "go.sum",
+  // Build output directories
+  "dist/", "build/", "out/",
+  // Vendor directories
+  "vendor/",
+  // Cache directories
+  "__pycache__/",
+  // Framework build directories
+  ".next/",
+  // Compiled output directories
+  "target/",
+];
 
 // Secret/credential patterns for Gate 6
 const SECRET_PATTERNS = [
@@ -109,11 +122,13 @@ function findPipelineState() {
             const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
             // Only use active (non-completed) sessions
             if (state.current_step !== "completed") {
-              // Staleness check: skip pipelines not updated in 24 hours
+              // Staleness check: flag pipelines not updated in 24 hours but don't skip
               const updatedAt = state.updated_at || state.created_at;
               if (updatedAt) {
                 const age = Date.now() - new Date(updatedAt).getTime();
-                if (age > 86400000) continue; // 24 hours — stale, skip
+                if (age > 86400000) {
+                  state._stale = true; // Flag but don't skip — gates still apply
+                }
               }
               return state;
             }

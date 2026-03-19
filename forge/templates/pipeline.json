@@ -321,7 +321,7 @@
   },
   "type_step_overrides": {
     "code-bug": {"plan_check": {"dimensions": ["D1","D2","D5","D7"]}, "verify": {"level": "light"}},
-    "docs": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"]},
+    "docs": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"agent_role": "doc-reviewer", "agent_prompt": "prompts/doc-reviewer.md"}},
     "analysis": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"report_only": true}},
     "analysis-security": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"], "research": {"model_override": "opus"}},
     "design": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"report_only": true, "agent_role": "architect", "agent_prompt": "prompts/architect.md", "model_key": "architecture"}}

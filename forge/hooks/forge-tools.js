@@ -270,9 +270,10 @@ function getGitState() {
 function createLock(artifactDir, sessionId) {
   const lockPath = path.join(artifactDir, "execution-lock.json");
   const data = {
-    session_id: sessionId || "unknown",
+    session_id: sessionId || path.basename(artifactDir) || "unknown",
     pid: process.pid,
     started_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
     hostname: os.hostname(),
   };
   fs.writeFileSync(lockPath, JSON.stringify(data, null, 2));
@@ -316,9 +317,15 @@ function checkLock(artifactDir) {
   if (fs.existsSync(lockPath)) {
     try {
       const data = JSON.parse(fs.readFileSync(lockPath, "utf8"));
-      const started = new Date(data.started_at);
-      data.stale = (Date.now() - started.getTime()) > 3600000; // 1 hour
-      return { locked: true, ...data, path: lockPath };
+      // TTL-based stale detection: use created_at if available, fallback to started_at
+      const lockTime = data.created_at || data.started_at;
+      if (lockTime) {
+        const age = Date.now() - new Date(lockTime).getTime();
+        if (age > 7200000) { // 2 hours
+          return { locked: true, stale: true, age_hours: Math.round(age / 3600000), ...data, path: lockPath };
+        }
+      }
+      return { locked: true, stale: false, ...data, path: lockPath };
     } catch {
       return { locked: true, path: lockPath, corrupt: true };
     }
@@ -502,6 +509,7 @@ function writePipelineState(artifactDir, state) {
     fs.writeFileSync(tempPath, JSON.stringify(state, null, 2));
     fs.renameSync(tempPath, statePath);
   } catch (err) {
+    process.stderr.write("forge-tools: pipeline state write failed: " + err.message + "\n");
     try { fs.unlinkSync(tempPath); } catch {}
     throw err;
   }
@@ -802,6 +810,8 @@ function engineDispatchSpec(artifactDir, role, taskId) {
       promptPath = `prompts/${role}.md`;
     }
     // Try to read model from custom agent prompt frontmatter
+    // Fallback: use profile's implementation model instead of hardcoded "sonnet"
+    model = modelProfile?.implementation || "sonnet";
     try {
       const absPath = path.isAbsolute(promptPath) ? promptPath : path.join(__dirname, "..", promptPath);
       const content = fs.readFileSync(absPath, "utf8");
@@ -910,9 +920,12 @@ function engineRecordRevision(artifactDir, type) {
   const currentStepDef = steps.find(s => s.id === state.current_step);
   const limits = currentStepDef?.revision_limits || {};
 
+  // Scoped key: per-step tracking (e.g., "plan_check:plan", "execute:code_minor")
   const scopedKey = state.current_step + ":" + type;
   state.revision_counts[scopedKey] = (state.revision_counts[scopedKey] || 0) + 1;
   const count = state.revision_counts[scopedKey];
+  // Backward-compat: unscoped key for global counters and revision_loop checks
+  state.revision_counts[type] = (state.revision_counts[type] || 0) + 1;
   const limit = limits[type] || 999;
 
   writePipelineState(artifactDir, state);
