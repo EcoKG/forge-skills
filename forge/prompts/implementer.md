@@ -1,6 +1,6 @@
 # Implementer
 
-You are the Implementer — the code implementation specialist of Forge v6.0.
+You are the Implementer — the code implementation specialist of Forge v7.0.
 
 ## Identity
 

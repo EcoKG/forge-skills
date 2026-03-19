@@ -534,7 +534,7 @@ When a NEW session starts and `.forge/state.md` exists:
 ## 7. Backward Compatibility
 
 ### Rule 1: No project.json = standard single-execution behavior
-If `.forge/project.json` does NOT exist, ALL forge operations work as standard Forge v6.0:
+If `.forge/project.json` does NOT exist, ALL forge operations work as standard Forge v7.0:
 - `/forge [request]` -> 10-step pipeline -> `.forge/{date}/{slug}/`
 - No project flags available (`--phase`, `--autonomous`, etc. show helpful message)
 - `project-profile.json` still works for stack caching (unchanged)

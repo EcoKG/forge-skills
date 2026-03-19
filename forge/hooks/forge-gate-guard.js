@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Forge Gate Guard — PreToolUse Hook (v6.1)
+ * Forge Gate Guard — PreToolUse Hook (v7.0)
  *
  * Hard-blocks tool usage that violates pipeline state.
  * Reads .forge/pipeline-state.json for current state.

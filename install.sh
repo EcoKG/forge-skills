@@ -88,10 +88,10 @@ mkdir -p "$STATE_DIR"
 echo "  → $ACTIVATION_DST/"
 echo "  → $RULES_DST"
 
-# ─── Step 6: Install forge workspace hooks (v6.2 — replaces legacy hooks) ───
+# ─── Step 6: Install forge workspace hooks (v7.0 — replaces legacy hooks) ───
 echo "[6/7] Installing forge workspace hooks..."
 # install.js automatically removes legacy hooks (context-monitor, session-init, pretool-gate)
-# and installs v6.2 hooks (gate-guard, orchestrator, tracker, statusline)
+# and installs v7.0 hooks (gate-guard, orchestrator, tracker, statusline)
 "$NODE_BIN" "$SKILLS_DIR/forge/hooks/install.js" 2>/dev/null || echo "  (skipped — forge hooks install failed, non-critical)"
 # Remove legacy hook files that are no longer needed
 for LEGACY_FILE in forge-pretool-gate.js forge-session-init.js forge-context-monitor.js; do
@@ -162,10 +162,10 @@ echo "║   Installation Complete                  ║"
 echo "╠══════════════════════════════════════════╣"
 echo "║                                          ║"
 echo "║  Skills installed:                       ║"
-echo "║    • forge v6.2  — /forge                ║"
+echo "║    • forge v7.0  — /forge                ║"
 echo "║    • creatework  — /creatework           ║"
 echo "║                                          ║"
-echo "║  Hooks installed (v6.2):                 ║"
+echo "║  Hooks installed (v7.0):                 ║"
 echo "║    • forge-gate-guard (PreToolUse)       ║"
 echo "║    • forge-orchestrator (UserPromptSub)  ║"
 echo "║    • forge-tracker (PostToolUse)         ║"

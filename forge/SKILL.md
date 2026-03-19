@@ -18,9 +18,9 @@ description: |
 
 ---
 
-## 1. How Forge Works (v6.0)
+## 1. How Forge Works (v7.0)
 
-Forge v6.0 is ENGINE-DRIVEN, not prompt-driven.
+Forge v7.0 is ENGINE-DRIVEN, not prompt-driven.
 
 ```
 User: /forge "implement JWT auth"
@@ -106,7 +106,7 @@ Scale affects:
 
 ---
 
-## 3. Engine Commands (the core of v6.0)
+## 3. Engine Commands (the core of v7.0)
 
 **ALL pipeline logic is in forge-tools.js.** The skill base directory is provided when the skill loads (see "Base directory for this skill" at the top of the context). Set this variable at the start of every forge session and use it for ALL engine commands:
 

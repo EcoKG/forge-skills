@@ -1,4 +1,4 @@
-# Research Report Template (v6.0)
+# Research Report Template (v7.0)
 
 Use this structure when writing research.md for an artifact.
 The researcher agent MUST follow this template exactly.

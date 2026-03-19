@@ -1,4 +1,4 @@
-# Plan Document Template (v6.0)
+# Plan Document Template (v7.0)
 
 Use this structure when writing plan.md for an artifact.
 The planner agent MUST follow this template exactly.

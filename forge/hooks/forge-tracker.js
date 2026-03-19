@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Forge Tracker — PostToolUse Hook (v6.1)
+ * Forge Tracker — PostToolUse Hook (v7.0)
  *
  * After EVERY tool call:
  * 1. Track tool use count (context pressure)

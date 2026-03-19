@@ -1,4 +1,4 @@
-# Forge v6.0 Execution Flow — Engine-Driven
+# Forge v7.0 Execution Flow — Engine-Driven
 
 > **Core rule:** You don't control the pipeline. The engine does.
 > Call `forge-tools.js engine-*` commands and follow the returned JSON.
@@ -48,7 +48,7 @@ node "$FORGE_TOOLS" engine-init {artifact_dir} "{request}" {type} {scale}
 node "$FORGE_TOOLS" create-lock {artifact_dir}
 
 # 5. Display banner
-# Forge v6.0 | type: {type} | scale: {scale} | lang: {lang}
+# Forge v7.0 | type: {type} | scale: {scale} | lang: {lang}
 ```
 
 ---

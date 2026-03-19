@@ -430,7 +430,7 @@ function getIterationCount(artifactDir) {
   }
 }
 
-// === FORGE ENGINE FUNCTIONS (v6.0 Ironclad) ===
+// === FORGE ENGINE FUNCTIONS (v7.0 Bastion) ===
 
 // Load pipeline definition
 function loadPipeline() {

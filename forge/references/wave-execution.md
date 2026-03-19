@@ -1,6 +1,6 @@
 # Wave-Based Parallel Execution Reference
 
-> This file details how Forge v6.0 executes tasks in parallel using dependency-based waves.
+> This file details how Forge v7.0 executes tasks in parallel using dependency-based waves.
 > PM loads this file at Step 7 (EXECUTE) and when resolving wave-related issues.
 
 ---

@@ -32,7 +32,7 @@ const FORGE_HOOKS = [
     id: "forge-tracker",
     script: path.join(HOOKS_DIR, "forge-tracker.js"),
     timeout: 30,
-    description: "Forge v6: context monitor + agent dispatch tracker + build/test detector",
+    description: "Forge v7.0: context monitor + agent dispatch tracker + build/test detector",
   },
   {
     event: "Notification",
@@ -46,7 +46,7 @@ const FORGE_HOOKS = [
     id: "forge-orchestrator",
     script: path.join(HOOKS_DIR, "forge-orchestrator.js"),
     timeout: 5,
-    description: "Forge v6: pipeline state injection + crash recovery + project context",
+    description: "Forge v7.0: pipeline state injection + crash recovery + project context",
   },
   {
     event: "PreToolUse",
@@ -58,7 +58,7 @@ const FORGE_HOOKS = [
   },
 ];
 
-// Old hooks to clean up during install (replaced by v6 hooks)
+// Old hooks to clean up during install (replaced by v7.0 hooks)
 const LEGACY_HOOKS = [
   "forge-context-monitor",
   "forge-session-init",
@@ -88,7 +88,7 @@ function install() {
     settings.hooks = {};
   }
 
-  // Clean up legacy hooks (replaced by v6.0)
+  // Clean up legacy hooks (replaced by v7.0)
   for (const legacyId of LEGACY_HOOKS) {
     for (const event of Object.keys(settings.hooks || {})) {
       if (settings.hooks[event]) {
@@ -99,7 +99,7 @@ function install() {
             !(entry.command && entry.command.includes(legacyId))
         );
         if (before > settings.hooks[event].length) {
-          console.log(`  🔄 ${legacyId} — replaced by v6.0 hook`);
+          console.log(`  🔄 ${legacyId} — replaced by v7.0 hook`);
         }
       }
     }

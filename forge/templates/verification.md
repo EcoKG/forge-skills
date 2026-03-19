@@ -1,4 +1,4 @@
-# Verification Report Template (v6.0)
+# Verification Report Template (v7.0)
 
 Use this structure when writing verification.md.
 The verifier agent MUST follow this template exactly.

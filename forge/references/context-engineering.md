@@ -1,6 +1,6 @@
 # Context Engineering Reference
 
-> This file defines the rules for managing LLM context across the Forge v6.0 execution pipeline.
+> This file defines the rules for managing LLM context across the Forge v7.0 execution pipeline.
 > PM should load this file when context management decisions are needed, not at every step.
 
 ---
@@ -18,7 +18,7 @@ Symptoms of context rot:
 - Agent "forgets" the current objective and reverts to earlier patterns.
 - Repetitive output — the same code block or explanation appears multiple times.
 
-**Why Forge v6.0 is designed around this:**
+**Why Forge v7.0 is designed around this:**
 - PM (orchestrator) runs in a single long-lived context window.
 - Agents run in fresh 200k-token context windows per invocation.
 - If PM's context fills up, the entire execution degrades. Agents are immune because they start fresh.
