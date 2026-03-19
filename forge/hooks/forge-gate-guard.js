@@ -43,6 +43,7 @@ const CODE_EXTENSIONS = new Set([
   ".sh", ".bash", ".zsh",
   // Infrastructure
   ".tf", ".hcl", ".dockerfile",
+  ".ipynb",
 ]);
 
 const SKIP_PATHS = [".forge/", "node_modules/", ".git/", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "package.json", "tsconfig.json", "composer.json", "Cargo.lock", "go.sum"];
