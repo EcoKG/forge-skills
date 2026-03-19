@@ -10,44 +10,64 @@ Claude Code skills and hooks for autonomous development workflow.
 
 ```
 forge-skills/
-├── install.sh              # One-command installer (installs everything)
-├── forge/                  # Forge v6.0 — Context-Engineered Autonomous Dev System
-│   ├── SKILL.md            # Main skill definition + project layer
-│   ├── hooks/              # Workspace runtime hooks
-│   │   ├── forge-context-monitor.js   # Context pressure warnings
-│   │   ├── forge-statusline.js        # Project status in terminal
-│   │   ├── forge-session-init.js      # Auto-detect project on session start
-│   │   └── install.js                 # Hook auto-installer
+├── setup.sh               # One-line setup (clone + install)
+├── install.sh              # Full installer (installs everything)
+├── forge/                  # Forge v6.2 "Ironclad" — Context-Engineered Autonomous Dev System
+│   ├── SKILL.md            # Main skill definition (engine-driven pipeline)
+│   ├── hooks/              # Runtime hooks (v6.2)
+│   │   ├── forge-gate-guard.js      # PreToolUse: 8 gates (7 hard blocks + 1 warning)
+│   │   ├── forge-orchestrator.js    # UserPromptSubmit: pipeline state injection
+│   │   ├── forge-tracker.js         # PostToolUse: trace logging + build/test detection
+│   │   ├── forge-statusline.js      # Notification: IDE status display
+│   │   ├── forge-tools.js           # Engine CLI: pipeline lifecycle + agent dispatch
+│   │   ├── install.js               # Hook auto-installer
+│   │   └── activation/              # Skill auto-activation system
+│   │       ├── skill-activation.js  # Prompt analysis + skill suggestion
+│   │       ├── rules-matcher.js     # 3-layer scoring (keywords + intent + smart)
+│   │       ├── session-tracker.js   # Session dedup
+│   │       └── skill-rules.json     # 113 keywords + 35 intent patterns
 │   ├── references/         # PM execution manuals (loaded per-section)
-│   │   ├── execution-flow.md          # 10-step pipeline (Step 0-10)
-│   │   ├── project-lifecycle.md       # Project operations (init/phase/auto/milestone)
-│   │   ├── context-engineering.md     # Context rot prevention rules
-│   │   ├── wave-execution.md          # Parallel execution rules
-│   │   └── deviation-rules.md         # R1-R4 deviation handling
-│   ├── prompts/            # 10 agent role prompts
-│   │   ├── researcher.md       # Codebase exploration + domain investigation
-│   │   ├── planner.md          # must_haves + deep work task planning
-│   │   ├── plan-checker.md     # 8-dimension plan verification
-│   │   ├── implementer.md      # Code implementation + deviation rules
-│   │   ├── code-reviewer.md    # 10-perspective code review
-│   │   ├── qa-inspector.md     # Build/test/anti-pattern verification
-│   │   ├── verifier.md         # Goal-backward 3-level verification
-│   │   ├── doc-reviewer.md     # Documentation quality review
-│   │   ├── roadmapper.md       # Project roadmap generation
-│   │   └── integration-checker.md  # Cross-phase milestone verification
-│   ├── templates/          # Output templates
-│   │   ├── plan.md             # YAML frontmatter + XML deep work tasks
-│   │   ├── research.md         # Severity-tagged findings (H/M/L)
-│   │   ├── verification.md     # 3-level goal-backward results
-│   │   ├── summary.md          # Per-task execution summary
-│   │   ├── report.md           # Final report with traceability
-│   │   ├── output.md           # User-facing progress formats
-│   │   ├── project.json        # Project definition template
-│   │   ├── roadmap.md          # Roadmap structure template
-│   │   ├── state.md            # Session continuity template
-│   │   ├── context.md          # Phase decision capture template
-│   │   └── forge-claude-md.md  # Auto-generated CLAUDE.md snippet
-│   ├── checklists/         # Language-specific code review checklists
+│   │   ├── execution-flow.md        # 11-step pipeline (inc. architect_guide)
+│   │   ├── project-lifecycle.md     # Project operations (init/phase/auto/milestone)
+│   │   ├── context-engineering.md   # Context rot prevention rules
+│   │   ├── wave-execution.md        # Parallel execution rules
+│   │   ├── deviation-rules.md       # R1-R4 deviation handling
+│   │   ├── backpressure.md          # Build/test enforcement
+│   │   ├── model-routing.md         # Model selection per agent
+│   │   ├── ralph-mode.md            # Ralph iteration mode
+│   │   ├── debug-pipeline.md        # Scientific debug workflow
+│   │   ├── codebase-mapping.md      # --map mode
+│   │   ├── plugin-system.md         # Custom agent plugins
+│   │   ├── learning-system.md       # Pattern/failure memory
+│   │   └── questioning.md           # User interaction rules
+│   ├── prompts/            # 17 agent role prompts
+│   │   ├── researcher.md            # Parallel codebase exploration
+│   │   ├── planner.md               # must_haves + deep work task planning
+│   │   ├── plan-checker.md          # 9-dimension plan verification (D1-D9)
+│   │   ├── implementer.md           # Code implementation + deviation rules
+│   │   ├── code-reviewer.md         # 11-perspective code review
+│   │   ├── qa-inspector.md          # Build/test/anti-pattern verification
+│   │   ├── verification-pm.md       # Goal-backward 3-level verification (VPM)
+│   │   ├── verifier.md              # Legacy verifier (replaced by VPM)
+│   │   ├── architect.md             # Architecture design/analyze/ADR/guide (4 modes)
+│   │   ├── doc-reviewer.md          # Documentation quality review
+│   │   ├── roadmapper.md            # Project roadmap generation
+│   │   ├── integration-checker.md   # Cross-phase milestone verification
+│   │   ├── debugger.md              # Scientific debug agent
+│   │   ├── test-auditor.md          # Test coverage audit
+│   │   ├── test-strategist.md       # Test strategy design
+│   │   ├── ralph-executor.md        # Ralph iteration executor
+│   │   └── ui-reviewer.md           # UI/UX review for frontend files
+│   ├── templates/          # Output templates + pipeline definition
+│   │   ├── pipeline.json            # Pipeline definition (5 variants)
+│   │   ├── architecture.md          # Architect output template
+│   │   ├── plan.md                  # YAML frontmatter + XML deep work tasks
+│   │   ├── research.md              # Severity-tagged findings (H/M/L)
+│   │   ├── verification.md          # 3-level goal-backward results
+│   │   ├── summary.md               # Per-task execution summary
+│   │   ├── report.md                # Final report with traceability
+│   │   └── ...                      # + 14 more templates
+│   ├── checklists/         # Language-specific code review checklists (7)
 │   │   ├── general.md, javascript.md, python.md, go.md
 │   │   ├── java.md, rust.md, csharp-wpf.md
 │   └── resources/
@@ -56,131 +76,180 @@ forge-skills/
 ├── creatework/             # CreateWork skill — workspace bootstrapper
 │   └── SKILL.md
 │
-└── hooks/                  # Hook auto-activation system
+└── hooks/                  # Hook auto-activation system (TypeScript source)
     ├── src/                # TypeScript source
+    ├── dist/               # Compiled JS (fallback only)
     ├── tests/              # Test suite
-    ├── skill-rules.json    # Trigger rules
-    └── install.sh          # Hook-only installer
+    └── skill-rules.json    # Trigger rules (master copy)
 ```
 
-## Forge v6.0 — Overview
+## Forge v6.2 "Ironclad" — Overview
 
-Context-Engineered Autonomous Development System with project lifecycle management.
+Context-Engineered Autonomous Development System with engine-driven pipeline execution, architecture-guided planning, and 7-layer quality enforcement.
 
-### v3.1 New Features (GSD-inspired)
+### What's New in v6.2
 
 | Feature | Description |
 |---|---|
-| **Atomic Commits** | Per-task git commit with conventional format (`feat/fix/refactor/docs/chore`). Enables `git bisect` and individual task revert. |
-| **Crash Recovery** | `execution-lock.json` detects interrupted executions. Session-init warns on startup. |
-| **Execution Resume** | `--resume` flag continues from last completed task via `completed_tasks[]` tracking. |
-| **Stuck Detection** | 3-tier protocol: read loop (5 warn / 7 force), same-file 3x, error loop 3x → auto-escalation. |
-| **Context Recovery** | After context compression, PM recovers state from disk artifacts using per-step essentials table. |
-| **Decision Locking** | `[LOCKED]/[DEFERRED]/[DISCRETION]` statuses enforced in planner and implementer. |
-| **Token Tracking** | Dispatch-level recording with by_model/by_agent aggregation in metrics.json and report. |
-| **Deterministic CLI** | `forge-tools.js` functions: `detect-stack`, `git-state`, `create-lock`, `remove-lock`, `check-lock`, `metrics-record-dispatch`. |
+| **Architect Agent** | 4-mode agent (design/analyze/ADR/guide) for architecture-guided development |
+| **architect_guide Step** | Auto-analyzes codebase patterns before planning — ensures new code follows existing architecture |
+| **9D Plan Checker** | D9: Architecture Compliance — verifies plan follows identified design patterns |
+| **--trivial Pipeline** | 3-step ultra-light pipeline (init→execute→cleanup) for typo/rename fixes, max 3 lines |
+| **Gate Guard v2** | 8 gates with per-gate fail-closed isolation, Bash file-write detection, 50 file types, audit log |
+| **VPM Default** | verification-pm is now the default verifier in standard pipeline (replaces legacy verifier) |
+| **Staleness Check** | Stale pipelines (>24h) auto-skipped by gate guard |
 
 ### Two Modes
 
 | Mode | Command | What It Does |
 |---|---|---|
-| **Task Mode** | `/forge "add login feature"` | Single task: research → plan → execute → verify |
-| **Project Mode** | `/forge --init` then `/forge --phase N` | Multi-phase: roadmap → milestones → phases → verify |
+| **Task Mode** | `/forge "add login feature"` | Single task: research → architect guide → plan → execute → verify |
+| **Project Mode** | `/forge --init` then `/forge --phase N` | Multi-phase: roadmap → architecture → phases → milestones |
 
-### Task Mode Pipeline (10 Steps)
+### Standard Pipeline (11 Steps)
 
 ```
-Step 0: Project Router (if project flags detected)
-Step 1: INIT        → Parse request, detect type/scale/paradigm
-Step 2: RESEARCH    → Parallel codebase exploration (haiku×N → sonnet synthesis)
-Step 3: PLAN        → must_haves + deep work tasks with wave assignments
-Step 4: PLAN-CHECK  → 8-dimension verification (max 3 revision loops)
-Step 5: CHECKPOINT  → User approval gate
-Step 6: BRANCH      → Git feature branch
-Step 7: EXECUTE     → Wave-based parallel implementation with per-task review
-Step 8: VERIFY      → Goal-backward 3-level verification (Exists → Substantive → Wired)
-Step 9: FINALIZE    → Report generation, PR proposal
-Step 10: CLEANUP    → State update, agent cleanup
+Step 1:   INIT             → Parse request, detect type/scale/paradigm
+Step 2:   RESEARCH         → Parallel codebase exploration (haiku×N → sonnet synthesis)
+Step 2.5: ARCHITECT GUIDE  → Identify architecture pattern → generate design-guide.md
+Step 3:   PLAN             → must_haves + deep work tasks (reads design-guide.md)
+Step 4:   PLAN-CHECK       → 9-dimension verification (D1-D9, max 3 revision loops)
+Step 5:   CHECKPOINT       → User approval gate
+Step 6:   BRANCH           → Git feature branch
+Step 7:   EXECUTE          → Wave-based parallel implementation + review + QA + VPM
+Step 8:   VERIFY           → VPM goal-backward 3-level verification
+Step 9:   FINALIZE         → Report generation, PR proposal
+Step 10:  CLEANUP          → State update, agent cleanup
 ```
+
+### Pipeline Variants
+
+| Variant | Steps | Use Case |
+|---|---|---|
+| **standard** | All 11 steps | Feature development, refactoring, infra |
+| **trivial** | init → execute → cleanup (3) | Typo fix, variable rename, single import (max 3 lines) |
+| **quick** | init → plan → execute → verify → finalize (5) | Single-file changes, ≤50 LOC |
+| **debug** | reproduce → hypothesize → test → fix → verify (5) | Scientific bug debugging |
+| **ralph** | init → iterate until tests pass | Test-driven iteration |
 
 ### Project Mode Lifecycle
 
 ```
-/forge --init          Create project: define vision → generate roadmap → initialize state
+/forge --init              Create project: define vision → generate roadmap → design architecture
         │
-/forge --phase 1       Execute phase 1 through the 10-step pipeline
+/forge --phase 1           Execute phase 1 through the 11-step pipeline
         │
-/forge --phase 2       Execute phase 2 (depends on phase 1 completion)
+/forge --phase 2           Execute phase 2 (depends on phase 1 completion)
         │
-/forge --milestone     Verify cross-phase integration at milestone boundary
+/forge --milestone         Verify cross-phase integration at milestone boundary
         │
-/forge --autonomous    Auto-chain all remaining phases
+/forge --autonomous        Auto-chain all remaining phases
 ```
 
 ### Key Innovations
 
 | Feature | Description |
 |---|---|
+| **Engine-Driven** | Pipeline state in `pipeline-state.json`. Gate guard hard-blocks violations. PM follows engine instructions. |
+| **Architecture-Guided** | Architect agent identifies codebase patterns (DDD, Clean, Hexagonal, etc.) and guides planner to follow them. |
 | **Context Engineering** | PM uses ≤15% of context window. Agents get fresh context each. File-based communication prevents context rot. |
 | **Goal-Backward Verification** | Not "did tasks complete?" but "does the codebase deliver what was promised?" 3 levels: Exists → Substantive → Wired. |
 | **Deep Work Rules** | Every task MUST have `read_first`, `acceptance_criteria`, concrete `action`. No vague instructions. |
 | **must_haves** | Plan frontmatter defines verifiable success: `truths` (user behaviors), `artifacts` (files + exports), `key_links` (connections). |
 | **Wave-Based Execution** | Dependency-graph based parallel execution. Independent tasks run concurrently (max 3). |
 | **Deviation Rules R1-R4** | Auto-fix bugs (R1), add missing features (R2), resolve blockers (R3), STOP for architecture changes (R4). |
-| **8D Plan Checker** | Requirements coverage, task completeness, dependency correctness, key links, scope sanity, verification derivation, deep work compliance, test coverage. |
-| **Session Continuity** | `state.md` persists project state across sessions. New session auto-detects and restores context. |
+| **9D Plan Checker** | D1-D8 (requirements, completeness, dependencies, key links, scope, verification, deep work, tests) + D9 (architecture compliance). |
 
-### 10 Specialized Agents
+### 18 Specialized Agents (+ custom)
 
-| Agent | Role |
-|---|---|
-| **researcher** | Parallel codebase exploration + domain investigation |
-| **planner** | must_haves + deep work task plan generation |
-| **plan-checker** | 8-dimension plan quality gate |
-| **implementer** | Code implementation with deviation rules + self-check |
-| **code-reviewer** | 10-perspective review (bugs, security, SOLID, wiring, anti-patterns) |
-| **qa-inspector** | Build/test verification + caller impact + anti-pattern scan |
-| **verifier** | Goal-backward 3-level verification |
-| **doc-reviewer** | Documentation quality review |
-| **roadmapper** | Project roadmap generation from requirements |
-| **integration-checker** | Cross-phase integration verification at milestones |
+| # | Agent | Role |
+|---|---|---|
+| 1 | **researcher** | Parallel codebase exploration + domain investigation |
+| 2 | **planner** | must_haves + deep work task plan generation |
+| 3 | **plan-checker** | 9-dimension plan quality gate |
+| 4 | **implementer** | Code implementation with deviation rules + self-check |
+| 5 | **code-reviewer** | 11-perspective review (bugs, security, SOLID, wiring, anti-patterns) |
+| 6 | **qa-inspector** | Build/test verification + caller impact + anti-pattern scan |
+| 7 | **verification-pm** | VPM: goal-backward 3-level verification (wave boundary + final) |
+| 8 | **doc-reviewer** | Documentation quality review |
+| 9 | **architect** | Architecture design / analyze / ADR / guide (4 modes) |
+| 10 | **roadmapper** | Project roadmap generation from requirements |
+| 11 | **integration-checker** | Cross-phase integration verification at milestones |
+| 12 | **debugger** | Scientific debug (reproduce → hypothesize → test → fix) |
+| 13 | **test-auditor** | Test coverage audit after plan-check |
+| 14 | **test-strategist** | Test strategy design |
+| 15 | **ralph-executor** | Ralph mode iteration executor |
+| 16 | **ui-reviewer** | UI/UX review for frontend files |
+| 17 | **verifier** | Legacy verifier (replaced by VPM in standard pipeline) |
+| 18 | **custom:{name}** | Project-specific agents via `.forge/agents/{name}.md` |
 
 ### 8 Task Types
 
 | Type | Flow |
 |---|---|
-| `code` | Full pipeline with TDD |
+| `code` | Full pipeline with TDD + architecture guide |
 | `code-bug` | Lightweight: reproduce → diagnose → fix |
 | `code-refactor` | Behavior-preserving: baseline tests → refactor → regression |
 | `docs` | Research → write → doc-review (skip plan/QA/verify) |
 | `analysis` | Research → report only (no code changes) |
 | `analysis-security` | OWASP Top 10 audit with CWE IDs (opus model) |
 | `infra` | Dry-run → approve → execute with rollback plan |
-| `design` | ADR format with alternative comparison |
+| `design` | Architect agent: design / analyze / ADR |
 
-### Workspace Hooks
+### Gate Guard (8 Gates)
 
-Installed automatically by `/forge --init` or manually via `node forge/hooks/install.js`:
+| Gate | What It Blocks | How |
+|---|---|---|
+| **Gate 1** | plan.md Write without research.md | hard block |
+| **Gate 2** | Source code Edit/Write before execute step | hard block |
+| **Gate 2B** | Bash file-writing commands (echo/sed/cp/etc.) on code files | hard block |
+| **Gate 3** | git commit with failed build/test | hard block |
+| **Gate 4** | report.md Write without verification.md | hard block |
+| **Gate 5** | Large edits (>500 chars) or overwrites (>100 lines) | warning |
+| **Gate 5T** | Trivial pipeline: >3 lines per edit | hard block |
+| **Gate 6** | Secret/credential detection + .env file blocking | hard block (fail-closed) |
+
+**Features:** Per-gate try-catch isolation (fail-closed), 50 file type coverage, audit log (`.forge/gate-guard-audit.jsonl`), 24h staleness check for stale pipelines.
+
+### Workspace Hooks (v6.2)
 
 | Hook | Trigger | What It Does |
 |---|---|---|
-| `forge-context-monitor` | PostToolUse | Monitors context usage. WARNING at 35%, CRITICAL at 25% remaining. |
-| `forge-statusline` | Notification | Shows `⚒ project | Ph 2/5 ⏳ Auth | 35%` in terminal statusline. |
-| `forge-session-init` | UserPromptSubmit | Auto-detects `.forge/state.md` on session start, injects project context. |
+| `forge-gate-guard` | PreToolUse | 8 gates: pipeline enforcement + secret detection + audit log |
+| `forge-orchestrator` | UserPromptSubmit | Injects pipeline state + engine commands every turn |
+| `forge-tracker` | PostToolUse | Context pressure monitor + build/test detection + agent output validation |
+| `forge-statusline` | Notification | Shows project/phase/step status in terminal |
+| `skill-activation` | UserPromptSubmit | 3-layer prompt analysis (113 keywords + 35 intents + smart scoring) |
+
+### Quality System (7-Layer Defense)
+
+```
+L1:   Deep Work (Planning)       — 9D plan checker, read_first + acceptance_criteria
+L2:   Self-Check (Implementation) — 6-item checklist, stuck detection, decision lock
+L3:   Peer Review (Code Review)   — 11 perspectives, language checklists
+L3.5: Backpressure (Code)         — Build/test MUST pass before commit
+L4:   QA Gate (Wave Boundary)     — Build, test, caller impact, anti-patterns
+L4.5: VPM Cross-Check (Code)      — Independent verification at wave boundary + final
+L5:   Goal-Backward (Verification) — Exists → Substantive → Wired
+L6:   Auto-Ralph (Code)           — Auto-enter Ralph on verify failure
+L7:   Gate Guard (Code)           — 8 gates, per-gate fail-closed, audit log
+```
 
 ### Usage Examples
 
 **Task mode:**
 ```
 /forge "implement user authentication with JWT"
-/forge "refactor the payment module" --scale medium --paradigm oop
+/forge "refactor the payment module" --scale medium
 /forge "security audit on API endpoints" --type analysis-security
 /forge "fix the login crash on empty password" --type code-bug
+/forge --trivial "fix typo: cosnt → const in app.js"
+/forge --quick "add missing null check in UserService"
 ```
 
 **Project mode:**
 ```
-/forge --init                    # Create project with roadmap
+/forge --init                    # Create project with roadmap + architecture
 /forge --init --from prd.md     # Create from existing PRD document
 /forge --status                  # Show project progress dashboard
 /forge --phase 1                 # Execute phase 1
@@ -188,17 +257,6 @@ Installed automatically by `/forge --init` or manually via `node forge/hooks/ins
 /forge --phase 2                 # Execute phase 2
 /forge --milestone               # Verify milestone integration
 /forge --autonomous              # Auto-execute all remaining phases
-/forge --autonomous --from 3     # Auto-execute starting from phase 3
-```
-
-### Quality System (5-Layer Defense)
-
-```
-L1: Deep Work (Planning)       — 8D plan checker, read_first + acceptance_criteria
-L2: Self-Check (Implementation) — 6-item checklist, stuck detection protocol, decision lock compliance
-L3: Peer Review (Code Review)   — 10 perspectives, language checklists
-L4: QA Gate (Wave Boundary)     — Build, test, caller impact, anti-patterns
-L5: Goal-Backward (Verification) — Exists → Substantive → Wired
 ```
 
 ### Supported Languages (Checklists)
@@ -216,42 +274,19 @@ Creates a new workspace directory under `~/` and opens it in VSCode.
 /creatework my-project
 ```
 
-**Install:**
-```bash
-mkdir -p ~/.claude/skills/creatework
-cp creatework/SKILL.md ~/.claude/skills/creatework/
-```
-
 ## Hook Auto-Activation
 
 A `UserPromptSubmit` hook that analyzes every prompt and suggests relevant skills automatically.
 
-**How it works:**
-
-```
-User types prompt → Claude Code triggers UserPromptSubmit hook
-                              │
-                        stdin: JSON {session_id, prompt}
-                              │
-                    ┌─────────▼──────────┐
-                    │ RulesMatcher        │
-                    │  ├─ keyword match   │
-                    │  └─ intent regex    │
-                    └─────────┬──────────┘
-                              │
-                    ┌─────────▼──────────┐
-                    │ SessionTracker      │
-                    │  └─ filter repeats  │
-                    └─────────┬──────────┘
-                              │
-                        stdout → Claude context
-                        exit 0 (always)
-```
+**3-layer scoring:**
+1. **Keyword match** — 113 keywords (Korean + English) → +2 per match
+2. **Intent patterns** — 35 regex patterns → +3 per match
+3. **Smart scoring** — file extensions (+50), action verbs (+30), code identifiers (+20), negative signals (-40)
 
 **Design principles:**
 - **Zero-dependency** — only Node.js built-in APIs
 - **Fail-open** — all errors exit 0 with empty stdout (never blocks Claude)
-- **Fast** — TypeScript pre-compiled via `tsc`, no `npx tsx` cold start
+- **Fast** — pre-compiled JS, no cold start
 - **Session dedup** — same skill not suggested twice per session
 
 ## Installation
@@ -269,111 +304,39 @@ cd forge-skills
 bash install.sh
 ```
 
+Or one-liner:
+```bash
+curl -sL https://raw.githubusercontent.com/EcoKG/forge-skills/main/setup.sh | bash
+```
+
 The installer automatically:
 
 1. **Checks Node.js** — detects system Node.js or nvm
 2. **Installs skills** — copies `forge/` and `creatework/` to `~/.claude/skills/`
-3. **Builds hook** — compiles TypeScript to `hooks/dist/`
-4. **Deploys rules** — copies `skill-rules.json` to `~/.claude/skills/`
+3. **Deploys hooks** — gate-guard, orchestrator, tracker, statusline, skill-activation
+4. **Registers hooks** — adds all hooks to `~/.claude/settings.json`
 5. **Creates state dir** — `~/.claude/hooks/state/` for session tracking
-6. **Registers hooks** — adds forge workspace hooks + skill-activation to `~/.claude/settings.json`
 
 > The installer merges into your existing `settings.json` — it will not overwrite your current settings.
 
 ### Verify
 
 ```bash
-echo '{"session_id":"test","prompt":"기능 구현 해줘"}' | node hooks/dist/src/skill-activation.js
-```
-
-Expected output:
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  SKILL ACTIVATION
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  → forge [high] (keywords: 기능 구현; intents: 1)
-    Autonomous execution engine for complex development tasks
-
-IMPORTANT: This task requires the "forge" skill.
-You MUST invoke it using the Skill tool (skill: "forge") BEFORE doing any other work.
-Do not analyze, implement, or modify code directly — the skill handles the full workflow.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo '{"session_id":"test","prompt":"기능 구현 해줘"}' | node ~/.claude/skills/forge/hooks/activation/skill-activation.js
 ```
 
 ### Manual Install (Advanced)
 
-If you prefer not to use the installer:
-
-**1. Copy skills:**
 ```bash
+# 1. Copy skills
 cp -r forge ~/.claude/skills/forge
 cp -r creatework ~/.claude/skills/creatework
-```
 
-**2. Install forge workspace hooks:**
-```bash
+# 2. Install forge workspace hooks
 node ~/.claude/skills/forge/hooks/install.js
-```
 
-**3. Build activation hook:**
-```bash
-cd hooks && npm install && npx tsc
-```
-
-**4. Deploy rules + register activation hook:**
-```bash
-mkdir -p ~/.claude/skills ~/.claude/hooks/state
-cp hooks/skill-rules.json ~/.claude/skills/skill-rules.json
-```
-
-Add to `~/.claude/settings.json` under `hooks.UserPromptSubmit`:
-```json
-{
-  "type": "command",
-  "command": "/path/to/node /absolute/path/to/hooks/dist/src/skill-activation.js",
-  "timeout": 5
-}
-```
-
-## Customizing Trigger Rules
-
-Edit `hooks/skill-rules.json` to add your own skills:
-
-```json
-{
-  "skills": {
-    "my-skill": {
-      "type": "domain",
-      "enforcement": "suggest",
-      "priority": "medium",
-      "description": "What this skill does",
-      "promptTriggers": {
-        "keywords": ["keyword1", "keyword2"],
-        "intentPatterns": ["(create|build).*?(widget|component)"]
-      },
-      "skipConditions": { "sessionSkillUsed": true }
-    }
-  }
-}
-```
-
-| Field | Values | Description |
-|---|---|---|
-| `type` | `domain` / `guardrail` | Skill category |
-| `enforcement` | `suggest` / `block` / `warn` | Message strength |
-| `priority` | `critical` / `high` / `medium` / `low` | Ranking when multiple skills match |
-| `keywords` | string[] | Substring match (case-insensitive) |
-| `intentPatterns` | string[] | Regex patterns (case-insensitive) |
-
-## Running Tests
-
-```bash
-cd hooks
-npm install && npx tsc
-node --test dist/tests/matcher.test.js
-node --test dist/tests/session-tracker.test.js
-node --test dist/tests/skill-activation.test.js
+# 3. Copy skill rules
+cp forge/hooks/activation/skill-rules.json ~/.claude/skills/skill-rules.json
 ```
 
 ## Uninstall
@@ -399,109 +362,112 @@ Claude Code용 스킬과 훅을 제공하는 자율 개발 워크플로우 도�
 
 | 디렉토리 | 설명 |
 |---|---|
-| `forge/` | Forge v6.0 — 컨텍스트 엔지니어링 기반 자율 개발 시스템 |
+| `forge/` | Forge v6.2 "Ironclad" — 엔진 기반 자율 개발 시스템 |
 | `creatework/` | CreateWork — 워크스페이스 생성 + VSCode 실행 |
 | `hooks/` | Hook 자동 활성화 시스템 — 프롬프트 분석 후 관련 스킬 자동 제안 |
 
-### Forge v6.0
+### Forge v6.2
 
-개발 전체 라이프사이클을 자율 관리하는 실행 엔진입니다.
+엔진 기반 파이프라인으로 개발 전체 라이프사이클을 자율 관리하는 시스템입니다.
 
-**v3.1 신규:** Atomic Commits, Crash Recovery, --resume, Stuck Detection, Context Recovery, Decision Locking, Token Tracking, Deterministic CLI
+**v6.2 신규:** Architect Agent (4모드), architect_guide 단계, 9차원 Plan Checker, --trivial 파이프라인, Gate Guard v2 (8게이트), VPM 기본 활성화, 감사 로그
 
 #### 두 가지 모드
 
 | 모드 | 커맨드 | 설명 |
 |---|---|---|
-| **태스크 모드** | `/forge "로그인 기능 구현"` | 단일 작업: 리서치 → 계획 → 구현 → 검증 |
-| **프로젝트 모드** | `/forge --init` → `/forge --phase N` | 다단계: 로드맵 → 마일스톤 → 페이즈 → 검증 |
+| **태스크 모드** | `/forge "로그인 기능 구현"` | 단일 작업: 리서치 → 설계 가이드 → 계획 → 구현 → 검증 |
+| **프로젝트 모드** | `/forge --init` → `/forge --phase N` | 다단계: 로드맵 → 아키텍처 → 페이즈 → 검증 |
 
-#### 태스크 모드 (10스텝 파이프라인)
-
-```
-리서치 → 계획 → 계획검증(8차원) → 체크포인트 → 브랜치 → 실행(Wave병렬) → 검증(3단계) → 보고서
-```
-
-#### 프로젝트 모드 (수명주기 관리)
+#### 표준 파이프라인 (11단계)
 
 ```
-/forge --init              프로젝트 생성: 비전 정의 → 로드맵 생성 → 상태 초기화
-/forge --status            진행 상황 대시보드
-/forge --phase N           N번 페이즈 실행 (10스텝 파이프라인으로)
-/forge --discuss N         N번 페이즈 의사결정 캡처
-/forge --milestone         마일스톤 통합 검증
-/forge --autonomous        남은 페이즈 자동 연속 실행
+INIT → RESEARCH → ARCHITECT GUIDE → PLAN → PLAN-CHECK(9D) → CHECKPOINT
+  → BRANCH → EXECUTE(Wave병렬+VPM) → VERIFY(VPM) → FINALIZE → CLEANUP
 ```
+
+#### 파이프라인 변형
+
+| 변형 | 단계 | 용도 |
+|---|---|---|
+| **standard** | 11단계 전체 | 기능 개발, 리팩토링, 인프라 |
+| **trivial** | 3단계 (init→execute→cleanup) | 오타, 변수명 변경, import 1줄 (최대 3줄) |
+| **quick** | 5단계 | 단일 파일, 50줄 이하 변경 |
+| **debug** | 5단계 | 과학적 버그 디버깅 |
+| **ralph** | 반복 | 테스트 통과할 때까지 반복 |
 
 #### 핵심 혁신
 
 | 기능 | 설명 |
 |---|---|
-| **컨텍스트 엔지니어링** | PM은 컨텍스트 15% 이하만 사용. 에이전트는 매번 fresh context. 파일 기반 통신으로 context rot 방지. |
-| **Goal-Backward 검증** | "태스크 완료 여부"가 아닌 "코드가 약속한 것을 실제로 전달하는가" 검증. Exists → Substantive → Wired 3단계. |
-| **Deep Work** | 모든 태스크에 `read_first`, `acceptance_criteria`, 구체적 `action` 필수. 모호한 지시 금지. |
-| **must_haves** | 플랜에 검증 가능한 성공 기준 정의: `truths`(사용자 행동), `artifacts`(파일+exports), `key_links`(연결). |
+| **엔진 기반** | pipeline-state.json이 상태 관리. Gate guard가 위반 차단. PM은 엔진 지시를 따름. |
+| **아키텍처 가이드** | Architect 에이전트가 코드베이스 패턴 분석 (DDD, Clean Architecture 등) → 플래너가 설계를 따름 |
+| **컨텍스트 엔지니어링** | PM은 컨텍스트 15% 이하. 에이전트는 매번 fresh context. 파일 기반 통신으로 context rot 방지. |
+| **Goal-Backward 검증** | VPM이 "목표 달성 여부" 역추적 검증. Exists → Substantive → Wired 3단계. |
+| **Deep Work** | 모든 태스크에 `read_first`, `acceptance_criteria`, 구체적 `action` 필수. |
+| **9차원 Plan Checker** | D1-D8 + D9(아키텍처 적합성) — 설계 위반 플랜 차단 |
 | **Wave 병렬 실행** | 의존성 그래프 기반 병렬. 독립 태스크 동시 실행 (최대 3개). |
 | **Deviation Rules** | 버그 자동 수정(R1), 누락 기능 추가(R2), 차단 해결(R3), 아키텍처 변경은 중단(R4). |
-| **세션 연속성** | `state.md`가 세션 간 상태 유지. 새 세션에서 자동 감지 + 컨텍스트 복원. |
 
-#### 10개 전문 에이전트
+#### 18개 전문 에이전트 (+ 커스텀)
 
-| 에이전트 | 역할 |
-|---|---|
-| **researcher** | 코드베이스 탐색 + 도메인 조사 (병렬 haiku → sonnet 합성) |
-| **planner** | must_haves + deep work 태스크 플랜 생성 |
-| **plan-checker** | 8차원 플랜 품질 검증 |
-| **implementer** | 코드 구현 + deviation rules + self-check |
-| **code-reviewer** | 10관점 리뷰 (버그, 보안, SOLID, wiring, anti-pattern) |
-| **qa-inspector** | 빌드/테스트 + caller impact + anti-pattern 스캔 |
-| **verifier** | Goal-Backward 3단계 검증 |
-| **doc-reviewer** | 문서 품질 리뷰 |
-| **roadmapper** | 프로젝트 로드맵 생성 |
-| **integration-checker** | 크로스 페이즈 통합 검증 |
-
-#### 지원 타입
-
-`code`, `code-bug`, `code-refactor`, `docs`, `analysis`, `analysis-security`, `infra`, `design`
-
-#### 워크스페이스 훅
-
-`/forge --init` 시 자동 설치 또는 `node forge/hooks/install.js`로 수동 설치:
-
-| 훅 | 트리거 | 기능 |
+| # | 에이전트 | 역할 |
 |---|---|---|
-| `forge-context-monitor` | PostToolUse | 컨텍스트 사용량 모니터링. 35% 남으면 WARNING, 25% 남으면 CRITICAL. |
-| `forge-statusline` | Notification | 터미널에 프로젝트/페이즈 상태 표시 |
-| `forge-session-init` | UserPromptSubmit | 세션 시작 시 프로젝트 자동 감지 + 컨텍스트 복원 |
+| 1 | **researcher** | 코드베이스 탐색 + 도메인 조사 (병렬 haiku → sonnet 합성) |
+| 2 | **planner** | must_haves + deep work 태스크 플랜 생성 |
+| 3 | **plan-checker** | 9차원 플랜 품질 검증 |
+| 4 | **implementer** | 코드 구현 + deviation rules + self-check |
+| 5 | **code-reviewer** | 11관점 리뷰 (버그, 보안, SOLID, wiring, anti-pattern) |
+| 6 | **qa-inspector** | 빌드/테스트 + caller impact + anti-pattern 스캔 |
+| 7 | **verification-pm** | VPM: Goal-Backward 3단계 검증 (wave 경계 + 최종) |
+| 8 | **architect** | 아키텍처 설계 / 분석 / ADR / 가이드 (4모드) |
+| 9 | **doc-reviewer** | 문서 품질 리뷰 |
+| 10 | **roadmapper** | 프로젝트 로드맵 생성 |
+| 11 | **integration-checker** | 크로스 페이즈 통합 검증 |
+| 12 | **debugger** | 과학적 디버깅 (재현 → 가설 → 테스트 → 수정) |
+| 13-17 | test-auditor, test-strategist, ralph-executor, ui-reviewer, verifier | 전문 검증 에이전트 |
+| 18 | **custom:{name}** | `.forge/agents/{name}.md`로 프로젝트별 커스텀 |
+
+#### Gate Guard (8 게이트)
+
+| 게이트 | 차단 대상 | 동작 |
+|---|---|---|
+| Gate 1 | research.md 없이 plan.md 작성 | 차단 |
+| Gate 2 | execute 단계 전 코드 편집 | 차단 |
+| Gate 2B | Bash 파일 쓰기 명령 (echo/sed/cp 등) | 차단 |
+| Gate 3 | 빌드/테스트 실패 시 git commit | 차단 |
+| Gate 4 | verification.md 없이 report.md 작성 | 차단 |
+| Gate 5 | 대규모 편집 (500자+ 또는 100줄+) | 경고 |
+| Gate 5T | trivial 파이프라인에서 3줄 초과 편집 | 차단 |
+| Gate 6 | 시크릿/인증정보 감지 + .env 파일 차단 | 차단 (fail-closed) |
+
+50개 파일 확장자 보호, 게이트별 독립 fail-closed, 감사 로그 (`.forge/gate-guard-audit.jsonl`).
 
 #### 사용 예시
 
-**태스크 모드:**
 ```
 /forge "JWT 기반 사용자 인증 구현"
 /forge "결제 모듈 리팩토링" --scale medium
 /forge "API 보안 감사" --type analysis-security
-/forge "빈 비밀번호 로그인 크래시 수정" --type code-bug
-```
-
-**프로젝트 모드:**
-```
-/forge --init                    # 프로젝트 생성
-/forge --init --from prd.md     # 기존 PRD 문서로 프로젝트 생성
-/forge --status                  # 진행 상황 대시보드
+/forge --trivial "cosnt → const 오타 수정 in app.js"
+/forge --quick "UserService null check 추가"
+/forge --init                    # 프로젝트 생성 (로드맵 + 아키텍처)
 /forge --phase 1                 # 1번 페이즈 실행
 /forge --autonomous              # 남은 페이즈 자동 실행
-/forge --milestone               # 마일스톤 통합 검증
 ```
 
-#### 품질 시스템 (5단계 방어)
+#### 품질 시스템 (7단계 방어)
 
 ```
-L1: Deep Work (계획)     — 8차원 plan checker, read_first + acceptance_criteria
-L2: Self-Check (구현)    — 6항목 체크리스트, stuck detection protocol, decision lock 준수
-L3: Peer Review (리뷰)   — 10관점 리뷰, 언어별 체크리스트
-L4: QA Gate (Wave 경계)  — 빌드, 테스트, caller impact, anti-pattern
-L5: Goal-Backward (검증) — Exists → Substantive → Wired
+L1:   Deep Work (계획)        — 9차원 plan checker, read_first + acceptance_criteria
+L2:   Self-Check (구현)       — 6항목 체크리스트, stuck detection, decision lock
+L3:   Peer Review (리뷰)      — 11관점 리뷰, 언어별 체크리스트
+L3.5: Backpressure (코드)     — 빌드/테스트 통과 필수
+L4:   QA Gate (Wave 경계)     — 빌드, 테스트, caller impact, anti-pattern
+L4.5: VPM Cross-Check (코드)  — Wave 경계 + 최종 독립 검증
+L5:   Goal-Backward (검증)    — Exists → Substantive → Wired
+L6:   Auto-Ralph (코드)       — 검증 실패 시 자동 Ralph 모드
+L7:   Gate Guard (코드)       — 8 게이트, fail-closed, 감사 로그
 ```
 
 ### 설치
@@ -512,7 +478,10 @@ cd forge-skills
 bash install.sh
 ```
 
-자세한 설치 방법은 [영문 Installation 섹션](#installation)을 참고하세요.
+또는 원라인:
+```bash
+curl -sL https://raw.githubusercontent.com/EcoKG/forge-skills/main/setup.sh | bash
+```
 
 ### 삭제
 
