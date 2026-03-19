@@ -189,7 +189,7 @@ function main() {
     if (toolName === "Write") {
       const filePath = toolInput.file_path || "";
       const basename = path.basename(filePath);
-      if (basename === "plan.md" && filePath.includes(".forge/")) {
+      if (basename === "plan.md" && (filePath.includes(".forge/") || (artifactDir && filePath.startsWith(artifactDir)))) {
         if (!artifactExists(artifactDir, "research.md")) {
           // Check if research is skipped via pipeline flags
           const skipped = state.skipped_steps || [];
@@ -318,7 +318,7 @@ function main() {
     if (toolName === "Write") {
       const filePath = toolInput.file_path || "";
       const basename = path.basename(filePath);
-      if (basename === "report.md" && filePath.includes(".forge/")) {
+      if (basename === "report.md" && (filePath.includes(".forge/") || (artifactDir && filePath.startsWith(artifactDir)))) {
         if (!artifactExists(artifactDir, "verification.md")) {
           const skipped = state.skipped_steps || [];
           if (!skipped.includes("verify")) {
@@ -369,6 +369,27 @@ function main() {
     }
   } catch (err) {
     // Gate 5 is warning-only, fail-open
+  }
+
+  // === GATE 5T: Trivial pipeline line limit ===
+  try {
+    if (state && state.pipeline === "trivial" && toolName === "Edit") {
+      const oldStr = toolInput.old_string || "";
+      const newStr = toolInput.new_string || "";
+      const maxLines = Math.max(oldStr.split("\n").length, newStr.split("\n").length);
+      if (maxLines > 3) {
+        process.stdout.write(
+          `🚫 GATE 5T BLOCKED: Trivial pipeline allows max 3 lines per edit (got ${maxLines}).\n` +
+          "For larger changes, use:\n" +
+          "  /forge --quick    (단일 파일, ≤50줄)\n" +
+          "  /forge            (표준 파이프라인)"
+        );
+        process.exit(1);
+      }
+    }
+  } catch (err) {
+    process.stderr.write("forge-gate-guard: Gate 5T error: " + err.message + "\n");
+    process.exit(1);
   }
 
   // === GATE 6: Secret/credential detection — ISOLATED (fail-closed) ===

@@ -240,6 +240,20 @@
         "verify": {"agent_role": "verification-pm", "agent_prompt": "prompts/verification-pm.md"}
       }
     },
+    "trivial": {
+      "inherits": "standard",
+      "only_steps": ["init", "execute", "cleanup"],
+      "overrides": {
+        "execute": {
+          "entry_gate": null,
+          "revision_limits": {"code_minor": 1, "code_major": 0},
+          "backpressure": {"build": false, "test": false, "lint": false}
+        },
+        "cleanup": {
+          "entry_gate": null
+        }
+      }
+    },
     "debug": {
       "steps": [
         {

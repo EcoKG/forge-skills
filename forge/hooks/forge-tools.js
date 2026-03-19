@@ -493,7 +493,7 @@ function engineInit(artifactDir, request, type, scale, options) {
   const pipeline = loadPipeline();
   if (pipeline.error) return pipeline;
 
-  const pipelineName = options?.quick ? "quick" : options?.debug ? "debug" : options?.ralph ? "ralph" : "standard";
+  const pipelineName = options?.trivial ? "trivial" : options?.quick ? "quick" : options?.debug ? "debug" : options?.ralph ? "ralph" : "standard";
   const pipelineDef = pipeline.pipelines[pipelineName] || pipeline.pipelines.standard;
 
   // Determine which steps to skip based on type
