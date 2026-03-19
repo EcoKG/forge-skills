@@ -737,6 +737,15 @@ function engineTransition(artifactDir, targetStep) {
     state.allowed_transitions.push(actualStepDef.next);
   }
 
+  // Auto-complete: if cleanup step has no next, mark pipeline as completed
+  if (actualTarget === "cleanup" && !actualStepDef?.next) {
+    state.current_step = "completed";
+    if (actualStepDef?.exit_gate?.state_value) {
+      state.gates_passed.push(actualStepDef.exit_gate.state_value);
+    }
+    state.gates_pending = [];
+  }
+
   writePipelineState(artifactDir, state);
 
   return {
