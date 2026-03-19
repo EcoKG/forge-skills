@@ -19,7 +19,51 @@ const path = require("path");
 
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
 const FORGE_TOOLS_PATH = path.join(__dirname, "forge-tools.js");
+const HOOKS_DIR = __dirname;
 try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
+
+// Session-first-prompt detection + hooks health check
+function getSessionHealthCheck(sessionId) {
+  const flagPath = path.join(STATE_DIR, `forge-session-hello-${sessionId || "default"}.json`);
+  try {
+    if (fs.existsSync(flagPath)) return null; // Not first prompt
+  } catch {}
+
+  // First prompt in session — run health check
+  try { fs.writeFileSync(flagPath, JSON.stringify({ at: new Date().toISOString() })); } catch {}
+
+  const required = ["forge-gate-guard.js", "forge-tools.js", "forge-tracker.js", "forge-orchestrator.js"];
+  const missing = required.filter(f => !fs.existsSync(path.join(HOOKS_DIR, f)));
+
+  const lines = [
+    "",
+    "╔══════════════════════════════════════════╗",
+    "║  ⚒ Forge v6.2 \"Ironclad\"                ║",
+    "║  Engine-driven autonomous development    ║",
+    "╠══════════════════════════════════════════╣",
+  ];
+
+  if (missing.length === 0) {
+    lines.push("║  Hooks: ✅ All 4 core hooks active       ║");
+  } else {
+    lines.push(`║  Hooks: ❌ Missing: ${missing.join(", ").padEnd(20)}║`);
+  }
+
+  // Check gate-guard gates
+  try {
+    const gg = fs.readFileSync(path.join(HOOKS_DIR, "forge-gate-guard.js"), "utf8");
+    const gateCount = (gg.match(/=== GATE/g) || []).length;
+    lines.push(`║  Gates: ${gateCount} active (9 = nominal)        ║`);
+  } catch {
+    lines.push("║  Gates: ❌ Cannot read gate-guard         ║");
+  }
+
+  lines.push("║  Pipeline: standard | quick | trivial    ║");
+  lines.push("╚══════════════════════════════════════════╝");
+  lines.push("");
+
+  return lines.join("\n");
+}
 
 function readJsonSafe(filePath) {
   try { return JSON.parse(fs.readFileSync(filePath, "utf8")); } catch { return null; }
@@ -149,9 +193,19 @@ function main() {
     const cwd = input.cwd || process.cwd();
     const forgeDir = path.join(cwd, ".forge");
 
-    if (!fs.existsSync(forgeDir)) { process.exit(0); return; }
-
     let output = "";
+
+    // Session health check (first prompt only)
+    const healthCheck = getSessionHealthCheck(input.session_id);
+    if (healthCheck) {
+      output += healthCheck;
+    }
+
+    if (!fs.existsSync(forgeDir)) {
+      if (output) process.stdout.write(output);
+      process.exit(0);
+      return;
+    }
 
     // 1. Check for active pipeline
     const activePipeline = findActivePipeline(forgeDir);
