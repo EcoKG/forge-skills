@@ -32,9 +32,10 @@ const CODE_EXTENSIONS = new Set([
   ".c", ".cpp", ".h", ".hpp", ".cs", ".rb", ".php", ".swift",
   ".kt", ".scala", ".vue", ".svelte", ".ex", ".exs",
   ".lua", ".r", ".pl", ".groovy", ".gradle",
-  // Web/Markup
+  // Web/Markup + Server Pages
   ".html", ".css", ".scss", ".sass", ".less",
   ".ejs", ".pug", ".hbs", ".njk",
+  ".jsp", ".jspx", ".asp", ".aspx", ".erb", ".twig", ".blade.php",
   // Data/Config (code-like)
   ".sql", ".graphql", ".proto",
   ".yaml", ".yml", ".toml", ".json", ".xml",
