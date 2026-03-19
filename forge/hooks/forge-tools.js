@@ -856,7 +856,7 @@ function engineRecordResult(artifactDir, role, taskId, verdict) {
       // Check if the most recent commit message contains the task_id
       let lastCommitMsg = "";
       try {
-        lastCommitMsg = execSync("git log -1 --format=%s", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
+        lastCommitMsg = execSync("git log -1 --format=%B", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
       } catch {}
 
       if (!lastCommitMsg.includes(taskId)) {

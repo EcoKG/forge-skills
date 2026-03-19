@@ -283,7 +283,9 @@ function main() {
     if (output) {
       process.stdout.write(output);
     }
-  } catch {}
+  } catch (err) {
+    process.stderr.write("forge-orchestrator: " + (err.message || String(err)) + "\n");
+  }
   process.exit(0);
 }
 

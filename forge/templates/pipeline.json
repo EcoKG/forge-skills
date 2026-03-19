@@ -97,8 +97,7 @@
             "required_artifacts": ["plan.md"]
           },
           "exit_gate": {
-            "state_value": "plan_checked",
-            "verdict_required": "PASS"
+            "state_value": "plan_checked"
           },
           "revision_loop": {
             "target_step": "plan",
@@ -112,7 +111,6 @@
           "order": 6,
           "required": true,
           "actor": "pm",
-          "auto_proceed_when": ["scale == small"],
           "entry_gate": {
             "required_state": "plan_checked"
           },
@@ -159,8 +157,7 @@
             "build": true,
             "test": true,
             "lint": false,
-            "max_retries": 6,
-            "strategy_change_after": 3
+            "max_retries": 6
           },
           "entry_gate": {
             "required_state": "approved",
@@ -192,12 +189,10 @@
           },
           "exit_gate": {
             "artifacts": ["verification.md"],
-            "verdict_required": "VERIFIED",
             "state_value": "verified"
           },
           "gap_fix": {
-            "max_cycles": 2,
-            "on_exhausted": "auto_ralph"
+            "max_cycles": 2
           },
           "next": "finalize"
         },
@@ -315,7 +310,7 @@
     "ralph": {
       "steps": [
         {"id": "init", "order": 1, "actor": "pm", "exit_gate": {"state_value": "init_done"}, "next": "iterate"},
-        {"id": "iterate", "order": 2, "actor": "agent", "agent_role": "ralph-executor", "agent_prompt": "prompts/ralph-executor.md", "model_key": "implementation", "loop": true, "max_iterations": 10, "entry_gate": {"required_state": "init_done"}, "exit_gate": {"state_value": "completed"}}
+        {"id": "iterate", "order": 2, "actor": "agent", "agent_role": "ralph-executor", "agent_prompt": "prompts/ralph-executor.md", "model_key": "implementation", "max_iterations": 10, "entry_gate": {"required_state": "init_done"}, "exit_gate": {"state_value": "completed"}}
       ]
     }
   },
