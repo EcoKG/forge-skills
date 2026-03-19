@@ -54,7 +54,7 @@ const FORGE_HOOKS = [
     script: path.join(HOOKS_DIR, "forge-gate-guard.js"),
     matcher: "",
     timeout: 10,
-    description: "Forge v6.2: 8 gates — 7 hard blocks + 1 warning (catch-all matcher)",
+    description: "Forge v6.2: 9 gates — 8 hard blocks + 1 warning (catch-all matcher)",
   },
 ];
 

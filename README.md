@@ -15,7 +15,7 @@ forge-skills/
 ├── forge/                  # Forge v6.2 "Ironclad" — Context-Engineered Autonomous Dev System
 │   ├── SKILL.md            # Main skill definition (engine-driven pipeline)
 │   ├── hooks/              # Runtime hooks (v6.2)
-│   │   ├── forge-gate-guard.js      # PreToolUse: 8 gates (7 hard blocks + 1 warning)
+│   │   ├── forge-gate-guard.js      # PreToolUse: 9 gates (8 hard blocks + 1 warning)
 │   │   ├── forge-orchestrator.js    # UserPromptSubmit: pipeline state injection
 │   │   ├── forge-tracker.js         # PostToolUse: trace logging + build/test detection
 │   │   ├── forge-statusline.js      # Notification: IDE status display
@@ -95,7 +95,9 @@ Context-Engineered Autonomous Development System with engine-driven pipeline exe
 | **architect_guide Step** | Auto-analyzes codebase patterns before planning — ensures new code follows existing architecture |
 | **9D Plan Checker** | D9: Architecture Compliance — verifies plan follows identified design patterns |
 | **--trivial Pipeline** | 3-step ultra-light pipeline (init→execute→cleanup) for typo/rename fixes, max 3 lines |
-| **Gate Guard v2** | 8 gates with per-gate fail-closed isolation, Bash file-write detection, 50 file types, audit log |
+| **Gate Guard v2** | 9 gates with per-gate fail-closed isolation, Bash file-write detection, 57 file types, audit log |
+| **Gate 7 (VPM Push Gate)** | Blocks git push / gh pr create without VPM verification — exit(2) hard block |
+| **Unified Smart Scoring** | Keywords as weighted inputs (+15), single threshold (40), negative signals always apply |
 | **VPM Default** | verification-pm is now the default verifier in standard pipeline (replaces legacy verifier) |
 | **Staleness Check** | Stale pipelines (>24h) auto-skipped by gate guard |
 
@@ -196,7 +198,7 @@ Step 10:  CLEANUP          → State update, agent cleanup
 | `infra` | Dry-run → approve → execute with rollback plan |
 | `design` | Architect agent: design / analyze / ADR |
 
-### Gate Guard (8 Gates)
+### Gate Guard (9 Gates)
 
 | Gate | What It Blocks | How |
 |---|---|---|
@@ -204,18 +206,19 @@ Step 10:  CLEANUP          → State update, agent cleanup
 | **Gate 2** | Source code Edit/Write before execute step | hard block |
 | **Gate 2B** | Bash file-writing commands (echo/sed/cp/etc.) on code files | hard block |
 | **Gate 3** | git commit with failed build/test | hard block |
+| **Gate 7** | git push / gh pr create without VPM verification | hard block (exit 2) |
 | **Gate 4** | report.md Write without verification.md | hard block |
 | **Gate 5** | Large edits (>500 chars) or overwrites (>100 lines) | warning |
 | **Gate 5T** | Trivial pipeline: >3 lines per edit | hard block |
 | **Gate 6** | Secret/credential detection + .env file blocking | hard block (fail-closed) |
 
-**Features:** Per-gate try-catch isolation (fail-closed), 50 file type coverage, audit log (`.forge/gate-guard-audit.jsonl`), 24h staleness check for stale pipelines.
+**Features:** Per-gate try-catch isolation (fail-closed), 57 file type coverage, audit log (`.forge/gate-guard-audit.jsonl`), 24h staleness check, unified smart scoring (140 keywords + threshold 40).
 
 ### Workspace Hooks (v6.2)
 
 | Hook | Trigger | What It Does |
 |---|---|---|
-| `forge-gate-guard` | PreToolUse | 8 gates: pipeline enforcement + secret detection + audit log |
+| `forge-gate-guard` | PreToolUse | 9 gates: pipeline enforcement + secret detection + audit log |
 | `forge-orchestrator` | UserPromptSubmit | Injects pipeline state + engine commands every turn |
 | `forge-tracker` | PostToolUse | Context pressure monitor + build/test detection + agent output validation |
 | `forge-statusline` | Notification | Shows project/phase/step status in terminal |
@@ -232,7 +235,7 @@ L4:   QA Gate (Wave Boundary)     — Build, test, caller impact, anti-patterns
 L4.5: VPM Cross-Check (Code)      — Independent verification at wave boundary + final
 L5:   Goal-Backward (Verification) — Exists → Substantive → Wired
 L6:   Auto-Ralph (Code)           — Auto-enter Ralph on verify failure
-L7:   Gate Guard (Code)           — 8 gates, per-gate fail-closed, audit log
+L7:   Gate Guard (Code)           — 9 gates, per-gate fail-closed, audit log
 ```
 
 ### Usage Examples
@@ -370,7 +373,7 @@ Claude Code용 스킬과 훅을 제공하는 자율 개발 워크플로우 도�
 
 엔진 기반 파이프라인으로 개발 전체 라이프사이클을 자율 관리하는 시스템입니다.
 
-**v6.2 신규:** Architect Agent (4모드), architect_guide 단계, 9차원 Plan Checker, --trivial 파이프라인, Gate Guard v2 (8게이트), VPM 기본 활성화, 감사 로그
+**v6.2 신규:** Architect Agent (4모드), architect_guide 단계, 9차원 Plan Checker, --trivial 파이프라인, Gate Guard v2 (9게이트 + Gate 7 VPM push 차단), Unified Smart Scoring, VPM 기본 활성화, 감사 로그
 
 #### 두 가지 모드
 
@@ -428,7 +431,7 @@ INIT → RESEARCH → ARCHITECT GUIDE → PLAN → PLAN-CHECK(9D) → CHECKPOINT
 | 13-17 | test-auditor, test-strategist, ralph-executor, ui-reviewer, verifier | 전문 검증 에이전트 |
 | 18 | **custom:{name}** | `.forge/agents/{name}.md`로 프로젝트별 커스텀 |
 
-#### Gate Guard (8 게이트)
+#### Gate Guard (9 게이트)
 
 | 게이트 | 차단 대상 | 동작 |
 |---|---|---|
@@ -436,6 +439,7 @@ INIT → RESEARCH → ARCHITECT GUIDE → PLAN → PLAN-CHECK(9D) → CHECKPOINT
 | Gate 2 | execute 단계 전 코드 편집 | 차단 |
 | Gate 2B | Bash 파일 쓰기 명령 (echo/sed/cp 등) | 차단 |
 | Gate 3 | 빌드/테스트 실패 시 git commit | 차단 |
+| Gate 7 | VPM 검증 없이 git push / gh pr create | 차단 (exit 2) |
 | Gate 4 | verification.md 없이 report.md 작성 | 차단 |
 | Gate 5 | 대규모 편집 (500자+ 또는 100줄+) | 경고 |
 | Gate 5T | trivial 파이프라인에서 3줄 초과 편집 | 차단 |
@@ -467,7 +471,7 @@ L4:   QA Gate (Wave 경계)     — 빌드, 테스트, caller impact, anti-patte
 L4.5: VPM Cross-Check (코드)  — Wave 경계 + 최종 독립 검증
 L5:   Goal-Backward (검증)    — Exists → Substantive → Wired
 L6:   Auto-Ralph (코드)       — 검증 실패 시 자동 Ralph 모드
-L7:   Gate Guard (코드)       — 8 게이트, fail-closed, 감사 로그
+L7:   Gate Guard (코드)       — 9 게이트, fail-closed, 감사 로그
 ```
 
 ### 설치
