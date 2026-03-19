@@ -1,0 +1,15 @@
+{
+  "init":            "⚒ Forge v6.2 | INIT | type: {type} | scale: {scale}",
+  "research":        "⚒ Forge v6.2 | RESEARCH | 코드베이스 분석 중...",
+  "architect_guide": "⚒ Forge v6.2 | ARCHITECT GUIDE | 설계 패턴 분석 중...",
+  "plan":            "⚒ Forge v6.2 | PLAN | 실행 계획 수립 중...",
+  "plan_check":      "⚒ Forge v6.2 | PLAN CHECK (9D) | 플랜 검증 중...",
+  "checkpoint":      "⚒ Forge v6.2 | CHECKPOINT | 사용자 승인 대기",
+  "branch":          "⚒ Forge v6.2 | BRANCH | Git 브랜치 생성",
+  "execute":         "⚒ Forge v6.2 | EXECUTE | Wave {wave}/{wave_total} | Tasks: {tasks_done} done",
+  "verify":          "⚒ Forge v6.2 | VERIFY (VPM) | Goal-Backward 3-Level 검증 중...",
+  "finalize":        "⚒ Forge v6.2 | FINALIZE | 보고서 생성 중...",
+  "cleanup":         "⚒ Forge v6.2 | CLEANUP | 정리 중...",
+  "completed":       "⚒ Forge v6.2 | ✅ COMPLETE",
+  "session_start":   "⚒ Forge v6.2 \"Ironclad\" | {hooks} hooks | {gates} gates | Ready"
+}

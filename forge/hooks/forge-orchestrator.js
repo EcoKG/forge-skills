@@ -20,7 +20,24 @@ const path = require("path");
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
 const FORGE_TOOLS_PATH = path.join(__dirname, "forge-tools.js");
 const HOOKS_DIR = __dirname;
+const BANNERS_PATH = path.join(__dirname, "..", "templates", "banners.json");
 try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
+
+// Load step banners from template
+function getStepBanner(step, state) {
+  try {
+    const banners = JSON.parse(fs.readFileSync(BANNERS_PATH, "utf8"));
+    let banner = banners[step] || banners["init"];
+    if (!banner) return null;
+    // Replace placeholders
+    banner = banner.replace("{type}", state?.type || "auto");
+    banner = banner.replace("{scale}", state?.scale || "auto");
+    banner = banner.replace("{wave}", state?.wave_current || 0);
+    banner = banner.replace("{wave_total}", state?.wave_total || 0);
+    banner = banner.replace("{tasks_done}", (state?.tasks_completed || []).length);
+    return banner;
+  } catch { return null; }
+}
 
 // Session-first-prompt detection + hooks health check
 function getSessionHealthCheck(sessionId) {
@@ -140,15 +157,21 @@ function readProjectState(forgeDir) {
   return info.project ? info : null;
 }
 
-// Format pipeline state injection
+// Format pipeline state injection with step banner
 function formatPipelineContext(state) {
+  const banner = getStepBanner(state.current_step, state);
   const lines = [
     "",
+  ];
+  if (banner) {
+    lines.push(banner);
+  }
+  lines.push(
     "━━━ FORGE PIPELINE STATE ━━━━━━━━━━━━━━━",
     `Step: ${state.current_step_order}. ${state.current_step.toUpperCase()} | Pipeline: ${state.pipeline}`,
     `Gates passed: ${state.gates_passed.join(", ") || "none"}`,
     `Gates pending: ${state.gates_pending.join(", ") || "none"}`,
-  ];
+  );
 
   if (state.allowed_transitions.length > 0) {
     lines.push(`Next allowed: ${state.allowed_transitions.join(", ")}`);
@@ -192,6 +215,16 @@ function main() {
     const input = JSON.parse(raw);
     const cwd = input.cwd || process.cwd();
     const forgeDir = path.join(cwd, ".forge");
+
+    // /clear resets conversation context — delete session flag so the next
+    // real prompt is treated as the first prompt and gets the banner.
+    const prompt = (input.prompt || "").trim();
+    if (/^\/?(clear|compact)$/i.test(prompt)) {
+      const flagPath = path.join(STATE_DIR, `forge-session-hello-${input.session_id || "default"}.json`);
+      try { fs.unlinkSync(flagPath); } catch {}
+      process.exit(0);
+      return;
+    }
 
     let output = "";
 
