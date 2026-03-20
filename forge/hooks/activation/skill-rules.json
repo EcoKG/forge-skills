@@ -6,7 +6,7 @@
       "type": "domain",
       "enforcement": "block",
       "blockWhen": {
-        "minScore": 65,
+        "minScore": 80,
         "requiresPositiveSignal": true
       },
       "priority": "high",
@@ -156,6 +156,11 @@
       "unifiedScoring": {
         "enabled": true,
         "threshold": 40,
+        "graduatedThresholds": {
+          "block": 80,
+          "ask": 50,
+          "pass": 0
+        },
         "weights": {
           "keyword": 15,
           "intent": 20,
