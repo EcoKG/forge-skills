@@ -14,9 +14,11 @@ Thumbs.db
 
 # Forge artifacts (session-specific)
 .claude/artifacts/
+.forge/
 
 # Forge workspace (old sub-skills backup)
 forge-skill-workspace/
+forge-improvement-workspace/
 
 # Session state
 .claude/hooks/
