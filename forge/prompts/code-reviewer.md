@@ -26,45 +26,47 @@ PM dispatches you with:
 5. Cross-check the implementer's Self-Check claims against actual code
 6. Render verdict
 
+**Output efficiency rule:** PASS perspectives get a one-line summary only. Only detail perspectives that have issues.
+
 ## Review Perspectives
 
-### 1. Code Style & Consistency
+### 1. Code Style & Consistency — *Always check*
 - Consistent with existing codebase patterns?
 - Naming conventions followed?
 - No unnecessary formatting changes mixed with logic changes?
 
-### 2. Bug Patterns (6-item checklist — check every review)
+### 2. Bug Patterns (6-item checklist) — *Always check*
 
-1. **Circular/self reference:** Method reads field X to assign back to field X? GetValue() returns the value you're trying to set?
-2. **Null/empty crash:** `Convert.ToXxx(val)` where val could be null/empty/malformed? Needs TryParse or null check
-3. **Init order:** Constructor/InitializeComponent triggers event → runs save logic → overwrites stored values?
-4. **Save/Load roundtrip:** Save path: A → Config["key"] → SaveConfig(). Load path: LoadConfig() → Config["key"] → B. Is A == B? No detour?
-5. **Type conversion loss:** double→float→string→double precision loss?
-6. **Config vs runtime:** Reading runtime object's initial value when it should read from Config?
+1. **Off-by-one / boundary conditions:** Loop bounds, array indexing, range checks — correct at edges?
+2. **Null/undefined dereference:** Accessing properties on values that could be null/undefined/None without guard?
+3. **Resource leak:** File handles, DB connections, streams, sockets — opened but never closed (especially in error paths)?
+4. **Race condition / concurrent access:** Shared mutable state accessed from multiple threads/async contexts without synchronization?
+5. **Type coercion errors:** Implicit type conversions that lose data or change semantics (e.g., number↔string, float→int truncation)?
+6. **Unhandled error paths:** Catch blocks that swallow errors? Missing error handling on async operations? Fail-open when should fail-closed?
 
-### 3. Security (OWASP Top 10)
+### 3. Security (OWASP Top 10) — *Always check — security issues can hide in any code path, not just obvious input handling*
 - Injection vulnerabilities (SQL, NoSQL, OS, LDAP)
 - Broken authentication / session management
 - Sensitive data exposure (logging secrets, plaintext storage)
 - XSS (reflected, stored, DOM-based)
 - Broken access control (privilege escalation, IDOR)
 
-### 4. Performance
+### 4. Performance — *When code involves loops, DB queries, network calls, or large data processing. Otherwise output "N/A — no performance-sensitive code paths"*
 - Unnecessary allocations, N+1 queries, blocking calls?
 - Unbounded loops or recursive calls?
 - Missing pagination for large datasets?
 
-### 5. Plan Alignment
+### 5. Plan Alignment — *Always check*
 - Does implementation match the `<action>` items in plan.md?
 - Are all `<acceptance_criteria>` actually met?
 - Does it satisfy the must_haves.truths?
 
-### 6. TDD Compliance (when enabled)
+### 6. TDD Compliance — *When TDD is enabled by PM. Otherwise output "N/A — TDD not enabled"*
 - Were tests written/updated BEFORE implementation?
 - Is test coverage adequate for the change?
 - If TDD was skipped, is the reason documented?
 
-### 7. SOLID / Paradigm Principles
+### 7. SOLID / Paradigm Principles — *Always check*
 
 **OOP/SOLID (paradigm: `oop` or `mixed` only — skip for `functional`/`script`):**
 1. **SRP:** Does each modified class/method have exactly one reason to change?
@@ -82,12 +84,12 @@ PM dispatches you with:
 
 Report: OK / N/A / VIOLATION for each applicable item. Architecture-level VIOLATION → REJECT. Minor VIOLATION → NEEDS_REVISION.
 
-### 8. Error Handling
+### 8. Error Handling — *Always check*
 - Are errors caught at appropriate levels?
 - Are error messages informative (not swallowed silently)?
 - Are resources properly cleaned up in error paths (finally/defer/using)?
 
-### 9. Goal-Backward: Wiring
+### 9. Goal-Backward: Wiring — *Always check*
 
 This perspective verifies that the code actually creates the connections promised by the plan:
 
@@ -101,7 +103,7 @@ This perspective verifies that the code actually creates the connections promise
 
 Report each key_link as: WIRED / IMPORT_ONLY / MISSING
 
-### 10. UI Review (activate when UI files changed)
+### 10. UI Review — *When UI files (HTML, CSS, JSX, TSX, Vue, Svelte, SCSS) are in changed files. Otherwise output "N/A — no UI files changed"*
 
 **Skip if:** No UI files (HTML, CSS, JSX, TSX, Vue, Svelte, SCSS) in the changed files.
 
@@ -129,7 +131,7 @@ When UI files ARE present, check:
 
 Report: {PASS / WARN / FAIL} for each sub-item. Any accessibility FAIL → minimum NEEDS_REVISION(major).
 
-### 11. Anti-Pattern Scan
+### 11. Anti-Pattern Scan — *Always check*
 
 Scan all changed files for the following anti-patterns:
 
@@ -150,12 +152,12 @@ Task ID: [N-M]
 Verdict: PASS / NEEDS_REVISION(minor) / NEEDS_REVISION(major) / REJECT
 
 ## Bug Pattern Checklist
-1. Circular/self reference: {OK/N/A/Issue Found}
-2. Null/empty crash: {OK/N/A/Issue Found}
-3. Init order: {OK/N/A/Issue Found}
-4. Save/Load roundtrip: {OK/N/A/Issue Found}
-5. Type conversion loss: {OK/N/A/Issue Found}
-6. Config vs runtime: {OK/N/A/Issue Found}
+1. Off-by-one / boundary: {OK/N/A/Issue Found}
+2. Null/undefined dereference: {OK/N/A/Issue Found}
+3. Resource leak: {OK/N/A/Issue Found}
+4. Race condition: {OK/N/A/Issue Found}
+5. Type coercion: {OK/N/A/Issue Found}
+6. Unhandled error path: {OK/N/A/Issue Found}
 
 ## SOLID/Paradigm Checklist
 {OK/N/A/VIOLATION for each applicable item}
@@ -185,6 +187,7 @@ When deciding the verdict:
 
 ## Constraints
 
+- Cross-check is code-level verification only. Build/test re-execution is QA's responsibility
 - Do NOT modify code — provide review opinions only
 - Do NOT approve code that has failing acceptance criteria
 - Do NOT approve placeholder implementations as PASS

@@ -8,7 +8,7 @@
  * Works in tandem with skill-activation.js (UserPromptSubmit):
  *   1. skill-activation.js detects that forge is required and writes a state file
  *   2. This hook reads the state file and blocks tools until Skill("forge") is called
- *   3. When Skill("forge") is invoked, this hook deletes the state file → unblocked
+ *   3. When Skill("forge") is invoked, this hook deletes the state file -> unblocked
  *
  * stdin: JSON { tool_name, tool_input, session_id, cwd }
  * stderr: blocking error messages (exit 2)
@@ -20,7 +20,13 @@
  */
 
 import * as fs from 'node:fs';
-import * as path from 'node:path';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { getSkillStateFilePath, hasActivePipeline } = require('../shared/pipeline.js');
+
+// Minimum score to enforce blocking (coordinates with skill-activation.js SCORE_THRESHOLD)
+const SCORE_THRESHOLD = 50;
 
 // Tools allowed even when forge skill is required
 const ALLOWED_TOOLS = new Set([
@@ -38,44 +44,26 @@ const ALLOWED_TOOLS = new Set([
   'TaskList',         // Task management
   'TaskOutput',       // Task management
   'TaskStop',         // Task management
+  'TodoWrite',        // Meta-workflow task tracking
+  'WebFetch',         // Web fetching is non-destructive
+  'WebSearch',        // Web search is non-destructive
 ]);
+
+// MCP tool verbs that indicate write/mutation operations
+const MCP_WRITE_VERBS = ['write', 'edit', 'create', 'delete', 'update', 'send', 'execute', 'remove', 'move', 'duplicate'];
 
 // State file TTL — ignore state files older than this (prevents stale locks)
 const STATE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-function getStateFilePath(sessionId) {
-  const home = process.env.HOME || process.env.USERPROFILE || '';
-  if (!home || !sessionId) return null;
-  return path.join(home, '.claude', 'hooks', 'state', `skill-required-${sessionId}.json`);
-}
-
-// Check if there's an active (non-completed) forge pipeline in the working directory
-function hasActivePipeline(cwd) {
-  if (!cwd) return false;
-  const forgeDir = path.join(cwd, '.forge');
-  try {
-    const entries = fs.readdirSync(forgeDir);
-    const dateDirs = entries.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
-    for (const dateDir of dateDirs) {
-      const datePath = path.join(forgeDir, dateDir);
-      try {
-        const slugDirs = fs.readdirSync(datePath)
-          .filter(d => { try { return fs.statSync(path.join(datePath, d)).isDirectory(); } catch { return false; } })
-          .sort().reverse();
-        for (const slugDir of slugDirs) {
-          const statePath = path.join(datePath, slugDir, 'pipeline-state.json');
-          try {
-            const content = fs.readFileSync(statePath, 'utf8');
-            const state = JSON.parse(content);
-            if (state.current_step && state.current_step !== 'completed') {
-              return true;
-            }
-          } catch {}
-        }
-      } catch {}
-    }
-  } catch {}
-  return false;
+/**
+ * Check if an MCP tool is read-only (safe to allow).
+ * MCP tools start with "mcp__". If the tool name doesn't contain
+ * any write/mutation verb, it's considered read-only.
+ */
+function isMcpReadOnly(toolName) {
+  if (!toolName.startsWith('mcp__')) return false;
+  const nameLower = toolName.toLowerCase();
+  return !MCP_WRITE_VERBS.some(verb => nameLower.includes(verb));
 }
 
 function main() {
@@ -92,12 +80,12 @@ function main() {
     const sessionId = input.session_id;
     const cwd = input.cwd || process.cwd();
 
-    // No session_id → can't track state, fail-open
+    // No session_id -> can't track state, fail-open
     if (!sessionId) {
       process.exit(0);
     }
 
-    const stateFile = getStateFilePath(sessionId);
+    const stateFile = getSkillStateFilePath(sessionId);
     if (!stateFile) {
       process.exit(0);
     }
@@ -108,13 +96,19 @@ function main() {
       const content = fs.readFileSync(stateFile, 'utf8');
       stateData = JSON.parse(content);
     } catch {
-      // No state file or unreadable → no enforcement needed
+      // No state file or unreadable -> no enforcement needed
       process.exit(0);
     }
 
     // TTL check — if state file is stale, remove it and allow
     if (stateData.timestamp && (Date.now() - stateData.timestamp) > STATE_TTL_MS) {
       try { fs.unlinkSync(stateFile); } catch {}
+      process.exit(0);
+    }
+
+    // Score check — if score is below threshold, don't block
+    const stateScore = stateData.score || 0;
+    if (stateScore < SCORE_THRESHOLD) {
       process.exit(0);
     }
 
@@ -128,10 +122,12 @@ function main() {
 
     const requiredSkill = stateData.skill || 'forge';
 
-    // If the tool is Skill and invokes the required skill → delete state file, allow
+    // If the tool is Skill and invokes the required skill -> delete state file, allow
     if (toolName === 'Skill') {
-      const skillArg = toolInput.skill_name || toolInput.skill || toolInput.name || '';
-      if (skillArg === requiredSkill) {
+      // Check all values in toolInput for the skill name (robust matching)
+      const inputValues = Object.values(toolInput).map(v => String(v).toLowerCase());
+      const skillLower = requiredSkill.toLowerCase();
+      if (inputValues.some(v => v === skillLower || v.includes(skillLower))) {
         // Forge is being invoked — remove the lock
         try { fs.unlinkSync(stateFile); } catch {}
       }
@@ -144,16 +140,25 @@ function main() {
       process.exit(0);
     }
 
+    // Allow read-only MCP tools
+    if (isMcpReadOnly(toolName)) {
+      process.exit(0);
+    }
+
     // Tool is NOT allowed — block it
-    process.stderr.write(
-      '\u{1F6AB} SKILL ACTIVATION GUARD: ' + requiredSkill + ' skill is required for this task.\n' +
+    const msg =
+      'SKILL ACTIVATION GUARD: ' + requiredSkill + ' skill is required for this task.\n' +
       'Call Skill("' + requiredSkill + '") first, then proceed.\n' +
-      'Tool "' + toolName + '" is blocked until ' + requiredSkill + ' is invoked.\n'
-    );
+      'Tool "' + toolName + '" is blocked until ' + requiredSkill + ' is invoked.\n';
+    process.stderr.write(msg);
     process.exit(2);
 
-  } catch {
-    // Fail-open: any unexpected error → allow the tool
+  } catch (err) {
+    // Fail-open: any unexpected error -> allow the tool
+    // Log error to stderr before exiting
+    try {
+      process.stderr.write('[skill-activation-guard] fail-open error: ' + (err?.message || String(err)) + '\n');
+    } catch {}
     process.exit(0);
   }
 }

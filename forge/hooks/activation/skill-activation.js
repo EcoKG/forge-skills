@@ -1,9 +1,24 @@
 #!/usr/bin/env node
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { createRequire } from 'node:module';
 import { RulesMatcher } from './rules-matcher.js';
 import { SessionTracker } from './session-tracker.js';
+
+const require = createRequire(import.meta.url);
+const { getSkillStateFilePath } = require('../shared/pipeline.js');
+
 const MAX_SUGGESTIONS = 3;
+
+// Minimum score to write state file and enforce blocking
+const SCORE_THRESHOLD = 50;
+
+// Meta-workflow exclusion patterns — these should never trigger forge activation
+const META_WORKFLOW_PATTERNS = [
+  /\bskill-creator\b/i,
+  /\/skill-creator\b/i,
+];
+
 export function parseInput(raw) {
     try {
         if (!raw || raw.trim().length === 0)
@@ -24,9 +39,9 @@ export function formatOutput(matches) {
     const isStrong = primary.rule.priority === 'critical' || primary.rule.priority === 'high';
     const isBlock = primary.rule.enforcement === 'block';
     lines.push('');
-    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    lines.push('\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501');
     lines.push('  SKILL ACTIVATION');
-    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    lines.push('\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501');
     lines.push('');
     for (const m of top) {
         const tags = [];
@@ -36,7 +51,7 @@ export function formatOutput(matches) {
             tags.push(`intents: ${m.matchedIntents.length}`);
         if (m.smartScore?.total > 0)
             tags.push(`smart: ${m.smartScore.total}pts`);
-        lines.push(`  → ${m.skillName} [${m.rule.priority}] (${tags.join('; ')})`);
+        lines.push(`  \u2192 ${m.skillName} [${m.rule.priority}] (${tags.join('; ')})`);
         if (m.rule.description) {
             lines.push(`    ${m.rule.description}`);
         }
@@ -53,13 +68,13 @@ export function formatOutput(matches) {
     else if (isStrong) {
         lines.push(`IMPORTANT: This task requires the "${primary.skillName}" skill.`);
         lines.push(`You MUST invoke it using the Skill tool (skill: "${primary.skillName}") BEFORE doing any other work.`);
-        lines.push('Do not analyze, implement, or modify code directly — the skill handles the full workflow.');
+        lines.push('Do not analyze, implement, or modify code directly \u2014 the skill handles the full workflow.');
     }
     else {
         lines.push(`SUGGESTED: Use the "${primary.skillName}" skill for better results.`);
         lines.push(`Invoke with the Skill tool (skill: "${primary.skillName}") before proceeding.`);
     }
-    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    lines.push('\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501');
     lines.push('');
     return lines.join('\n');
 }
@@ -73,7 +88,7 @@ function loadRules(rulesPath) {
     }
 }
 function findRulesFile(cwd) {
-    // Search order: project .claude/skills/skill-rules.json → global ~/.claude/skills/skill-rules.json
+    // Search order: project .claude/skills/skill-rules.json -> global ~/.claude/skills/skill-rules.json
     const candidates = [];
     if (cwd) {
         candidates.push(path.join(cwd, '.claude', 'skills', 'skill-rules.json'));
@@ -88,6 +103,15 @@ function findRulesFile(cwd) {
     }
     return null;
 }
+
+function isMetaWorkflow(prompt) {
+    if (!prompt) return false;
+    for (const pattern of META_WORKFLOW_PATTERNS) {
+        if (pattern.test(prompt)) return true;
+    }
+    return false;
+}
+
 async function main() {
     try {
         // Read stdin
@@ -101,6 +125,13 @@ async function main() {
             process.exit(0);
             return;
         }
+
+        // Meta-workflow exclusion: skill-creator should not trigger forge
+        if (isMetaWorkflow(input.prompt)) {
+            process.exit(0);
+            return;
+        }
+
         // Find and load rules
         const rulesPath = findRulesFile(input.cwd);
         if (!rulesPath) {
@@ -138,28 +169,23 @@ async function main() {
         const output = formatOutput(matches);
         if (output) {
             // Write state file for PreToolUse guard when enforcement is 'block'
+            // Only write when score meets threshold (meaningful match)
             if (matches.length > 0 && input.session_id) {
                 const primary = matches[0];
-                if (primary.rule.enforcement === 'block') {
+                const totalScore = primary.score || primary.smartScore?.total || 0;
+
+                if (primary.rule.enforcement === 'block' && totalScore >= SCORE_THRESHOLD) {
                     try {
-                        const home = process.env['HOME'] || process.env['USERPROFILE'] || '';
-                        const stateDir = path.join(home, '.claude', 'hooks', 'state');
-                        const stateFile = path.join(stateDir, `skill-required-${input.session_id}.json`);
-                        // TTL check: don't overwrite if a recent state file already exists
-                        let shouldWrite = true;
-                        try {
-                            const existing = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
-                            if (existing.timestamp && (Date.now() - existing.timestamp) < 5 * 60 * 1000) {
-                                shouldWrite = false; // Recent state file exists, skip
-                            }
-                        } catch {
-                            // File doesn't exist or is unreadable — proceed to write
-                        }
-                        if (shouldWrite) {
+                        const stateFile = getSkillStateFilePath(input.session_id);
+                        if (stateFile) {
+                            const stateDir = path.dirname(stateFile);
                             fs.mkdirSync(stateDir, { recursive: true });
+                            // Always overwrite — refresh timestamp on every new activation
                             fs.writeFileSync(stateFile, JSON.stringify({
                                 skill: primary.skillName,
                                 timestamp: Date.now(),
+                                confidence: totalScore >= 80 ? 'high' : totalScore >= 50 ? 'medium' : 'low',
+                                score: totalScore,
                                 prompt: input.prompt?.substring(0, 100)
                             }));
                         }
@@ -168,18 +194,28 @@ async function main() {
                     }
                 }
             }
-            // Use systemMessage JSON for better context budget efficiency
+
+            // For block enforcement, output ONLY the JSON systemMessage (no redundant text)
             if (matches.length > 0 && matches[0].rule.enforcement === 'block') {
-                const skillName = matches[0].skillName;
-                process.stdout.write(JSON.stringify({
-                    systemMessage: `SKILL ACTIVATION: ${skillName} required — call Skill("${skillName}") first`
-                }) + '\n');
+                const primary = matches[0];
+                const totalScore = primary.score || primary.smartScore?.total || 0;
+                if (totalScore >= SCORE_THRESHOLD) {
+                    const skillName = primary.skillName;
+                    process.stdout.write(JSON.stringify({
+                        systemMessage: `SKILL ACTIVATION: ${skillName} required \u2014 call Skill("${skillName}") first`
+                    }) + '\n');
+                    // Skip text output — systemMessage is sufficient for block enforcement
+                    process.exit(0);
+                    return;
+                }
             }
+
+            // Non-block or below-threshold: output text banner
             process.stdout.write(output);
         }
     }
     catch {
-        // Fail-open: any error → exit 0 with no output
+        // Fail-open: any error -> exit 0 with no output
     }
     process.exit(0);
 }

@@ -120,8 +120,8 @@ Call via Bash tool using `node "$FORGE_TOOLS" <command>` (NEVER use relative pat
 # Pipeline lifecycle
 node "$FORGE_TOOLS" engine-init <artifact_dir> <request> <type> <scale> [options_json]
 node "$FORGE_TOOLS" engine-state <artifact_dir>
-node "$FORGE_TOOLS" engine-can-transition <artifact_dir> <target_step>
 node "$FORGE_TOOLS" engine-transition <artifact_dir> <target_step>
+# Note: engine-transition validates internally — no need to call engine-can-transition separately
 
 # Agent management
 node "$FORGE_TOOLS" engine-dispatch-spec <artifact_dir> <role> [task_id]
@@ -168,17 +168,14 @@ Or on failure:
 5. Display start banner
 ```
 
-### Steps 2-10: Engine-Driven Loop
+### Steps 2-9: Engine-Driven Loop
 ```
 for each step in pipeline:
-    1. Call: engine-can-transition <dir> <next_step>
-       → if allowed: proceed
-       → if not: engine tells you what's missing
+    1. Call: engine-transition <dir> <next_step>
+       → if allowed: engine updates state, returns what to load
+       → if not: engine tells you what's missing (no separate can-transition needed)
 
-    2. Call: engine-transition <dir> <next_step>
-       → engine updates state, returns what to load
-
-    3. If step has agent:
+    2. If step has agent:
        Call: engine-dispatch-spec <dir> <role> [task_id]
        → returns: prompt_path, model, files, output_path
        → Dispatch Agent with the spec
@@ -210,12 +207,10 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | 2.5 | architect_guide | agent (architect) | research.md exists | design-guide.md |
 | 3 | plan | agent (planner) | research.md exists | plan.md |
 | 4 | plan_check | agent (plan-checker) | plan.md exists | plan.md (verified) |
-| 5 | checkpoint | PM | plan_check PASS | user approval |
-| 6 | branch | PM | approved | git branch |
-| 7 | execute | agent (implementer + reviewer + QA + VPM) | plan.md exists | code + summaries + vpm-wave-{N}.md |
-| 8 | verify | agent (verification-pm, final_verify mode) | execution done | verification.md |
-| 9 | finalize | PM | verified | report.md |
-| 10 | cleanup | PM | finalized | completed |
+| 5 | checkpoint | PM | plan_check PASS | user approval + git branch (branch created at checkpoint) |
+| 6 | execute | agent (implementer + reviewer + QA + VPM) | plan.md exists | code + summaries + vpm-wave-{N}.md |
+| 7 | verify | agent (verification-pm, final_verify mode) | execution done | verification.md |
+| 8 | finalize | PM | verified | report.md + cleanup (lock removal, state update) |
 
 ### Variants
 - **quick**: init → plan → execute → verify → finalize (no research, plan-check; backpressure build+test ON, VPM verify ON)
@@ -262,8 +257,7 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | 4 | implementer | prompts/implementer.md | Step 7 |
 | 5 | code-reviewer | prompts/code-reviewer.md | Step 7 |
 | 6 | qa-inspector | prompts/qa-inspector.md | Step 7 (wave boundary) |
-| 7 | verifier | prompts/verifier.md | Step 8 (legacy, replaced by VPM) |
-| 7.5 | verification-pm | prompts/verification-pm.md | Step 7 (wave boundary) + Step 8 (final verify) |
+| 7 | verification-pm | prompts/verification-pm.md | Step 6 (wave boundary) + Step 7 (final verify) |
 | 8 | doc-reviewer | prompts/doc-reviewer.md | Step 7 (docs type) |
 | 9 | roadmapper | prompts/roadmapper.md | --init |
 | 10 | integration-checker | prompts/integration-checker.md | --milestone |
@@ -272,7 +266,7 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | 13 | ralph-executor | prompts/ralph-executor.md | --ralph |
 | 14 | ui-reviewer | prompts/ui-reviewer.md | Step 7 (UI files) |
 | 15 | test-strategist | prompts/test-strategist.md | Step 4 |
-| 16 | architect | prompts/architect.md | Step 2.5 (architect_guide), Step 7 (design type), --init (architecture phase) |
+| 16 | architect | prompts/architect.md + references/architect-{mode}.md | Step 2.5 (guide), Step 6 (design type), --init (architecture) |
 | 17 | custom:{name} | .forge/agents/{name}.md | Per pipeline.json |
 
 **Get dispatch spec from engine:** `engine-dispatch-spec <dir> <role> [task_id]`

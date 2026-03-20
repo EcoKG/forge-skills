@@ -127,17 +127,9 @@ Anti-patterns are informational for PASS/GAPS_FOUND verdict — they don't cause
 **GUI (WPF/Web/Mobile):**
 - Verify UI binding paths match ViewModel/component properties
 - Check thread safety for UI updates from background threads
-- **Dispatch UI Reviewer** if UI files changed (HTML/CSS/JSX/TSX/Vue/Svelte):
-  ```xml
-  <agent_dispatch>
-    <role>ui-reviewer</role>
-    <task_id>ui-review-wave-{N}</task_id>
-    <files_to_read>{all changed UI files from this wave}</files_to_read>
-    <output_path>.forge/{date}/{slug}/ui-review-wave-{N}.md</output_path>
-  </agent_dispatch>
-  ```
-- Include UI reviewer verdict in QA report under `## UI Review`
-- UI accessibility FAIL → GAPS_FOUND verdict
+- **Flag UI review needs in your report.** PM will dispatch the UI Reviewer agent separately.
+- Record which UI files changed and why UI review is needed under `## UI Review Needed` in the report
+- UI accessibility concerns should be flagged but not block QA verdict — PM coordinates the UI review cycle
 
 **API/Backend:**
 - Verify endpoint signatures match expected request/response
@@ -223,9 +215,9 @@ Cross-Task Regression: {PASS/REGRESSION_FOUND}
 These are substituted by PM before dispatching this prompt:
 
 - `{PROJECT_RULES}` — Project-specific rules from CLAUDE.md or similar
-- `<task_summaries>` — Paths to all task-{N-M}-summary.md files from the current wave
-- `<plan_path>` — Path to plan.md (phase/wave completion criteria and task list)
-- `<build_command>` — Project build command (from project profile or plan.md)
-- `<test_command>` — Project test command (from project profile or plan.md)
-- `<changed_files>` — List of all files modified in the current wave (aggregated from task summaries)
-- `<output_path>` — Absolute path where QA report must be written
+- `{TASK_SUMMARIES}` — Paths to all task-{N-M}-summary.md files from the current wave
+- `{PLAN_PATH}` — Path to plan.md (phase/wave completion criteria and task list)
+- `{BUILD_COMMAND}` — Project build command (from project profile or plan.md)
+- `{TEST_COMMAND}` — Project test command (from project profile or plan.md)
+- `{CHANGED_FILES}` — List of all files modified in the current wave (aggregated from task summaries)
+- `{OUTPUT_PATH}` — Absolute path where QA report must be written

@@ -16,6 +16,8 @@
 
 const fs = require("fs");
 const path = require("path");
+const { CODE_EXTENSIONS, SKIP_PATHS } = require("./shared/constants");
+const { findActivePipeline } = require("./shared/pipeline");
 
 let CWD;
 let FORGE_DIR;
@@ -34,7 +36,7 @@ const BUILD_PATTERNS = [
   /gradle build/, /dotnet build/, /make\b/, /cmake --build/
 ];
 const TEST_PATTERNS = [
-  /npm test/, /npx jest/, /go test/, /pytest/, /python -m pytest/,
+  /npm test/, /npx jest/, /npx vitest/, /vitest\b/, /go test/, /pytest/, /python -m pytest/,
   /cargo test/, /mvn test/, /gradle test/, /dotnet test/
 ];
 
@@ -57,27 +59,6 @@ const LINT_MAP = {
   "pyproject.toml": "ruff check",
 };
 
-const CODE_EXTENSIONS = new Set([
-  // Languages
-  ".js", ".ts", ".jsx", ".tsx", ".mjs", ".mts", ".cjs", ".cts",
-  ".py", ".go", ".rs", ".java",
-  ".c", ".cpp", ".h", ".hpp", ".cs", ".rb", ".php", ".swift",
-  ".kt", ".scala", ".vue", ".svelte", ".astro", ".ex", ".exs",
-  ".lua", ".r", ".pl", ".groovy", ".gradle",
-  // Web/Markup + Server Pages
-  ".html", ".css", ".scss", ".sass", ".less",
-  ".ejs", ".pug", ".hbs", ".njk",
-  ".jsp", ".jspx", ".asp", ".aspx", ".erb", ".twig", ".blade.php",
-  // Data/Config (code-like)
-  ".sql", ".graphql", ".proto",
-  ".yaml", ".yml", ".toml", ".json", ".xml",
-  // Shell
-  ".sh", ".bash", ".zsh",
-  // Infrastructure
-  ".tf", ".hcl", ".dockerfile",
-  ".ipynb",
-]);
-
 // Required sections for agent output validation
 const SUMMARY_REQUIRED_SECTIONS = ["## Status", "## Changes Made", "## Self-Check"];
 const VERIFICATION_REQUIRED_SECTIONS = ["## Verdict"];
@@ -85,7 +66,7 @@ const ARCHITECT_REQUIRED_SECTIONS = ["## Overview"];
 
 function isCodeFile(fp) {
   if (!fp) return false;
-  if (fp.includes("node_modules/") || fp.includes(".forge/") || fp.includes(".git/")) return false;
+  for (const p of SKIP_PATHS) { if (fp.includes(p)) return false; }
   return CODE_EXTENSIONS.has(path.extname(fp).toLowerCase());
 }
 
@@ -123,26 +104,7 @@ function writeState(sessionId, state) {
 }
 
 function findActivePipelineState() {
-  try {
-    const entries = fs.readdirSync(FORGE_DIR);
-    const dateDirs = entries.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
-    for (const dateDir of dateDirs) {
-      const datePath = path.join(FORGE_DIR, dateDir);
-      try {
-        const slugDirs = fs.readdirSync(datePath)
-          .filter(d => { try { return fs.statSync(path.join(datePath, d)).isDirectory(); } catch { return false; } })
-          .sort().reverse();
-        for (const slugDir of slugDirs) {
-          const statePath = path.join(datePath, slugDir, "pipeline-state.json");
-          if (fs.existsSync(statePath)) {
-            const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-            if (state.current_step !== "completed") return { state, path: statePath, dir: path.join(datePath, slugDir) };
-          }
-        }
-      } catch {}
-    }
-  } catch {}
-  return null;
+  return findActivePipeline(FORGE_DIR);
 }
 
 function updatePipelineState(statePath, updater) {
@@ -373,10 +335,17 @@ function main() {
         if (lintEnabled) {
           const lintCmd = detectCommand(LINT_MAP);
           if (lintCmd) {
-            const fullCmd = `${lintCmd} "${filePath}"`;
-            const result = runQuickCheck(fullCmd, 10000);
-            if (!result.pass && result.output) {
-              output += `⚡ LINT: ${result.output}\n`;
+            // Use execFileSync with array args to avoid shell injection via filePath
+            const parts = lintCmd.split(/\s+/);
+            try {
+              const { execFileSync } = require("child_process");
+              execFileSync(parts[0], [...parts.slice(1), filePath], { cwd: CWD, encoding: "utf8", timeout: 10000, stdio: ["pipe", "pipe", "pipe"] });
+            } catch (err) {
+              const errOut = (err.stderr || err.stdout || "").trim();
+              const lines = errOut.split("\n").filter(l => l.includes("error") || l.includes("Error")).slice(0, 3);
+              if (lines.length > 0) {
+                output += `⚡ LINT: ${lines.join("\n")}\n`;
+              }
             }
           }
         }

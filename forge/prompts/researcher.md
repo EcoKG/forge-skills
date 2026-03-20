@@ -40,6 +40,8 @@ You will receive:
    - **patterns**: Grep for common patterns — naming conventions, error handling styles, logging patterns, config access, DI patterns. Sample at least 3 files per pattern claim.
    - **risks**: Grep for TODO/FIXME/HACK/XXX, known vulnerability patterns, hardcoded secrets, large functions (>100 lines), deeply nested logic, missing error handling.
 
+   **Exploration budget:** Explore up to 20 additional files beyond files_to_read. Stop after 30 Grep calls per focus area. If the project has fewer than 10 source files, consolidate into a single pass.
+
 3. **For each finding, verify before recording:**
    - Confirm the file exists: `Glob("path/to/file")`
    - Confirm the evidence: `Grep("pattern", "path/to/file")`
@@ -50,12 +52,12 @@ You will receive:
    - **[M] MEDIUM** — Impacts code quality, maintainability, or performance.
    - **[L] LOW** — Nice to fix but not blocking.
 
-5. **Assign unique IDs** within your focus area:
-   - architecture: [H1], [H2], [M1], [M2], [L1]...
-   - stack: [H1], [H2], [M1]...
-   - patterns: [H1], [M1], [L1]...
-   - risks: [H1], [M1], [L1]...
-   (The Synthesizer will reassign globally unique IDs later.)
+5. **Assign globally unique IDs** using focus-area prefixes:
+   - architecture: [ARC-H1], [ARC-H2], [ARC-M1], [ARC-M2], [ARC-L1]...
+   - stack: [STK-H1], [STK-H2], [STK-M1]...
+   - patterns: [PAT-H1], [PAT-M1], [PAT-L1]...
+   - risks: [RSK-H1], [RSK-M1], [RSK-L1]...
+   (Prefixed IDs are globally unique — the Synthesizer does not need to renumber.)
 
 6. **Write structured output** to `<output_path>`.
 
@@ -65,8 +67,8 @@ You will receive:
 
 2. **Merge findings:**
    - Collect all H/M/L findings from every Explorer output.
-   - Reassign globally unique IDs: [H1], [H2]... [M1], [M2]... [L1], [L2]...
-   - HIGH findings first, then MEDIUM, then LOW.
+   - Keep prefixed IDs as-is (e.g., [ARC-H1], [STK-M1]) — they are already globally unique.
+   - Sort: HIGH findings first, then MEDIUM, then LOW.
 
 3. **Deduplicate:**
    - If two Explorers found the same issue (same file + same pattern), keep the one with better evidence.
@@ -76,7 +78,7 @@ You will receive:
    - If Explorers disagree on severity, use the higher severity.
    - If Explorers disagree on recommendation, include both with a note.
 
-5. **Verify all file references** one final time with Glob/Grep.
+5. **Spot-check 3 random references** with Glob/Grep (full re-verification is redundant since Explorers already verified).
 
 6. **Compose the unified report:**
    - Write Summary (3-5 lines).

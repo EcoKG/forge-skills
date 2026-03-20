@@ -299,8 +299,8 @@
           "id": "verify_fix",
           "order": 5,
           "actor": "agent",
-          "agent_role": "verifier",
-          "agent_prompt": "prompts/verifier.md",
+          "agent_role": "verification-pm",
+          "agent_prompt": "prompts/verification-pm.md",
           "model_key": "verification",
           "entry_gate": {"required_state": "fixed"},
           "exit_gate": {"state_value": "verified"}

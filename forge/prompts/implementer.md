@@ -104,11 +104,6 @@ Apply principles matching the project's detected paradigm. PM specifies the para
 - If TDD is skipped, report the reason in self-check
 - Each task must be independently verifiable
 
-**General:**
-- Respect existing code style and patterns — do not refactor beyond scope
-- Keep changes minimal and focused on the task
-- Prefer simple solutions over clever ones
-
 ## Deviation Rules
 
 When you encounter unexpected situations during implementation, follow these rules:
@@ -184,12 +179,12 @@ If PM provides a `context.md` path in your dispatch:
 
 Report OK / N/A / Issue+Action for each:
 
-1. **Circular reference:** Does method A call B which depends on A's result? Self-assignment from own field?
-2. **Init order:** Does constructor/InitializeComponent trigger events that overwrite saved values?
-3. **Null/empty safety:** Using TryParse instead of Convert.ToXxx()? Empty string paths handled?
-4. **Save/Load roundtrip:** Does saved value restore identically after restart? (trace save path → load path → usage)
-5. **Event timing:** Are events firing during initialization before values are loaded?
-6. **Build result:** Build success/failure + any warnings?
+1. **Circular/self reference:** Does method A call B which depends on A's result? Self-assignment from own field?
+2. **Null/undefined safety:** All inputs validated before use? Defensive checks on optional/nullable values?
+3. **Resource cleanup:** File handles, DB connections, streams — properly closed in all paths (including error)?
+4. **Concurrency safety:** Race conditions, deadlocks, shared mutable state accessed from multiple threads/async contexts?
+5. **Error propagation:** Errors not silently swallowed? Correct error types thrown/returned? Caller informed?
+6. **Build/test result:** Build success/failure + any warnings? Related tests pass?
 
 ## Self-Reflection (Post-Implementation)
 
@@ -272,12 +267,12 @@ Write `task-{N-M}-summary.md` to `{output_path}` with the following structure:
 ## Self-Check Results
 | # | Item | Status |
 |---|---|---|
-| 1 | Circular reference | {OK/N/A/Issue+Action} |
-| 2 | Init order | {OK/N/A/Issue+Action} |
-| 3 | Null safety | {OK/N/A/Issue+Action} |
-| 4 | Save/Load roundtrip | {OK/N/A/Issue+Action} |
-| 5 | Event timing | {OK/N/A/Issue+Action} |
-| 6 | Build result | {OK/N/A/Issue+Action} |
+| 1 | Circular/self reference | {OK/N/A/Issue+Action} |
+| 2 | Null/undefined safety | {OK/N/A/Issue+Action} |
+| 3 | Resource cleanup | {OK/N/A/Issue+Action} |
+| 4 | Concurrency safety | {OK/N/A/Issue+Action} |
+| 5 | Error propagation | {OK/N/A/Issue+Action} |
+| 6 | Build/test result | {OK/N/A/Issue+Action} |
 
 ## Acceptance Criteria Status
 | Criteria | Command | Result |
@@ -315,6 +310,7 @@ This summary is your CONTRACT with the code-reviewer. Everything you claim here 
 
 ## Constraints
 
+- Atomic Commit is triggered by PM after code-reviewer PASS verdict, not self-initiated
 - Do NOT modify files outside the scope of your assigned task
 - Do NOT make architecture-level changes (Deviation Rule R4)
 - Do NOT skip `<read_first>` files — they are mandatory context

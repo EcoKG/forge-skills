@@ -157,12 +157,23 @@ function readProjectState(forgeDir) {
   return info.project ? info : null;
 }
 
+// Track whether engine commands have been shown for this pipeline
+function isPipelineFirstPrompt(sessionId, artifactDir) {
+  const flagPath = path.join(STATE_DIR, `forge-pipeline-cmds-${sessionId || "default"}.json`);
+  try {
+    const data = readJsonSafe(flagPath);
+    if (data && data.artifact_dir === artifactDir) return false;
+  } catch {}
+  try { fs.writeFileSync(flagPath, JSON.stringify({ artifact_dir: artifactDir, at: new Date().toISOString() })); } catch {}
+  return true;
+}
+
 // Format pipeline state injection with step banner
-function formatPipelineContext(state) {
+// Engine commands are only injected on the first pipeline prompt to save ~200 tokens/turn
+function formatPipelineContext(state, sessionId) {
   const banner = getStepBanner(state.current_step, state);
-  const lines = [
-    "",
-  ];
+  const showCommands = isPipelineFirstPrompt(sessionId, state.artifact_dir);
+  const lines = [""];
   if (banner) {
     lines.push(banner);
   }
@@ -195,13 +206,15 @@ function formatPipelineContext(state) {
     lines.push(`Revisions: ${JSON.stringify(state.revision_counts)}`);
   }
 
-  lines.push("");
-  lines.push("Engine commands (use via Bash):");
-  lines.push(`  node "${FORGE_TOOLS_PATH}" engine-state ${state.artifact_dir}`);
-  lines.push(`  node "${FORGE_TOOLS_PATH}" engine-can-transition ${state.artifact_dir} <step>`);
-  lines.push(`  node "${FORGE_TOOLS_PATH}" engine-transition ${state.artifact_dir} <step>`);
-  lines.push(`  node "${FORGE_TOOLS_PATH}" engine-dispatch-spec ${state.artifact_dir} <role> [task_id]`);
-  lines.push(`  node "${FORGE_TOOLS_PATH}" engine-record-result ${state.artifact_dir} <role> <task_id> <verdict>`);
+  // Engine commands: only on first pipeline prompt (saves ~200 tokens/turn after first)
+  if (showCommands) {
+    lines.push("");
+    lines.push("Engine commands (use via Bash):");
+    lines.push(`  node "${FORGE_TOOLS_PATH}" engine-state ${state.artifact_dir}`);
+    lines.push(`  node "${FORGE_TOOLS_PATH}" engine-transition ${state.artifact_dir} <step>`);
+    lines.push(`  node "${FORGE_TOOLS_PATH}" engine-dispatch-spec ${state.artifact_dir} <role> [task_id]`);
+    lines.push(`  node "${FORGE_TOOLS_PATH}" engine-record-result ${state.artifact_dir} <role> <task_id> <verdict>`);
+  }
   lines.push("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   lines.push("");
 
@@ -256,7 +269,7 @@ function main() {
     // 1. Check for active pipeline
     const activePipeline = findActivePipeline(forgeDir);
     if (activePipeline) {
-      output += formatPipelineContext(activePipeline);
+      output += formatPipelineContext(activePipeline, input.session_id);
     }
 
     // 2. Check for crashed executions (only if no active pipeline)

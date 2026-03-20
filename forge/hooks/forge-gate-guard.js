@@ -6,7 +6,7 @@
  * Reads .forge/pipeline-state.json for current state.
  * Exit(2) = hard block (Claude Code blocking error). Exit(0) = allow.
  *
- * 10 Gates:
+ * 9 Gates:
  *   Gate 1: research.md must exist before plan.md creation [HARD BLOCK]
  *   Gate 2: plan_check PASS before source code edits [HARD BLOCK]
  *   Gate 2B: Bash file-writing commands on code files [HARD BLOCK]
@@ -22,46 +22,12 @@
 
 const fs = require("fs");
 const path = require("path");
+const { CODE_EXTENSIONS, SKIP_PATHS, SENSITIVE_FILES, SAFE_BASH_COMMANDS, BASH_WRITE_PATTERNS } = require("./shared/constants");
+const { findActivePipeline } = require("./shared/pipeline");
 
 let CWD;
 let FORGE_DIR;
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
-
-const CODE_EXTENSIONS = new Set([
-  // Languages
-  ".js", ".ts", ".jsx", ".tsx", ".mjs", ".mts", ".cjs", ".cts",
-  ".py", ".go", ".rs", ".java",
-  ".c", ".cpp", ".h", ".hpp", ".cs", ".rb", ".php", ".swift",
-  ".kt", ".scala", ".vue", ".svelte", ".astro", ".ex", ".exs",
-  ".lua", ".r", ".pl", ".groovy", ".gradle",
-  // Web/Markup + Server Pages
-  ".html", ".css", ".scss", ".sass", ".less",
-  ".ejs", ".pug", ".hbs", ".njk",
-  ".jsp", ".jspx", ".asp", ".aspx", ".erb", ".twig", ".blade.php",
-  // Data/Config (code-like)
-  ".sql", ".graphql", ".proto",
-  ".yaml", ".yml", ".toml", ".json", ".xml",
-  // Shell
-  ".sh", ".bash", ".zsh",
-  // Infrastructure
-  ".tf", ".hcl", ".dockerfile",
-  ".ipynb",
-]);
-
-const SKIP_PATHS = [
-  ".forge/", "node_modules/", ".git/",
-  "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "package.json", "tsconfig.json", "composer.json", "Cargo.lock", "go.sum",
-  // Build output directories
-  "dist/", "build/", "out/",
-  // Vendor directories
-  "vendor/",
-  // Cache directories
-  "__pycache__/",
-  // Framework build directories
-  ".next/",
-  // Compiled output directories
-  "target/",
-];
 
 // Secret/credential patterns for Gate 6
 const SECRET_PATTERNS = [
@@ -94,8 +60,6 @@ const SECRET_PATTERNS = [
   /jdbc:[a-z]+:\/\/[^:]+:[^@]+@/,  // JDBC connection string with credentials
 ];
 
-const SENSITIVE_FILES = [".env", ".env.local", ".env.production", "credentials.json", "secrets.yaml", "secrets.yml"];
-
 const LARGE_EDIT_THRESHOLD = 500;  // characters
 const LARGE_WRITE_THRESHOLD = 100; // lines
 
@@ -105,39 +69,33 @@ function isCodeFile(filePath) {
   return CODE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
-function findPipelineState() {
-  // Find the most recent pipeline-state.json in .forge/
-  try {
-    const entries = fs.readdirSync(FORGE_DIR);
-    const dateDirs = entries.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
-    for (const dateDir of dateDirs) {
-      const datePath = path.join(FORGE_DIR, dateDir);
-      try {
-        const slugDirs = fs.readdirSync(datePath)
-          .filter(d => { try { return fs.statSync(path.join(datePath, d)).isDirectory(); } catch { return false; } })
-          .sort().reverse();
-        for (const slugDir of slugDirs) {
-          const statePath = path.join(datePath, slugDir, "pipeline-state.json");
-          if (fs.existsSync(statePath)) {
-            const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-            // Only use active (non-completed) sessions
-            if (state.current_step !== "completed") {
-              // Staleness check: flag pipelines not updated in 24 hours but don't skip
-              const updatedAt = state.updated_at || state.created_at;
-              if (updatedAt) {
-                const age = Date.now() - new Date(updatedAt).getTime();
-                if (age > 86400000) {
-                  state._stale = true; // Flag but don't skip — gates still apply
-                }
-              }
-              return state;
-            }
-          }
-        }
-      } catch {}
+/**
+ * Detect the target file of a Bash write command.
+ * Handles subshell wrappers (bash -c, sh -c, eval) by extracting the inner command.
+ * Returns the cleaned target file path, or null if no write detected.
+ */
+function detectBashWriteTarget(cmd) {
+  // Extract inner command from subshell/eval wrappers and re-scan
+  const subshellMatch = cmd.match(/(?:bash|sh)\s+-c\s+(['"])([\s\S]*?)\1/) ||
+                        cmd.match(/\beval\s+(['"])([\s\S]*?)\1/);
+  const cmdsToScan = subshellMatch ? [cmd, subshellMatch[2]] : [cmd];
+
+  for (const c of cmdsToScan) {
+    for (const pattern of BASH_WRITE_PATTERNS) {
+      const match = c.match(pattern);
+      if (match) {
+        // Heredoc pattern has target in group 2, dd/others in group 1
+        const raw = match[2] || match[1];
+        if (raw) return raw.replace(/["']/g, "");
+      }
     }
-  } catch {}
+  }
   return null;
+}
+
+function findPipelineState() {
+  const result = findActivePipeline(FORGE_DIR);
+  return result ? result.state : null;
 }
 
 function findArtifactDir(state) {
@@ -169,12 +127,14 @@ function writeAuditLog(gate, tool, file, sessionId) {
       session_id: sessionId || ""
     }) + "\n";
     fs.appendFileSync(auditPath, entry);
-    // Trim to 100 lines max
+    // Trim to 100 lines max — atomic write via .tmp + rename
     try {
       const content = fs.readFileSync(auditPath, "utf8");
       const lines = content.trim().split("\n");
       if (lines.length > 100) {
-        fs.writeFileSync(auditPath, lines.slice(-100).join("\n") + "\n");
+        const tmpPath = auditPath + ".tmp." + process.pid;
+        fs.writeFileSync(tmpPath, lines.slice(-100).join("\n") + "\n");
+        fs.renameSync(tmpPath, auditPath);
       }
     } catch {}
   } catch {}
@@ -234,35 +194,15 @@ function main() {
       // FBP-8 fix: Also check Bash file-writing commands without pipeline
       if (toolName === "Bash") {
         const cmd = toolInput.command || "";
-        if (!cmd.match(/^(git\b|npm\s+(install|test|ci|start)\b|npx\s+(tsc|jest|vitest|eslint)\b|yarn\s+(install|test|build)\b|pnpm\s+(install|test|build)\b|pip\s+install\b|cargo\s+(build|test|run)\b|go\s+(build|test|run|get|mod)\b|dotnet\s+(build|test|run)\b|mvn\s+(compile|test|package)\b|gradle\s+(build|test)\b|make\b|cmake\b|ls\b|cd\b|pwd\b|cat\b|head\b|tail\b|wc\b|find\b|grep\b|which\b|env\b|echo\s+\$)/)) {
-          const bashWritePatterns = [
-            /(?:echo|printf)\s+.*?>\s*(\S+)/,
-            /cat\s+.*?>\s*(\S+)/,
-            /tee\s+(?:-a\s+)?(\S+)/,
-            /sed\s+-i\S*\s+.*?(\S+)\s*$/,
-            /perl\s+-(?:i|pi)\S*\s+.*?(\S+)\s*$/,
-            /cp\s+\S+\s+(\S+)/,
-            /mv\s+\S+\s+(\S+)/,
-            /curl\s+.*?-o\s+(\S+)/,
-            /wget\s+.*?-O\s+(\S+)/,
-            /patch\s+(?:.*?\s)?(\S+)/,
-            /python[3]?\s+-c\s+.*?(?:open|write).*?["'](\S+?)["']/,
-            /node\s+-e\s+.*?(?:writeFile|appendFile).*?["'](\S+?)["']/,
-            /ruby\s+-e\s+.*?(?:File\.write|IO\.write).*?["'](\S+?)["']/,
-          ];
-          for (const pattern of bashWritePatterns) {
-            const match = cmd.match(pattern);
-            if (match && match[1]) {
-              const targetFile = match[1].replace(/["']/g, "");
-              if (isCodeFile(targetFile)) {
-                process.stderr.write(
-                  `🚫 FORGE GATE BLOCKED: Bash writes to code file "${path.basename(targetFile)}" without active pipeline.\n` +
-                  "Start a forge pipeline first: /forge --trivial, --quick, or /forge"
-                );
-                writeAuditLog("No Pipeline Bash", toolName, targetFile, input.session_id);
-                process.exit(2);
-              }
-            }
+        if (!SAFE_BASH_COMMANDS.test(cmd)) {
+          const targetFile = detectBashWriteTarget(cmd);
+          if (targetFile && isCodeFile(targetFile)) {
+            process.stderr.write(
+              `🚫 FORGE GATE BLOCKED: Bash writes to code file "${path.basename(targetFile)}" without active pipeline.\n` +
+              "Start a forge pipeline first: /forge --trivial, --quick, or /forge"
+            );
+            writeAuditLog("No Pipeline Bash", toolName, targetFile, input.session_id);
+            process.exit(2);
           }
         }
       }
@@ -312,7 +252,6 @@ function main() {
             );
             writeAuditLog("Gate 1", toolName, filePath, input.session_id);
             process.exit(2);
-            return;
           }
         }
       }
@@ -350,49 +289,17 @@ function main() {
     if (toolName === "Bash") {
       const cmd = toolInput.command || "";
       // Skip known safe commands
-      if (!cmd.match(/^(git\b|npm\s+(install|test|run|ci|start)\b|npx\s+(tsc|jest|vitest|eslint)\b|yarn\s+(install|test|build)\b|pnpm\s+(install|test|build)\b|pip\s+install\b|cargo\s+(build|test|run)\b|go\s+(build|test|run|get|mod)\b|dotnet\s+(build|test|run)\b|mvn\s+(compile|test|package)\b|gradle\s+(build|test)\b|make\b|cmake\b)/)) {
-        // Detect file-writing patterns (FBP-9: added python/node/ruby -c/-e)
-        const writePatterns = [
-          /(?:echo|printf)\s+.*?>\s*(\S+)/,
-          /cat\s+.*?>\s*(\S+)/,
-          /tee\s+(?:-a\s+)?(\S+)/,
-          /sed\s+-i\S*\s+.*?(\S+)\s*$/,
-          /perl\s+-(?:i|pi)\S*\s+.*?(\S+)\s*$/,
-          /cp\s+\S+\s+(\S+)/,
-          /mv\s+\S+\s+(\S+)/,
-          /curl\s+.*?-o\s+(\S+)/,
-          /wget\s+.*?-O\s+(\S+)/,
-          /patch\s+(?:.*?\s)?(\S+)/,
-          /python[3]?\s+-c\s+.*?(?:open|write).*?["'](\S+?)["']/,
-          /node\s+-e\s+.*?(?:writeFile|appendFile).*?["'](\S+?)["']/,
-          /ruby\s+-e\s+.*?(?:File\.write|IO\.write).*?["'](\S+?)["']/,
-        ];
-        for (const pattern of writePatterns) {
-          const match = cmd.match(pattern);
-          if (match && match[1]) {
-            const targetFile = match[1].replace(/["']/g, "");
-            if (isCodeFile(targetFile)) {
-              if (!state) {
-                process.stderr.write(
-                  `🚫 GATE 2B BLOCKED: Bash command writes to code file "${path.basename(targetFile)}" without active pipeline.\n` +
-                  "Start a forge pipeline first: /forge --trivial, --quick, or /forge"
-                );
-                writeAuditLog("Gate 2B", toolName, targetFile, input.session_id);
-                process.exit(2);
-                return;
-              }
-              const allowedSteps = ["execute", "verify", "finalize", "completed", "cleanup"];
-              if (!allowedSteps.includes(currentStep)) {
-                process.stderr.write(
-                  `🚫 GATE 2B BLOCKED: Bash writes to code file "${path.basename(targetFile)}" at step "${currentStep}".\n` +
-                  "Code file writes are only allowed at step 7 (execute) or later."
-                );
-                writeAuditLog("Gate 2B", toolName, targetFile, input.session_id);
-                process.exit(2);
-                return;
-              }
-            }
-            break; // Only check first match
+      if (!SAFE_BASH_COMMANDS.test(cmd)) {
+        const targetFile = detectBashWriteTarget(cmd);
+        if (targetFile && isCodeFile(targetFile)) {
+          const allowedSteps = ["execute", "verify", "finalize", "completed", "cleanup"];
+          if (!allowedSteps.includes(currentStep)) {
+            process.stderr.write(
+              `🚫 GATE 2B BLOCKED: Bash writes to code file "${path.basename(targetFile)}" at step "${currentStep}".\n` +
+              "Code file writes are only allowed at step 7 (execute) or later."
+            );
+            writeAuditLog("Gate 2B", toolName, targetFile, input.session_id);
+            process.exit(2);
           }
         }
       }
@@ -502,7 +409,6 @@ function main() {
             );
             writeAuditLog("Gate 4", toolName, filePath, input.session_id);
             process.exit(2);
-            return;
           }
         }
       }

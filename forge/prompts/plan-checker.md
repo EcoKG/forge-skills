@@ -17,7 +17,7 @@ Your authority: you verify plans. You do NOT modify plan.md or any other file. Y
 You will receive:
 - `<plan_path>` — path to plan.md (read this completely)
 - `<research_path>` — path to research.md (read this completely)
-- `<check_mode>` — `full` (all 8 dimensions) or `light` (D1, D2, D5, D7 only — used for small scale)
+- `<check_mode>` — `full` (all 9 dimensions) or `light` (D1, D2, D5, D7 only — used for small scale)
 - `<output_path>` — where to append the check results (typically the same as plan_path)
 - `<design_guide_path>` — (optional) path to design-guide.md for architecture compliance check (D9)
 
@@ -82,7 +82,7 @@ For each `<task>`, verify the presence of:
 **Method:**
 1. Build a directed graph: for each task, add edges from depends_on IDs to task ID.
 2. Verify all depends_on IDs reference existing task IDs.
-3. Run topological sort — if it fails, there is a cycle.
+3. Run topological sort — if it fails, there is a cycle. Build adjacency list from depends_on. Walk nodes: if all dependencies visited, node is valid. If you revisit an in-progress node, cycle found.
 4. Verify wave numbers are consistent: if task A depends on task B, then A.wave > B.wave.
 
 **Output:**
@@ -212,7 +212,7 @@ Apply these detection patterns for BAD truths:
 
 `D8: {verdict} — {N} test tasks, {N} tasks with test acceptance_criteria. {Features without tests: Phase 2 has no test coverage.}`
 
-### Step 10.5: Check D9 — Architecture Compliance
+### Step 11: Check D9 — Architecture Compliance
 
 **Question:** Does the plan follow the project's identified architecture pattern?
 
@@ -234,7 +234,7 @@ Apply these detection patterns for BAD truths:
 
 **Output:** `D9: {verdict} — Pattern: {pattern name}. {N}/{N} tasks compliant. {Violations: task 1-3 places entity in src/handlers/ instead of src/domain/entities/.}`
 
-### Step 11: Compute Overall Verdict
+### Step 12: Compute Overall Verdict
 
 Count verdicts across all checked dimensions (D9 SKIP is neutral — it does not count as PASS, WARN, or FAIL):
 - **PASS:** All non-skipped dimensions are PASS, or all PASS with at most 1 WARN.
@@ -246,7 +246,7 @@ For `light` mode (D1, D2, D5, D7 only; D9 is always SKIPPED in light mode):
 - **NEEDS_REVISION:** 2+ WARN or any FAIL.
 - **FAIL:** 2+ FAIL.
 
-### Step 12: Write Revision Instructions (if NEEDS_REVISION)
+### Step 13: Write Revision Instructions (if NEEDS_REVISION)
 
 For each WARN or FAIL dimension, write:
 1. **What is wrong** — specific issue with task ID or finding ID.
