@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { createRequire } from 'node:module';
 import { RulesMatcher } from './rules-matcher.js';
 import { SessionTracker } from './session-tracker.js';
+import { ContextAccumulator } from './context-accumulator.js';
 
 const require = createRequire(import.meta.url);
 const { getSkillStateFilePath } = require('../shared/pipeline.js');
@@ -150,68 +151,129 @@ async function main() {
         if (input.session_id && matches.length > 0) {
             const home = process.env['HOME'] || process.env['USERPROFILE'] || '';
             const stateDir = path.join(home, '.claude', 'hooks', 'state');
-            const tracker = new SessionTracker(stateDir);
-            // Clean up old sessions (once per run, cheap operation)
-            tracker.cleanupOldSessions();
-            // Filter out already-suggested skills
-            matches = matches.filter(m => {
-                if (m.rule.skipConditions?.sessionSkillUsed && tracker.wasSuggested(input.session_id, m.skillName)) {
-                    return false;
+
+            // Context accumulator (feature flag: CONTEXT_ACCUMULATOR_ENABLED)
+            const accumulator = new ContextAccumulator(stateDir);
+            const useAccumulator = accumulator.enabled;
+
+            if (useAccumulator) {
+                // Accumulator replaces SessionTracker for suggestion dedup + cleanup
+                accumulator.cleanup();
+
+                matches = matches.filter(m => {
+                    if (m.rule.skipConditions?.sessionSkillUsed && accumulator.wasSkillSuggested(input.session_id, m.skillName)) {
+                        return false;
+                    }
+                    return true;
+                });
+
+                for (const m of matches.slice(0, MAX_SUGGESTIONS)) {
+                    accumulator.markSkillSuggested(input.session_id, m.skillName);
                 }
-                return true;
-            });
-            // Mark newly suggested skills
-            for (const m of matches.slice(0, MAX_SUGGESTIONS)) {
-                tracker.markSuggested(input.session_id, m.skillName);
+            } else {
+                // Legacy path: use SessionTracker
+                const tracker = new SessionTracker(stateDir);
+                tracker.cleanupOldSessions();
+
+                matches = matches.filter(m => {
+                    if (m.rule.skipConditions?.sessionSkillUsed && tracker.wasSuggested(input.session_id, m.skillName)) {
+                        return false;
+                    }
+                    return true;
+                });
+
+                for (const m of matches.slice(0, MAX_SUGGESTIONS)) {
+                    tracker.markSuggested(input.session_id, m.skillName);
+                }
             }
-        }
-        // Output
-        const output = formatOutput(matches);
-        if (output) {
-            // Write state file for PreToolUse guard when enforcement is 'block'
-            // Only write when score meets threshold (meaningful match)
-            if (matches.length > 0 && input.session_id) {
+
+            // Score accumulation (only when accumulator is enabled)
+            let effectiveScore = 0;
+            if (matches.length > 0) {
                 const primary = matches[0];
                 const totalScore = primary.score || primary.smartScore?.total || 0;
 
-                if (primary.rule.enforcement === 'block' && totalScore >= SCORE_THRESHOLD) {
-                    try {
-                        const stateFile = getSkillStateFilePath(input.session_id);
-                        if (stateFile) {
-                            const stateDir = path.dirname(stateFile);
-                            fs.mkdirSync(stateDir, { recursive: true });
-                            // Always overwrite — refresh timestamp on every new activation
-                            fs.writeFileSync(stateFile, JSON.stringify({
-                                skill: primary.skillName,
-                                timestamp: Date.now(),
-                                confidence: totalScore >= 80 ? 'high' : totalScore >= 50 ? 'medium' : 'low',
-                                score: totalScore,
-                                prompt: input.prompt?.substring(0, 100)
-                            }));
+                if (useAccumulator) {
+                    // Accumulate turn score with multi-turn decay
+                    const turnScore = {
+                        score: totalScore,
+                        matchedKeywords: primary.matchedKeywords || [],
+                        negativeSignal: primary.smartScore?.negative || 0,
+                        prompt_prefix: input.prompt?.substring(0, 80) || '',
+                    };
+                    const ctx = accumulator.accumulateScore(input.session_id, turnScore);
+                    effectiveScore = ctx ? Math.max(totalScore, ctx.cumulativeScore) : totalScore;
+                } else {
+                    effectiveScore = totalScore;
+                }
+            }
+
+            // Output
+            const output = formatOutput(matches);
+            if (output) {
+                // Write state file for PreToolUse guard when enforcement is 'block'
+                // Only write when score meets threshold (meaningful match)
+                if (matches.length > 0 && input.session_id) {
+                    const primary = matches[0];
+
+                    if (primary.rule.enforcement === 'block' && effectiveScore >= SCORE_THRESHOLD) {
+                        try {
+                            // Legacy state file (backward compatibility)
+                            const stateFile = getSkillStateFilePath(input.session_id);
+                            if (stateFile) {
+                                const legacyStateDir = path.dirname(stateFile);
+                                fs.mkdirSync(legacyStateDir, { recursive: true });
+                                fs.writeFileSync(stateFile, JSON.stringify({
+                                    skill: primary.skillName,
+                                    timestamp: Date.now(),
+                                    confidence: effectiveScore >= 80 ? 'high' : effectiveScore >= 50 ? 'medium' : 'low',
+                                    score: effectiveScore,
+                                    prompt: input.prompt?.substring(0, 100)
+                                }));
+                            }
+
+                            // Accumulator skill state (parallel write)
+                            if (useAccumulator) {
+                                accumulator.updateSkillState(input.session_id, {
+                                    skill: primary.skillName,
+                                    score: effectiveScore,
+                                    confidence: effectiveScore >= 80 ? 'high' : effectiveScore >= 50 ? 'medium' : 'low',
+                                    prompt: input.prompt?.substring(0, 100),
+                                });
+                            }
+                        } catch {
+                            // Fail-open: state file write failure should not block activation output
                         }
-                    } catch {
-                        // Fail-open: state file write failure should not block activation output
                     }
                 }
-            }
 
-            // For block enforcement, output ONLY the JSON systemMessage (no redundant text)
-            if (matches.length > 0 && matches[0].rule.enforcement === 'block') {
-                const primary = matches[0];
-                const totalScore = primary.score || primary.smartScore?.total || 0;
-                if (totalScore >= SCORE_THRESHOLD) {
-                    const skillName = primary.skillName;
-                    process.stdout.write(JSON.stringify({
-                        systemMessage: `SKILL ACTIVATION: ${skillName} required \u2014 call Skill("${skillName}") first`
-                    }) + '\n');
-                    // Skip text output — systemMessage is sufficient for block enforcement
-                    process.exit(0);
-                    return;
+                // For block enforcement, output ONLY the JSON systemMessage (no redundant text)
+                if (matches.length > 0 && matches[0].rule.enforcement === 'block') {
+                    const primary = matches[0];
+                    if (effectiveScore >= SCORE_THRESHOLD) {
+                        const skillName = primary.skillName;
+                        if (useAccumulator) accumulator.flush();
+                        process.stdout.write(JSON.stringify({
+                            systemMessage: `SKILL ACTIVATION: ${skillName} required \u2014 call Skill("${skillName}") first`
+                        }) + '\n');
+                        process.exit(0);
+                        return;
+                    }
                 }
-            }
 
-            // Non-block or below-threshold: output text banner
-            process.stdout.write(output);
+                // Non-block or below-threshold: output text banner
+                if (useAccumulator) accumulator.flush();
+                process.stdout.write(output);
+            } else {
+                // No output but accumulator may have pending writes
+                if (useAccumulator) accumulator.flush();
+            }
+        } else {
+            // No session_id or no matches — just output if any
+            const output = formatOutput(matches);
+            if (output) {
+                process.stdout.write(output);
+            }
         }
     }
     catch {

@@ -19,6 +19,9 @@ const path = require("path");
 const { CODE_EXTENSIONS, SKIP_PATHS } = require("./shared/constants");
 const { findActivePipeline } = require("./shared/pipeline");
 
+// ContextAccumulator is ESM — loaded via dynamic import() in main()
+let ContextAccumulator = null;
+
 let CWD;
 let FORGE_DIR;
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
@@ -136,7 +139,7 @@ function writeTrackerSignal(forgeDir, signalType, data) {
   }
 }
 
-function main() {
+async function main() {
   try {
     const raw = fs.readFileSync(0, "utf8").trim();
     if (!raw) { process.exit(0); return; }
@@ -149,6 +152,22 @@ function main() {
     const state = readState(input.session_id);
     state.toolUseCount = (state.toolUseCount || 0) + 1;
     let output = "";
+
+    // === Context Accumulator: tool usage feed-in (feature flag guarded) ===
+    if (process.env.CONTEXT_ACCUMULATOR_ENABLED !== 'false') {
+      try {
+        if (!ContextAccumulator) {
+          const mod = await import("./activation/context-accumulator.js");
+          ContextAccumulator = mod.ContextAccumulator;
+        }
+        const accumulator = new ContextAccumulator(STATE_DIR);
+        accumulator.recordToolUse(input.session_id, input.tool_name, input.tool_input);
+        accumulator.detectToolPattern(input.session_id);
+        accumulator.flush();
+      } catch {
+        // Fail-open: accumulator errors should not affect tracker operation
+      }
+    }
 
     // === 1. Context Pressure Monitor ===
     if (state.toolUseCount - (state.lastWarnAt || 0) >= DEBOUNCE_COUNT) {
