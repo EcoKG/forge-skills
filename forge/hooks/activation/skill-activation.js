@@ -6,6 +6,9 @@ import { RulesMatcher } from './rules-matcher.js';
 import { SessionTracker } from './session-tracker.js';
 import { ContextAccumulator } from './context-accumulator.js';
 import { AdaptiveEngine } from './adaptive-engine.js';
+import { SemanticAnalyzer } from './semantic-analyzer.js';
+import { IntentClassifier } from './intent-classifier.js';
+import { UserProfile } from './user-profile.js';
 
 const require = createRequire(import.meta.url);
 const { getSkillStateFilePath } = require('../shared/pipeline.js');
@@ -225,6 +228,59 @@ async function main() {
                     effectiveScore = ctx ? Math.max(totalScore, ctx.cumulativeScore) : totalScore;
                 } else {
                     effectiveScore = totalScore;
+                }
+            }
+
+            // ─── Phase 3: Semantic Analysis ──────────────────────────────
+            // Analyze multi-turn conversation flow for escalation patterns.
+            // Default: enabled (opt-out via SEMANTIC_ANALYZER_ENABLED=false)
+            if (process.env.SEMANTIC_ANALYZER_ENABLED !== 'false' && useAccumulator) {
+                try {
+                    const ctx = accumulator.getContext(input.session_id);
+                    if (ctx?.turns?.length >= 2) {
+                        const analyzer = new SemanticAnalyzer();
+                        const flow = analyzer.analyzeFlow(ctx.turns);
+                        if (flow && flow.bonus > 0) {
+                            effectiveScore += flow.bonus;
+                        }
+                    }
+                } catch {
+                    // fail-open: semantic analysis error does not block activation
+                }
+            }
+
+            // ─── Phase 3: LLM Fallback Classifier ───────────────────────
+            // For ambiguous score range (30-60), use LLM to classify intent.
+            // Default: disabled (opt-in via LLM_CLASSIFIER_ENABLED=true)
+            if (process.env.LLM_CLASSIFIER_ENABLED === 'true' && effectiveScore >= 30 && effectiveScore < 60) {
+                try {
+                    const classifier = new IntentClassifier({
+                        cacheDir: path.join(stateDir, 'intent-cache'),
+                        timeoutMs: 2000,
+                    });
+                    const ctx = accumulator?.getContext(input.session_id);
+                    const result = await classifier.classify(input.prompt, ctx?.turns);
+                    if (result?.intent === 'code-modify' && result.confidence >= 0.7) {
+                        effectiveScore = Math.max(effectiveScore, 80); // promote
+                    } else if (result?.intent === 'question' && result.confidence >= 0.8) {
+                        effectiveScore = Math.min(effectiveScore, 20); // demote
+                    }
+                } catch {
+                    // fail-open: LLM classifier error does not block activation
+                }
+            }
+
+            // ─── Phase 3: User Profile Threshold Adjustment ─────────────
+            // Apply personalized score adjustment from cross-session learning.
+            // Default: disabled (opt-in via USER_PROFILE_ENABLED=true)
+            if (process.env.USER_PROFILE_ENABLED === 'true') {
+                try {
+                    const profile = new UserProfile();
+                    const userId = input.session_id.split('-')[0]; // approximate user ID
+                    const adjustment = profile.getThresholdAdjustment(userId);
+                    effectiveScore += adjustment;
+                } catch {
+                    // fail-open: user profile error does not block activation
                 }
             }
 

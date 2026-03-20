@@ -125,5 +125,16 @@
   {"prompt": "빌드하면 에러나는데 어제까지는 됐었거든", "shouldTrigger": true, "category": "bug-report", "lang": "ko"},
   {"prompt": "이 에러가 왜 발생하는건지 설명해줘", "shouldTrigger": false, "category": "question", "lang": "ko"},
   {"prompt": "적용할려고함", "shouldTrigger": false, "category": "chat", "lang": "ko"},
-  {"prompt": "처리됨?", "shouldTrigger": false, "category": "question", "lang": "ko"}
+  {"prompt": "처리됨?", "shouldTrigger": false, "category": "question", "lang": "ko"},
+
+  {"prompt": "서버 포트 바꿔", "shouldTrigger": true, "category": "phase3-multi-turn", "lang": "ko"},
+  {"prompt": "이 모듈 분리하고 테스트 작성해줘", "shouldTrigger": true, "category": "phase3-multi-turn", "lang": "ko"},
+  {"prompt": "에러 핸들링 로직 구현해줘", "shouldTrigger": true, "category": "phase3-multi-turn", "lang": "ko"},
+  {"prompt": "함수 이름 변경해줘", "shouldTrigger": true, "category": "phase3-multi-turn", "lang": "ko"},
+  {"prompt": "메모리 누수 수정해줘", "shouldTrigger": true, "category": "phase3-multi-turn", "lang": "ko"},
+  {"prompt": "이거 좀 이상한 것 같은데", "shouldTrigger": false, "category": "phase3-ambiguous", "lang": "ko"},
+  {"prompt": "looks a bit off", "shouldTrigger": false, "category": "phase3-ambiguous", "lang": "en"},
+  {"prompt": "잘 되는 거 맞아?", "shouldTrigger": false, "category": "phase3-ambiguous", "lang": "ko"},
+  {"prompt": "이 부분은 왜 이렇게 되어 있나요?", "shouldTrigger": false, "category": "phase3-ambiguous", "lang": "ko"},
+  {"prompt": "what do you think about this approach?", "shouldTrigger": false, "category": "phase3-ambiguous", "lang": "en"}
 ]
