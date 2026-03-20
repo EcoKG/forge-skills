@@ -107,5 +107,23 @@
   {"prompt": "코드 정리해줘", "shouldTrigger": true, "category": "mixed", "lang": "ko"},
   {"prompt": "clean up the codebase", "shouldTrigger": false, "category": "mixed", "lang": "en"},
   {"prompt": "config.yml 변경해줘", "shouldTrigger": true, "category": "mixed", "lang": "mixed"},
-  {"prompt": "index.html 수정해줘", "shouldTrigger": true, "category": "mixed", "lang": "mixed"}
+  {"prompt": "index.html 수정해줘", "shouldTrigger": true, "category": "mixed", "lang": "mixed"},
+
+  {"prompt": "forge 스킬에 TDD 명시되어있나?", "shouldTrigger": false, "category": "question", "lang": "ko"},
+  {"prompt": "forge에서 analyze 파이프라인이 작동하나?", "shouldTrigger": false, "category": "question", "lang": "ko"},
+  {"prompt": "포지 스킬에 뭐가 있는지 알려줘", "shouldTrigger": false, "category": "question", "lang": "ko"},
+  {"prompt": "forge hook이 왜 발동됐나?", "shouldTrigger": false, "category": "question", "lang": "ko"},
+  {"prompt": "이 프로젝트에 테스트가 있나?", "shouldTrigger": false, "category": "question", "lang": "ko"},
+  {"prompt": "배포 됐나?", "shouldTrigger": false, "category": "question", "lang": "ko"},
+  {"prompt": "이 접근법이 맞나?", "shouldTrigger": false, "category": "question", "lang": "ko"},
+  {"prompt": "성능 개선이 될까?", "shouldTrigger": false, "category": "question", "lang": "ko"},
+
+  {"prompt": "장애가 발생한 포인트는 엄청나게 긴 엔터가 많이 섞인 텍스트를 보냈더니 센드가 두번씩되던대", "shouldTrigger": true, "category": "bug-report", "lang": "ko"},
+  {"prompt": "서버에서 500 에러가 계속 발생하고 있어", "shouldTrigger": true, "category": "bug-report", "lang": "ko"},
+  {"prompt": "로그인하면 갑자기 세션이 끊기더라", "shouldTrigger": true, "category": "bug-report", "lang": "ko"},
+  {"prompt": "API 응답이 두번씩 오는 현상이 있음", "shouldTrigger": true, "category": "bug-report", "lang": "ko"},
+  {"prompt": "빌드하면 에러나는데 어제까지는 됐었거든", "shouldTrigger": true, "category": "bug-report", "lang": "ko"},
+  {"prompt": "이 에러가 왜 발생하는건지 설명해줘", "shouldTrigger": false, "category": "question", "lang": "ko"},
+  {"prompt": "적용할려고함", "shouldTrigger": false, "category": "chat", "lang": "ko"},
+  {"prompt": "처리됨?", "shouldTrigger": false, "category": "question", "lang": "ko"}
 ]

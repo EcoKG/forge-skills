@@ -53,12 +53,14 @@ const NEGATIVE_PATTERNS_KO = [
   // Search/view requests — "찾아봐", "확인해봐", "봐봐", "열어봐"
   /^.{0,30}(찾아봐|찾아보라고|확인해봐|확인해보라고|열어봐|봐봐|살펴봐|검색해봐|찾아줘|찾아보자|체크해봐|들여다봐)\s*$/,
   // Korean ending-form questions — "~함?", "~했음?", "~됨?"
-  /^.{0,40}(함|했음|됨|인듯|한건가|된건가|했잖아|됐잖아|인가요|한가요|된가요)\s*[\?\？]?\s*$/,
+  // Lookbehind excludes intent declarations: "~할려고함", "~하겠음"
+  /^.{0,40}(?<!려고|하겠|할게|할거)(?:함|했음|됨|인듯|한건가|된건가|했잖아|됐잖아|인가요|한가요|된가요)\s*[\?\？]?\s*$/,
   // Korean interrogative endings with 나/나요 — "있나?", "됐나?", "했나?", "작동하나?"
   // Catches "명시되어있나?", "TDD 있나?", "포함됐나?", "작동하나?" style questions
   /(있나|없나|됐나|했나|맞나|되나|하나|한가|될까|아냐|아닌가|볼까)\s*[\?\？]?\s*$/,
   // Korean question endings — "~했는지", "~하는지", "~되는지", etc.
-  /(했는지|하는지|되는지|있는지|인지|건지|은지|는건가|뭐야|뭔가)/,
+  // End-anchored to avoid catching subordinate clauses ("안한건지 분석하고...")
+  /(했는지|하는지|되는지|있는지|인지|건지|은지|는건가|뭐야|뭔가)\s*[\?\？]?\s*$/,
   // "어떻게 되" (status question: how is it going)
   /어떻게\s*되/,
   // "완료했는지/완료했나" (was it completed?)
@@ -125,6 +127,23 @@ const MILD_NEGATIVE_PATTERNS = [
   // Verification/double-check
   /^.{0,20}(맞나|맞아|맞지|맞는거야|제대로|확실|됐나|한 거야|한거야|거지|거야)\s*[\?\？]?\s*$/,
   /^(makes sense|fair point|i agree|sounds right|that('?s)?\s+(correct|right|true)|exactly|precisely|looks good|seems good).{0,15}$/i,
+];
+
+// Conversational Korean endings indicating experiential symptom reporting
+const SYMPTOM_REPORT_ENDINGS = [
+  /되던대/, /되던데/, /하던대/, /하던데/,
+  /안\s?되더라/, /되더라고/, /하더라고/,
+  /거든요?\s*$/, /더라구요?\s*$/, /더라고요?\s*$/,
+  /씩\s*(되|나|생기|반복)/,
+  /나더라/, /생기더라/, /뜨더라/,
+  /[가-힣]더라\s*$/,  // general experiential ending "~더라" at end of sentence
+];
+
+// Words that cluster in bug/symptom reports — 2+ together = strong signal
+const SYMPTOM_CLUSTER_WORDS = [
+  '장애', '발생', '갑자기', '두번', '중복', '반복',
+  '오작동', '이상', '문제', '현상', '증상', '재현',
+  '먹통', '멈춤', '프리징', '안 되', '안되', '꺼짐', '끊김',
 ];
 
 // Code identifier patterns
@@ -221,21 +240,25 @@ export class RulesMatcher {
         // Too short to be a real request (< 2 chars)
         if (promptTrimmed.length < 2) return null;
 
-        // Strong negative signal → don't trigger (cannot be overridden)
-        if (negativeScore <= -40) return null;
-
-        // Compute positive scores
+        // Compute positive scores (before negative check — offset model)
         const matchedKeywords = this.matchKeywordsDeduped(triggers.keywords, promptLower);
         const matchedLowKeywords = this.matchKeywordsDeduped(triggers.lowWeightKeywords, promptLower);
         const matchedIntents = this.matchIntentPatterns(triggers.intentPatterns, prompt);
         const extScore = this.scoreFileExtensions(promptLower);
         const verbScore = this.scoreActionVerbs(promptLower);
         const idScore = this.scoreCodeIdentifiers(prompt);
+        const bugNarrativeScore = this.scoreBugNarrative(prompt);
 
         const positiveScore = matchedKeywords.length * 15 + matchedLowKeywords.length * 8
             + matchedIntents.length * 20
-            + (extScore > 0 ? 50 : 0) + (verbScore > 0 ? 30 : 0) + (idScore > 0 ? 20 : 0);
-        const totalScore = positiveScore + negativeScore + skillNameBonus; // negativeScore is 0 or -20, skillNameBonus is 0 or 40
+            + (extScore > 0 ? 50 : 0) + (verbScore > 0 ? 30 : 0) + (idScore > 0 ? 20 : 0)
+            + bugNarrativeScore;
+
+        // Offset model: negative reduces score but doesn't hard-block when positive signals exist
+        // Only hard-exit when there are zero positive signals AND strong negative
+        if (positiveScore === 0 && negativeScore <= -40) return null;
+
+        const totalScore = positiveScore + negativeScore + skillNameBonus;
 
         // Threshold check: if score below threshold AND no keywords/intents matched → no match
         const threshold = rule.unifiedScoring?.threshold || 0;
@@ -257,6 +280,7 @@ export class RulesMatcher {
                 fileExtension: extScore > 0 ? 50 : 0,
                 actionVerb: verbScore > 0 ? 30 : 0,
                 codeIdentifier: idScore > 0 ? 20 : 0,
+                bugNarrative: bugNarrativeScore,
                 negativeSignal: negativeScore,
                 skillNameBonus,
                 total: totalScore,
@@ -311,6 +335,22 @@ export class RulesMatcher {
             if (pattern.test(prompt)) count++;
         }
         return count;
+    }
+
+    scoreBugNarrative(prompt) {
+        let score = 0;
+        // Symptom report endings (+25)
+        for (const pattern of SYMPTOM_REPORT_ENDINGS) {
+            if (pattern.test(prompt)) { score += 25; break; }
+        }
+        // Symptom cluster bonus (+20 for 2+, +30 for 3+)
+        let clusterCount = 0;
+        for (const word of SYMPTOM_CLUSTER_WORDS) {
+            if (prompt.includes(word)) clusterCount++;
+        }
+        if (clusterCount >= 3) score += 30;
+        else if (clusterCount >= 2) score += 20;
+        return score;
     }
 
     scoreNegativeSignals(prompt) {
