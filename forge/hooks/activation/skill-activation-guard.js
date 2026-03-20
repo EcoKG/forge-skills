@@ -21,9 +21,13 @@
 
 import * as fs from 'node:fs';
 import { createRequire } from 'node:module';
+import { AdaptiveEngine } from './adaptive-engine.js';
 
 const require = createRequire(import.meta.url);
 const { getSkillStateFilePath, getContextFilePath, hasActivePipeline } = require('../shared/pipeline.js');
+
+// Feature flag for feedback collection in guard hook
+const FEEDBACK_COLLECTION_ENABLED = process.env.FEEDBACK_COLLECTION_ENABLED !== 'false';
 
 // Minimum score to enforce blocking (coordinates with skill-activation.js SCORE_THRESHOLD)
 const SCORE_THRESHOLD = 50;
@@ -111,6 +115,30 @@ function main() {
       if (!stateFile) {
         process.exit(0);
       }
+
+      // stat() early exit: check file age BEFORE JSON parsing to save parse overhead
+      try {
+        const stat = fs.statSync(stateFile);
+        if ((Date.now() - stat.mtimeMs) > STATE_TTL_MS) {
+          // TTL expired — record FP feedback before cleanup
+          if (FEEDBACK_COLLECTION_ENABLED) {
+            try {
+              const expiredContent = fs.readFileSync(stateFile, 'utf8');
+              const expiredState = JSON.parse(expiredContent);
+              const engine = new AdaptiveEngine();
+              engine.recordFP(sessionId, expiredState.prompt || '', expiredState.score || 0, expiredState.skill || 'forge');
+            } catch {
+              // fail-open: feedback recording failure is non-critical
+            }
+          }
+          try { fs.unlinkSync(stateFile); } catch {}
+          process.exit(0);
+        }
+      } catch {
+        // File doesn't exist or stat failed -> no enforcement needed
+        process.exit(0);
+      }
+
       try {
         const content = fs.readFileSync(stateFile, 'utf8');
         stateData = JSON.parse(content);
@@ -120,8 +148,17 @@ function main() {
       }
     }
 
-    // TTL check — if state file is stale, remove it and allow
+    // TTL check for context-file-sourced state (uses timestamp field, not file mtime)
     if (stateData.timestamp && (Date.now() - stateData.timestamp) > STATE_TTL_MS) {
+      // Record FP feedback for expired context-file state
+      if (FEEDBACK_COLLECTION_ENABLED) {
+        try {
+          const engine = new AdaptiveEngine();
+          engine.recordFP(sessionId, stateData.prompt || '', stateData.score || 0, stateData.skill || 'forge');
+        } catch {
+          // fail-open
+        }
+      }
       try { fs.unlinkSync(stateFile); } catch {}
       process.exit(0);
     }
@@ -153,6 +190,16 @@ function main() {
       const inputValues = Object.values(toolInput).map(v => String(v).toLowerCase());
       const skillLower = requiredSkill.toLowerCase();
       if (inputValues.some(v => v === skillLower || v.includes(skillLower))) {
+        // Record TP feedback — user confirmed the skill activation
+        if (FEEDBACK_COLLECTION_ENABLED) {
+          try {
+            const engine = new AdaptiveEngine();
+            engine.recordTP(sessionId, stateData.prompt || '', stateData.score || 0, requiredSkill);
+          } catch {
+            // fail-open
+          }
+        }
+
         // Forge is being invoked — remove the legacy lock
         const legacyStateFile = getSkillStateFilePath(sessionId);
         if (legacyStateFile) {

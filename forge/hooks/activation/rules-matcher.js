@@ -158,10 +158,15 @@ const CODE_IDENTIFIER_PATTERNS = [
   /\w+\.\w+\(\)/,                              // object.method() pattern
 ];
 
+// Feature flag: adaptive weights loading
+const ADAPTIVE_WEIGHTS_ENABLED = process.env.ADAPTIVE_WEIGHTS_ENABLED !== 'false';
+
 export class RulesMatcher {
     rules;
-    constructor(rules) {
+    adaptiveWeights;
+    constructor(rules, adaptiveWeights = null) {
         this.rules = rules;
+        this.adaptiveWeights = (ADAPTIVE_WEIGHTS_ENABLED && adaptiveWeights) ? adaptiveWeights : null;
     }
     matchPrompt(prompt) {
         if (!prompt || prompt.trim().length === 0) {
@@ -249,9 +254,18 @@ export class RulesMatcher {
         const idScore = this.scoreCodeIdentifiers(prompt);
         const bugNarrativeScore = this.scoreBugNarrative(prompt);
 
-        const positiveScore = matchedKeywords.length * 15 + matchedLowKeywords.length * 8
-            + matchedIntents.length * 20
-            + (extScore > 0 ? 50 : 0) + (verbScore > 0 ? 30 : 0) + (idScore > 0 ? 20 : 0)
+        // Dynamic weights: use adaptive weights if available, otherwise defaults
+        const aw = this.adaptiveWeights?.weights || {};
+        const kwWeight = aw.keyword || 15;
+        const lowKwWeight = aw.lowWeightKeyword || 8;
+        const intentWeight = aw.intent || 20;
+        const extWeight = aw.fileExtension || 50;
+        const verbWeight = aw.actionVerb || 30;
+        const idWeight = aw.codeIdentifier || 20;
+
+        const positiveScore = matchedKeywords.length * kwWeight + matchedLowKeywords.length * lowKwWeight
+            + matchedIntents.length * intentWeight
+            + (extScore > 0 ? extWeight : 0) + (verbScore > 0 ? verbWeight : 0) + (idScore > 0 ? idWeight : 0)
             + bugNarrativeScore;
 
         // Offset model: negative reduces score but doesn't hard-block when positive signals exist
@@ -261,7 +275,7 @@ export class RulesMatcher {
         const totalScore = positiveScore + negativeScore + skillNameBonus;
 
         // Threshold check: if score below threshold AND no keywords/intents matched → no match
-        const threshold = rule.unifiedScoring?.threshold || 0;
+        const threshold = this.adaptiveWeights?.thresholds?.match || rule.unifiedScoring?.threshold || 0;
         const hasPositiveSignal = matchedKeywords.length > 0 || matchedLowKeywords.length > 0 || matchedIntents.length > 0;
         if (totalScore < threshold && !hasPositiveSignal) {
             return null;
@@ -274,12 +288,12 @@ export class RulesMatcher {
             matchedIntents,
             smartScore: {
                 mode: 'reverse',
-                keyword: matchedKeywords.length * 15,
-                lowWeightKeyword: matchedLowKeywords.length * 8,
-                intent: matchedIntents.length * 20,
-                fileExtension: extScore > 0 ? 50 : 0,
-                actionVerb: verbScore > 0 ? 30 : 0,
-                codeIdentifier: idScore > 0 ? 20 : 0,
+                keyword: matchedKeywords.length * kwWeight,
+                lowWeightKeyword: matchedLowKeywords.length * lowKwWeight,
+                intent: matchedIntents.length * intentWeight,
+                fileExtension: extScore > 0 ? extWeight : 0,
+                actionVerb: verbScore > 0 ? verbWeight : 0,
+                codeIdentifier: idScore > 0 ? idWeight : 0,
                 bugNarrative: bugNarrativeScore,
                 negativeSignal: negativeScore,
                 skillNameBonus,

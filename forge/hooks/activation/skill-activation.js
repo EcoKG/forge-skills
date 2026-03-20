@@ -5,14 +5,21 @@ import { createRequire } from 'node:module';
 import { RulesMatcher } from './rules-matcher.js';
 import { SessionTracker } from './session-tracker.js';
 import { ContextAccumulator } from './context-accumulator.js';
+import { AdaptiveEngine } from './adaptive-engine.js';
 
 const require = createRequire(import.meta.url);
 const { getSkillStateFilePath } = require('../shared/pipeline.js');
 
 const MAX_SUGGESTIONS = 3;
 
-// Minimum score to write state file and enforce blocking
+// Minimum score to write state file (ASK or BLOCK)
 const SCORE_THRESHOLD = 50;
+
+// Feature flag: graduated confidence (BLOCK/ASK/PASS)
+const GRADUATED_CONFIDENCE_ENABLED = process.env.GRADUATED_CONFIDENCE_ENABLED !== 'false';
+
+// Default graduated thresholds
+const DEFAULT_THRESHOLDS = { block: 80, ask: 50, pass: 0 };
 
 // Meta-workflow exclusion patterns — these should never trigger forge activation
 const META_WORKFLOW_PATTERNS = [
@@ -144,8 +151,21 @@ async function main() {
             process.exit(0);
             return;
         }
-        // Match prompt
-        const matcher = new RulesMatcher(rules);
+        // Load adaptive weights (if available)
+        let adaptiveWeights = null;
+        let thresholds = DEFAULT_THRESHOLDS;
+        try {
+            const adaptiveEngine = new AdaptiveEngine();
+            adaptiveWeights = adaptiveEngine.getAdaptiveWeights();
+            if (adaptiveWeights?.thresholds) {
+                thresholds = { ...DEFAULT_THRESHOLDS, ...adaptiveWeights.thresholds };
+            }
+        } catch {
+            // fail-open: use defaults
+        }
+
+        // Match prompt (pass adaptive weights to matcher for dynamic scoring)
+        const matcher = new RulesMatcher(rules, adaptiveWeights);
         let matches = matcher.matchPrompt(input.prompt);
         // Filter already-suggested skills (session tracking)
         if (input.session_id && matches.length > 0) {
@@ -208,15 +228,27 @@ async function main() {
                 }
             }
 
+            // Graduated confidence: determine action level
+            const blockThreshold = thresholds.block;
+            const askThreshold = thresholds.ask;
+            const isBlock = GRADUATED_CONFIDENCE_ENABLED
+                ? effectiveScore >= blockThreshold
+                : effectiveScore >= SCORE_THRESHOLD;
+            const isAsk = GRADUATED_CONFIDENCE_ENABLED
+                && effectiveScore >= askThreshold
+                && effectiveScore < blockThreshold;
+            const confidence = isBlock ? 'high' : isAsk ? 'ask' : 'low';
+
             // Output
             const output = formatOutput(matches);
             if (output) {
                 // Write state file for PreToolUse guard when enforcement is 'block'
-                // Only write when score meets threshold (meaningful match)
+                // BLOCK: score >= blockThreshold — full blocking enforcement
+                // ASK: askThreshold <= score < blockThreshold — suggestion only (guard passes through)
                 if (matches.length > 0 && input.session_id) {
                     const primary = matches[0];
 
-                    if (primary.rule.enforcement === 'block' && effectiveScore >= SCORE_THRESHOLD) {
+                    if (primary.rule.enforcement === 'block' && (isBlock || isAsk)) {
                         try {
                             // Legacy state file (backward compatibility)
                             const stateFile = getSkillStateFilePath(input.session_id);
@@ -226,7 +258,7 @@ async function main() {
                                 fs.writeFileSync(stateFile, JSON.stringify({
                                     skill: primary.skillName,
                                     timestamp: Date.now(),
-                                    confidence: effectiveScore >= 80 ? 'high' : effectiveScore >= 50 ? 'medium' : 'low',
+                                    confidence,
                                     score: effectiveScore,
                                     prompt: input.prompt?.substring(0, 100)
                                 }));
@@ -237,7 +269,7 @@ async function main() {
                                 accumulator.updateSkillState(input.session_id, {
                                     skill: primary.skillName,
                                     score: effectiveScore,
-                                    confidence: effectiveScore >= 80 ? 'high' : effectiveScore >= 50 ? 'medium' : 'low',
+                                    confidence,
                                     prompt: input.prompt?.substring(0, 100),
                                 });
                             }
@@ -247,21 +279,19 @@ async function main() {
                     }
                 }
 
-                // For block enforcement, output ONLY the JSON systemMessage (no redundant text)
-                if (matches.length > 0 && matches[0].rule.enforcement === 'block') {
+                // For block enforcement with high confidence, output ONLY the JSON systemMessage
+                if (matches.length > 0 && matches[0].rule.enforcement === 'block' && isBlock) {
                     const primary = matches[0];
-                    if (effectiveScore >= SCORE_THRESHOLD) {
-                        const skillName = primary.skillName;
-                        if (useAccumulator) accumulator.flush();
-                        process.stdout.write(JSON.stringify({
-                            systemMessage: `SKILL ACTIVATION: ${skillName} required \u2014 call Skill("${skillName}") first`
-                        }) + '\n');
-                        process.exit(0);
-                        return;
-                    }
+                    const skillName = primary.skillName;
+                    if (useAccumulator) accumulator.flush();
+                    process.stdout.write(JSON.stringify({
+                        systemMessage: `SKILL ACTIVATION: ${skillName} required \u2014 call Skill("${skillName}") first`
+                    }) + '\n');
+                    process.exit(0);
+                    return;
                 }
 
-                // Non-block or below-threshold: output text banner
+                // ASK mode or below-threshold: output text banner (non-blocking suggestion)
                 if (useAccumulator) accumulator.flush();
                 process.stdout.write(output);
             } else {
