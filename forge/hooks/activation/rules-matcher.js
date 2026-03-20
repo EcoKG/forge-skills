@@ -1,14 +1,9 @@
 import { PRIORITY_WEIGHTS } from './types.js';
+import { createRequire } from 'module';
 
-// File extensions that indicate code-related work
-const CODE_EXTENSIONS = [
-  '.java', '.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs', '.cs', '.cpp', '.c', '.h',
-  '.vue', '.svelte', '.html', '.css', '.scss', '.less', '.sass',
-  '.properties', '.yml', '.yaml', '.json', '.xml', '.toml', '.ini', '.env', '.conf',
-  '.sql', '.graphql', '.proto', '.sh', '.bash', '.ps1', '.bat',
-  '.kt', '.swift', '.rb', '.php', '.lua', '.ex', '.exs', '.clj', '.scala',
-  '.md', '.mdx', '.dockerfile', '.tf', '.hcl'
-];
+// Import CODE_EXTENSIONS from shared CJS module (hooks/ is "type": "commonjs")
+const require = createRequire(import.meta.url);
+const { CODE_EXTENSIONS } = require('../shared/constants.js');
 
 // Action verbs that signal code modification intent (Korean + English)
 const ACTION_VERBS_KO = [
@@ -19,8 +14,7 @@ const ACTION_VERBS_KO = [
   '넣어', '빼', '옮겨', '교체', '전환', '업그레이드', '업데이트',
   '하게', '되게', '시켜', '해줘',
   '손봐', '정리해', '잡아', '고장', '안돼', '안됨', '안 됨', '이상해', '죽어',
-  '느려', '깨져', '에러', '컴파일', '빌드',
-  '진행', '시작', '다시', '이어서'
+  '느려', '깨져', '에러', '컴파일', '빌드'
 ];
 
 const ACTION_VERBS_EN = [
@@ -60,12 +54,12 @@ const NEGATIVE_PATTERNS_KO = [
   /^.{0,30}(찾아봐|찾아보라고|확인해봐|확인해보라고|열어봐|봐봐|살펴봐|검색해봐|찾아줘|찾아보자|체크해봐|들여다봐)\s*$/,
   // Korean ending-form questions — "~함?", "~했음?", "~됨?"
   /^.{0,40}(함|했음|됨|인듯|한건가|된건가|했잖아|됐잖아|인가요|한가요|된가요)\s*[\?\？]?\s*$/,
-  // Status/progress checks — "어떻게 됐어?", "진행됐나?", "VPM도 진행한거지?"
-  /^.{0,30}(어떻게|어디까지|완료|됐|했어|했나|됐어|됐나|했는지|진행한거지|한거지|한거야).{0,20}[\?\？]?\s*$/,
-  // Continuation/procedural — "다음은?", "계속", "진행하자", "진행해"
-  /^(다음|계속|진행해|진행하자|진행할게|그럼 진행|이제 진행|그러면 계속|다음으로|다음은|계속해|계속하자|이어서).{0,15}[\?\？]?\s*$/,
-  // Confirmation/agreement — "그럼 이대로", "맞아", "오케이"
-  /^(그럼|그래|맞아|맞네|오케이|좋지|그렇지|됐다|그런데 좋아|그래 맞아|확인|동의|승인).{0,15}$/,
+  // Korean question endings — "~했는지", "~하는지", "~되는지", etc.
+  /(했는지|하는지|되는지|있는지|인지|건지|은지|는건가|뭐야|뭔가)/,
+  // "어떻게 되" (status question: how is it going)
+  /어떻게\s*되/,
+  // "완료했는지/완료했나" (was it completed?)
+  /완료했.{0,3}(는지|나)/,
   // Observation/hedging — "근데 이상한데", "어? 뭐지?"
   /^(근데|그런데|어[\?\？\s\.]|음|잠깐|잠깐만|아 그런데|헉).{0,30}(이상|뭔가|뭐야|뭔지|구나|있는데|있네|그렇구나|신기하네)\s*$/,
   // Simple checking/viewing — "내용 확인", "파일 봐", "상태 확인해줘"
@@ -76,8 +70,6 @@ const NEGATIVE_PATTERNS_KO = [
   /^.{0,20}(이거|그거|이걸|저걸|이것|그것|여기|거기).{0,20}(했어|했나|가져온|만든|쓴|왜|뭘|뭐|어디서).{0,10}[\?\？]\s*$/,
   // Conversational connectors — "응 맞아", "근데 말이야"
   /^(응|근데|그런데|그래서|음|헉|잠깐만|아 그리고|하지만|그 다음|그리고|참고로|그나저나|아참).{0,20}$/,
-  // Verification/double-check — "맞나?", "제대로 한 거 맞아?"
-  /^.{0,20}(맞나|맞아|맞지|맞는거야|제대로|확실|됐나|한 거야|한거야|거지|거야)\s*[\?\？]?\s*$/,
 ];
 
 const NEGATIVE_PATTERNS_EN = [
@@ -97,13 +89,6 @@ const NEGATIVE_PATTERNS_EN = [
   /^(run|start|stop|restart|execute)\s+(the|my|a)\s/i,
   // Simple acknowledgments
   /^(ok|okay|thanks|thank you|got it|understood|sure|yes|no|yep|nope|sounds good|great|nice|cool|awesome|perfect|alright|right|agreed)\s*[!.]?\s*$/i,
-  // --- Phase 2 additions below ---
-  // Status checks — "How did that go?", "What's the status?", "Is it done?"
-  /^(how (did|does|is)|what('?s)?|is (it|that|this)).{0,30}(done|progress|status|yet|far|happen|go|complete|working|work out)/i,
-  // Continuation — "What's next?", "Shall we proceed?", "Let's continue"
-  /^(what('?s)?\s+(next|now)|shall we|let('?s)?\s+(proceed|move|continue|go)|continue|next\s+(step|one)|move\s+on|go\s+(ahead|forward)|proceed).{0,20}[\?\.]?\s*$/i,
-  // Confirmation/agreement — "Makes sense", "Fair point", "I agree"
-  /^(makes sense|fair point|i agree|sounds right|that('?s)?\s+(correct|right|true)|exactly|precisely|looks good|seems good|well done|good job).{0,15}$/i,
   // Observation/feedback — "But that seems odd", "Wait, why?", "Something's off"
   /^(but\s+that|wait|huh|hmm|something('?s)?|that('?s)?\s+(weird|odd|off|interesting|strange)|this seems|looks like).{0,30}[\?\.]?\s*$/i,
   // Meta-system discussion — "Why didn't you use forge?", "Is forge needed?"
@@ -118,6 +103,25 @@ const NEGATIVE_PATTERNS_EN = [
   /^(i see|i understand|i get it|copy that|roger|acknowledged|noted|fair enough).{0,10}$/i,
   // What does this do? — "What does this do?", "What's this for?"
   /^what (does|is|should|can) (this|that|it)\s/i,
+  // Status/completion questions
+  /does this work/i,
+  /what does .* mean/i,
+  /how is .* going/i,
+  /is .* done/i,
+  /was .* completed/i,
+];
+
+// Mild negative patterns — status checks, continuations (score: -20, can be overridden by positive signals)
+const MILD_NEGATIVE_PATTERNS = [
+  // Status checks
+  /^(how (did|does|is)|what('?s)?|is (it|that|this)).{0,30}(done|progress|status|yet|far|happen|go|complete|working|work out)/i,
+  /^.{0,30}(어떻게|어디까지|완료|됐|했어|했나|됐어|됐나|했는지|진행한거지|한거지|한거야).{0,20}[\?\？]?\s*$/,
+  // Continuation/procedural
+  /^(what('?s)?\s+(next|now)|shall we|let('?s)?\s+(proceed|move|continue|go)|continue|next\s+(step|one)|move\s+on|go\s+(ahead|forward)|proceed).{0,20}[\?\.]?\s*$/i,
+  /^(다음|계속|진행해|진행하자|진행할게|그럼 진행|이제 진행|그러면 계속|다음으로|다음은|계속해|계속하자|이어서).{0,15}[\?\？]?\s*$/,
+  // Verification/double-check
+  /^.{0,20}(맞나|맞아|맞지|맞는거야|제대로|확실|됐나|한 거야|한거야|거지|거야)\s*[\?\？]?\s*$/,
+  /^(makes sense|fair point|i agree|sounds right|that('?s)?\s+(correct|right|true)|exactly|precisely|looks good|seems good).{0,15}$/i,
 ];
 
 // Code identifier patterns
@@ -183,45 +187,55 @@ export class RulesMatcher {
         // === Reverse Matching (v3.0) ===
         // Instead of detecting what NEEDS forge (infinite keywords),
         // detect what DOESN'T need forge (finite exclusions).
-        // If not excluded → trigger forge.
+        // Graduated negatives: strong (-40) blocks outright, mild (-20) can be overridden.
 
-        const isNegative = this.scoreNegativeSignals(prompt) > 0;
+        const negativeScore = this.scoreNegativeSignals(prompt); // 0, -20, or -40
         const promptTrimmed = prompt.trim();
 
         // Too short to be a real request (< 2 chars)
         if (promptTrimmed.length < 2) return null;
 
-        // Negative signal detected → don't trigger
-        if (isNegative) return null;
+        // Strong negative signal → don't trigger (cannot be overridden)
+        if (negativeScore <= -40) return null;
 
-        // Passed all exclusions → trigger forge
-        // Still compute positive scores for diagnostics/logging
+        // Compute positive scores
         const matchedKeywords = this.matchKeywordsDeduped(triggers.keywords, promptLower);
+        const matchedLowKeywords = this.matchKeywordsDeduped(triggers.lowWeightKeywords, promptLower);
         const matchedIntents = this.matchIntentPatterns(triggers.intentPatterns, prompt);
         const extScore = this.scoreFileExtensions(promptLower);
         const verbScore = this.scoreActionVerbs(promptLower);
         const idScore = this.scoreCodeIdentifiers(prompt);
 
-        const totalScore = matchedKeywords.length * 15 + matchedIntents.length * 20
+        const positiveScore = matchedKeywords.length * 15 + matchedLowKeywords.length * 8
+            + matchedIntents.length * 20
             + (extScore > 0 ? 50 : 0) + (verbScore > 0 ? 30 : 0) + (idScore > 0 ? 20 : 0);
+        const totalScore = positiveScore + negativeScore; // negativeScore is 0 or -20
+
+        // Threshold check: if score below threshold AND no keywords/intents matched → no match
+        const threshold = rule.unifiedScoring?.threshold || 0;
+        const hasPositiveSignal = matchedKeywords.length > 0 || matchedLowKeywords.length > 0 || matchedIntents.length > 0;
+        if (totalScore < threshold && !hasPositiveSignal) {
+            return null;
+        }
 
         return {
             skillName,
             rule,
-            matchedKeywords,
+            matchedKeywords: [...matchedKeywords, ...matchedLowKeywords],
             matchedIntents,
             smartScore: {
                 mode: 'reverse',
                 keyword: matchedKeywords.length * 15,
+                lowWeightKeyword: matchedLowKeywords.length * 8,
                 intent: matchedIntents.length * 20,
                 fileExtension: extScore > 0 ? 50 : 0,
                 actionVerb: verbScore > 0 ? 30 : 0,
                 codeIdentifier: idScore > 0 ? 20 : 0,
-                negativeSignal: 0,
-                total: Math.max(totalScore, 30),
-                threshold: 0
+                negativeSignal: negativeScore,
+                total: totalScore,
+                threshold
             },
-            score: Math.max(totalScore, 30),
+            score: totalScore,
         };
     }
 
@@ -244,18 +258,22 @@ export class RulesMatcher {
     scoreFileExtensions(promptLower) {
         let count = 0;
         for (const ext of CODE_EXTENSIONS) {
-            if (promptLower.includes(ext)) count++;
+            // Use word boundary pattern to avoid .c matching .css, .cs, etc.
+            const pattern = new RegExp('\\w+\\' + ext + '(?:\\s|$|[,;)])', 'i');
+            if (pattern.test(promptLower)) count++;
         }
         return count;
     }
 
     scoreActionVerbs(promptLower) {
         let count = 0;
+        // Korean verbs: use includes() (Korean has no word boundaries)
         for (const verb of ACTION_VERBS_KO) {
             if (promptLower.includes(verb)) count++;
         }
+        // English verbs: use word boundary to avoid "add" matching "address", etc.
         for (const verb of ACTION_VERBS_EN) {
-            if (promptLower.includes(verb)) count++;
+            if (new RegExp('\\b' + verb + '\\b').test(promptLower)) count++;
         }
         return count;
     }
@@ -269,22 +287,24 @@ export class RulesMatcher {
     }
 
     scoreNegativeSignals(prompt) {
+        let score = 0;
+        // Strong negatives: greetings, pure questions, acknowledgments = -40
         for (const pattern of NEGATIVE_PATTERNS_KO) {
-            if (pattern.test(prompt)) return 1; // flag as negative
+            if (pattern.test(prompt)) { score = Math.min(score, -40); break; }
         }
         for (const pattern of NEGATIVE_PATTERNS_EN) {
-            if (pattern.test(prompt)) return 1;
+            if (pattern.test(prompt)) { score = Math.min(score, -40); break; }
         }
-        return 0;
+        // Mild negatives: status checks, continuations = -20
+        // (only if no strong negative already found)
+        if (score === 0) {
+            for (const pattern of MILD_NEGATIVE_PATTERNS) {
+                if (pattern.test(prompt)) { score = -20; break; }
+            }
+        }
+        return score;
     }
 
-    // --- Legacy Methods (unchanged) ---
-
-    matchKeywords(keywords, promptLower) {
-        if (!keywords || keywords.length === 0)
-            return [];
-        return keywords.filter(kw => promptLower.includes(kw.toLowerCase()));
-    }
     matchIntentPatterns(patterns, prompt) {
         if (!patterns || patterns.length === 0)
             return [];
