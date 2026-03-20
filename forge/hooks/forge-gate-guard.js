@@ -340,11 +340,52 @@ function main() {
     process.exit(2);
   }
 
+  // === GATE 8: Main branch protection warning ===
+  try {
+    if (toolName === "Bash") {
+      const cmd = toolInput.command || "";
+      if (cmd.match(/\bgit\b.*\bcommit\b/) && state) {
+        // Check if on a protected branch (main/master/develop)
+        let currentBranch = "";
+        try {
+          const { execSync } = require("child_process");
+          currentBranch = execSync("git rev-parse --abbrev-ref HEAD", {
+            cwd: CWD, encoding: "utf8", timeout: 3000, stdio: ["pipe", "pipe", "pipe"]
+          }).trim();
+        } catch {}
+
+        const PROTECTED = ["main", "master", "develop"];
+        if (currentBranch && PROTECTED.includes(currentBranch)) {
+          // Debounce: only warn once per session
+          const warnFlag = path.join(STATE_DIR, `gate8-warned-${input.session_id || "default"}.json`);
+          let alreadyWarned = false;
+          try { alreadyWarned = fs.existsSync(warnFlag); } catch {}
+
+          if (!alreadyWarned) {
+            try { fs.writeFileSync(warnFlag, JSON.stringify({ at: new Date().toISOString() })); } catch {}
+            const slug = state.session_id || "unknown";
+            process.stdout.write(
+              `\u26a0 GATE 8 WARNING: Committing to protected branch "${currentBranch}".\n` +
+              `Consider using a feature branch: git checkout -b forge/${slug}\n` +
+              `Or run: node forge-tools.js engine-branch <artifact-dir>\n` +
+              `Set git_branching in .forge/config.json to control this behavior.`
+            );
+            writeAuditLog("Gate 8", toolName, "", input.session_id);
+          }
+          // WARNING only — does not block
+        }
+      }
+    }
+  } catch {
+    // Gate 8 is warning-only, fail-open
+  }
+
   // === GATE 7: VPM verification before git push / gh pr create ===
   try {
     if (toolName === "Bash" || isMcpExec) {
       const cmd = toolInput.command || toolInput.code || "";
-      const isPushCmd = cmd.match(/\bgit\b[\s\S]*\bpush\b/) && !cmd.match(/\bgit\s+stash\s+push\b/);
+      // Match `git push` as command, not "push" inside commit messages or strings
+      const isPushCmd = cmd.match(/\bgit\s+push\b/) && !cmd.match(/\bgit\s+stash\s+push\b/);
       const isGhPrCmd = cmd.match(/\bgh\b.*\bpr\b.*\b(create|push)\b/);
 
       if (isPushCmd || isGhPrCmd) {

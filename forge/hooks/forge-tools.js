@@ -1065,6 +1065,165 @@ function engineReconcile(artifactDir) {
   return { status: "CONSISTENT", drift: [] };
 }
 
+// Protected branch names — commits here trigger warnings
+const PROTECTED_BRANCHES = ["main", "master", "develop"];
+
+function isProtectedBranch(branchName) {
+  return PROTECTED_BRANCHES.includes(branchName);
+}
+
+// Get git_branching config: "auto" | "prompt" | "none"
+function getGitBranchingConfig() {
+  try {
+    const configPath = path.join(FORGE_DIR, "config.json");
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+      return config.git_branching || "auto";
+    }
+  } catch {}
+  return "auto";
+}
+
+// Engine: create feature branch for pipeline
+function engineBranch(artifactDir) {
+  const state = readPipelineState(artifactDir);
+  if (!state) return { error: "No active pipeline state" };
+
+  const branchingMode = getGitBranchingConfig();
+  if (branchingMode === "none") {
+    return { skipped: true, reason: "git_branching is 'none'" };
+  }
+
+  // Check if in a git repo
+  let isGitRepo = false;
+  try {
+    execSync("git rev-parse --git-dir", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] });
+    isGitRepo = true;
+  } catch {}
+
+  if (!isGitRepo) {
+    return { skipped: true, reason: "Not a git repository" };
+  }
+
+  // Get current branch
+  let currentBranch = "";
+  try {
+    currentBranch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
+  } catch {}
+
+  const slug = state.session_id || path.basename(artifactDir);
+  const branchName = `forge/${slug}`;
+
+  // Already on a feature branch? Don't create another
+  if (currentBranch && !isProtectedBranch(currentBranch)) {
+    state.branch = currentBranch;
+    state.base_branch = currentBranch;
+    writePipelineState(artifactDir, state);
+    return { skipped: true, reason: `Already on feature branch: ${currentBranch}`, branch: currentBranch };
+  }
+
+  // Check for uncommitted changes — can't switch branches with dirty working tree
+  let hasUncommitted = false;
+  try {
+    const status = execSync("git status --porcelain", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
+    hasUncommitted = status.length > 0;
+  } catch {}
+
+  if (hasUncommitted) {
+    return { error: "Cannot create branch: uncommitted changes exist. Commit or stash first." };
+  }
+
+  // If mode is "prompt", return suggestion without executing
+  if (branchingMode === "prompt") {
+    state.branch = null;
+    state.base_branch = currentBranch;
+    state.suggested_branch = branchName;
+    writePipelineState(artifactDir, state);
+    return {
+      action_required: true,
+      mode: "prompt",
+      suggestion: `git checkout -b ${branchName}`,
+      base_branch: currentBranch,
+      branch: branchName
+    };
+  }
+
+  // Auto mode: create branch
+  try {
+    execSync(`git checkout -b ${branchName}`, { cwd: CWD, encoding: "utf8", timeout: 10000, stdio: ["pipe", "pipe", "pipe"] });
+  } catch (err) {
+    // Branch might already exist — try checkout
+    try {
+      execSync(`git checkout ${branchName}`, { cwd: CWD, encoding: "utf8", timeout: 10000, stdio: ["pipe", "pipe", "pipe"] });
+    } catch (err2) {
+      return { error: `Failed to create/checkout branch ${branchName}: ${err2.message}` };
+    }
+  }
+
+  state.branch = branchName;
+  state.base_branch = currentBranch;
+  writePipelineState(artifactDir, state);
+
+  return { created: true, branch: branchName, base_branch: currentBranch };
+}
+
+// Engine: finalize git — detect branch, suggest push/PR
+function engineFinalizeGit(artifactDir) {
+  const state = readPipelineState(artifactDir);
+  if (!state) return { error: "No active pipeline state" };
+
+  const branchingMode = getGitBranchingConfig();
+
+  // Get current branch
+  let currentBranch = "";
+  try {
+    currentBranch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
+  } catch {
+    return { skipped: true, reason: "Not a git repository" };
+  }
+
+  // Check if remote exists
+  let remoteUrl = "";
+  try {
+    remoteUrl = execSync("git remote get-url origin", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
+  } catch {}
+
+  const onFeatureBranch = !isProtectedBranch(currentBranch);
+  const hasRemote = remoteUrl.length > 0;
+  const baseBranch = state.base_branch || "main";
+
+  // Count commits on this branch vs base
+  let commitCount = 0;
+  if (onFeatureBranch) {
+    try {
+      const count = execSync(`git rev-list --count ${baseBranch}..HEAD`, { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
+      commitCount = parseInt(count) || 0;
+    } catch {}
+  }
+
+  const result = {
+    branch: currentBranch,
+    base_branch: baseBranch,
+    on_feature_branch: onFeatureBranch,
+    remote_available: hasRemote,
+    remote_url: remoteUrl || null,
+    commit_count: commitCount,
+    commands: {}
+  };
+
+  if (onFeatureBranch && hasRemote) {
+    result.commands.push = `git push -u origin ${currentBranch}`;
+    result.commands.pr = `gh pr create --base ${baseBranch} --head ${currentBranch} --title "${state.request?.substring(0, 70) || currentBranch}" --body "Forge pipeline: ${state.session_id}"`;
+    result.suggestion = branchingMode === "auto" ? "auto_push_and_pr" : "prompt_user";
+  } else if (onFeatureBranch && !hasRemote) {
+    result.suggestion = "no_remote";
+  } else {
+    result.suggestion = "on_main";
+  }
+
+  return result;
+}
+
 // Config operations
 function configInit() {
   const configPath = path.join(FORGE_DIR, "config.json");
@@ -1075,7 +1234,7 @@ function configInit() {
     granularity: "standard",
     model: "balanced",
     review: "normal",
-    git_branching: "none",
+    git_branching: "auto",
     skip_tests: false,
     auto_discuss: true,
     workflow: {
@@ -1217,6 +1376,8 @@ try {
     case "engine-verify-tests":  requireArgs(args, 1, "engine-verify-tests <dir> <command...>"); result = engineVerifyTests(args[0], args.slice(1).join(" ")); break;
     case "engine-wave-info":     requireArgs(args, 1, "engine-wave-info <dir>"); result = engineWaveInfo(args[0]); break;
     case "engine-reconcile":     requireArgs(args, 1, "engine-reconcile <dir>"); result = engineReconcile(args[0]); break;
+    case "engine-branch":        requireArgs(args, 1, "engine-branch <dir>"); result = engineBranch(args[0]); break;
+    case "engine-finalize-git":  requireArgs(args, 1, "engine-finalize-git <dir>"); result = engineFinalizeGit(args[0]); break;
     case "help":
     default:
       result = {
@@ -1244,6 +1405,8 @@ try {
           "engine-verify-tests <dir> <command...>",
           "engine-wave-info <dir>",
           "engine-reconcile <dir>",
+          "engine-branch <dir>",
+          "engine-finalize-git <dir>",
           "help"
         ]
       };

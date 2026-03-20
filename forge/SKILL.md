@@ -139,6 +139,8 @@ node "$FORGE_TOOLS" git-state
 node "$FORGE_TOOLS" create-lock <dir>
 node "$FORGE_TOOLS" remove-lock <dir>
 node "$FORGE_TOOLS" engine-wave-info <artifact_dir>
+node "$FORGE_TOOLS" engine-branch <artifact_dir>
+node "$FORGE_TOOLS" engine-finalize-git <artifact_dir>
 node "$FORGE_TOOLS" check-lock <dir>
 ```
 
@@ -207,10 +209,11 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | 2.5 | architect_guide | agent (architect) | research.md exists | design-guide.md |
 | 3 | plan | agent (planner) | research.md exists | plan.md |
 | 4 | plan_check | agent (plan-checker) | plan.md exists | plan.md (verified) |
-| 5 | checkpoint | PM | plan_check PASS | user approval + git branch (branch created at checkpoint) |
+| 5 | checkpoint | PM | plan_check PASS | user approval |
+| 5.5 | branch | PM (engine-branch) | approved | git checkout -b forge/{slug} (auto/prompt/none via config) |
 | 6 | execute | agent (implementer + reviewer + QA + VPM) | plan.md exists | code + summaries + vpm-wave-{N}.md |
 | 7 | verify | agent (verification-pm, final_verify mode) | execution done | verification.md |
-| 8 | finalize | PM | verified | report.md + cleanup (lock removal, state update) |
+| 8 | finalize | PM | verified | report.md + engine-finalize-git (push/PR suggestion) + cleanup |
 
 ### Variants
 - **quick**: init → plan → execute → verify → finalize (no research, plan-check; backpressure build+test ON, VPM verify ON)
@@ -234,8 +237,9 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | **Gate 5T** | Trivial pipeline: >3 lines per edit or >10 cumulative | exit(2) — hard block |
 | **Gate 6** | Secret/credential detection in code content | exit(2) — hard block |
 | **Gate 7** | git push / gh pr create without VPM verification | exit(2) — hard block |
+| **Gate 8** | git commit on main/master/develop with active pipeline | warning (non-blocking, once per session) |
 
-**7 hard blocks (1, 2, 2B, 3, 4, 5T, 6, 7) + 2 warnings (5). No pipeline = all code edits blocked.**
+**7 hard blocks (1, 2, 2B, 3, 4, 5T, 6, 7) + 3 warnings (5, 8). No pipeline = all code edits blocked.**
 
 ---
 
@@ -302,7 +306,7 @@ Detailed rules: `references/context-engineering.md` (load only when needed)
 | L4.5 VPM Cross-Check | Prompt | Independent verification at wave boundary + final verify (goal-backward) |
 | L5 Goal-Backward | Prompt + **Code** | verifyArtifacts() + verifyKeyLinks() |
 | L6 Auto-Ralph | **Code** | Auto-enter Ralph on verify failure |
-| **L7 Gate Guard** | **Code** | 9 gates — 7 hard blocks + 2 warnings (PreToolUse) |
+| **L7 Gate Guard** | **Code** | 10 gates — 7 hard blocks + 3 warnings (PreToolUse) |
 
 ---
 

@@ -153,10 +153,17 @@ node "$FORGE_TOOLS" engine-transition {dir} checkpoint
 ## Step 6: BRANCH
 
 ```bash
-node "$FORGE_TOOLS" engine-can-transition {dir} branch
 node "$FORGE_TOOLS" engine-transition {dir} branch
-git checkout -b feature/{slug}
+node "$FORGE_TOOLS" engine-branch {dir}
 ```
+
+The `engine-branch` command handles branching based on `git_branching` config:
+- **auto**: Creates `forge/{slug}` branch automatically
+- **prompt**: Returns suggested command for user to run
+- **none**: Skips branching entirely
+
+If already on a feature branch, it records the branch name without creating a new one.
+Returns: `{created, branch, base_branch}` or `{skipped, reason}`
 
 ---
 
@@ -287,7 +294,14 @@ node "$FORGE_TOOLS" engine-transition {dir} finalize
 2. Record metrics: `node "$FORGE_TOOLS" metrics-record '{...}'`
 3. Write memory: patterns.json, failures.json, decisions.json
 4. Knowledge transfer (if quality > 0.8): write to `~/.forge/knowledge/{stack}/`
-5. Propose PR if on feature branch
+5. Git finalization:
+   ```bash
+   node "$FORGE_TOOLS" engine-finalize-git {dir}
+   ```
+   Returns `{on_feature_branch, branch, remote_available, commands, suggestion}`.
+   - If `suggestion === "auto_push_and_pr"`: execute `commands.push`, then `commands.pr`
+   - If `suggestion === "prompt_user"`: show commands to user, ask confirmation
+   - If `suggestion === "no_remote"` or `"on_main"`: skip
 
 ---
 
