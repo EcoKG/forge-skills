@@ -68,6 +68,7 @@ GATE GUARD (PreToolUse): blocks if pipeline state is violated
 | `--skip-tests` | flag | off | Skip test execution |
 | `--resume` | flag | off | Resume interrupted execution |
 | `--ralph` | flag | off | Ralph Mode: iterate until tests pass |
+| `--analyze` | flag | off | Read-only analysis pipeline (no code changes, adaptive search depth) |
 | `--disclosure` | novice, standard, advanced | standard | Output verbosity |
 | `--init` | flag | off | Project initialization |
 | `--phase` | integer | - | Execute project phase N |
@@ -219,6 +220,7 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 - **quick**: init → plan → execute → verify → finalize (no research, plan-check; backpressure build+test ON, VPM verify ON)
 - **debug**: reproduce → hypothesize → test → fix → verify_fix
 - **ralph**: init → iterate (loop until completion promise passes)
+- **analyze**: init → analyze_search → finalize (read-only, no code changes, adaptive search depth)
 
 ---
 
@@ -277,7 +279,8 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | 14 | ui-reviewer | prompts/ui-reviewer.md | Step 7 (UI files) |
 | 15 | test-strategist | prompts/test-strategist.md | Step 4 |
 | 16 | architect | prompts/architect.md + references/architect-{mode}.md | Step 2.5 (guide), Step 6 (design type), --init (architecture) |
-| 17 | custom:{name} | .forge/agents/{name}.md | Per pipeline.json |
+| 17 | analyzer | prompts/analyzer.md | --analyze (adaptive search) |
+| 18 | custom:{name} | .forge/agents/{name}.md | Per pipeline.json |
 
 **Get dispatch spec from engine:** `engine-dispatch-spec <dir> <role> [task_id]`
 

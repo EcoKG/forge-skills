@@ -54,6 +54,9 @@ const NEGATIVE_PATTERNS_KO = [
   /^.{0,30}(찾아봐|찾아보라고|확인해봐|확인해보라고|열어봐|봐봐|살펴봐|검색해봐|찾아줘|찾아보자|체크해봐|들여다봐)\s*$/,
   // Korean ending-form questions — "~함?", "~했음?", "~됨?"
   /^.{0,40}(함|했음|됨|인듯|한건가|된건가|했잖아|됐잖아|인가요|한가요|된가요)\s*[\?\？]?\s*$/,
+  // Korean interrogative endings with 나/나요 — "있나?", "됐나?", "했나?", "작동하나?"
+  // Catches "명시되어있나?", "TDD 있나?", "포함됐나?", "작동하나?" style questions
+  /(있나|없나|됐나|했나|맞나|되나|하나|한가|될까|아냐|아닌가|볼까)\s*[\?\？]?\s*$/,
   // Korean question endings — "~했는지", "~하는지", "~되는지", etc.
   /(했는지|하는지|되는지|있는지|인지|건지|은지|는건가|뭐야|뭔가)/,
   // "어떻게 되" (status question: how is it going)
@@ -170,10 +173,16 @@ export class RulesMatcher {
         // Negative signals always apply and can suppress keyword matches.
         // Exception: skill name itself (e.g., "forge", "/forge") is an instant trigger.
 
-        // Direct skill name invocation — always trigger
+        // Direct skill name invocation
+        // Slash command (/forge) = always instant trigger
+        // Text mention ("forge") + no negative signal = instant trigger (user wants to use skill)
+        // Text mention ("forge") + negative signal = bonus (40pts), normal scoring
+        // This prevents "forge 스킬에 TDD 있나?" from instant-triggering
         const skillNamePatterns = triggers.skillNamePatterns || [skillName.toLowerCase()];
+        let skillNameBonus = 0;
         for (const snp of skillNamePatterns) {
-            if (promptLower.includes(snp) || promptLower.startsWith("/" + snp)) {
+            if (promptLower.startsWith("/" + snp)) {
+                // Slash command — always direct invocation
                 const matchedKw = this.matchKeywordsDeduped(triggers.keywords, promptLower);
                 const matchedInt = this.matchIntentPatterns(triggers.intentPatterns, prompt);
                 return {
@@ -181,6 +190,23 @@ export class RulesMatcher {
                     smartScore: { skillNameMatch: true, total: 100, threshold: 0 },
                     score: 100,
                 };
+            }
+            if (promptLower.includes(snp)) {
+                // Check if negative signals indicate a question about the skill
+                const negCheck = this.scoreNegativeSignals(prompt);
+                if (negCheck < 0) {
+                    // Negative signal — treat as bonus, not instant trigger
+                    skillNameBonus = 40;
+                } else {
+                    // No negative signal — direct invocation
+                    const matchedKw = this.matchKeywordsDeduped(triggers.keywords, promptLower);
+                    const matchedInt = this.matchIntentPatterns(triggers.intentPatterns, prompt);
+                    return {
+                        skillName, rule, matchedKeywords: matchedKw, matchedIntents: matchedInt,
+                        smartScore: { skillNameMatch: true, total: 100, threshold: 0 },
+                        score: 100,
+                    };
+                }
             }
         }
 
@@ -209,7 +235,7 @@ export class RulesMatcher {
         const positiveScore = matchedKeywords.length * 15 + matchedLowKeywords.length * 8
             + matchedIntents.length * 20
             + (extScore > 0 ? 50 : 0) + (verbScore > 0 ? 30 : 0) + (idScore > 0 ? 20 : 0);
-        const totalScore = positiveScore + negativeScore; // negativeScore is 0 or -20
+        const totalScore = positiveScore + negativeScore + skillNameBonus; // negativeScore is 0 or -20, skillNameBonus is 0 or 40
 
         // Threshold check: if score below threshold AND no keywords/intents matched → no match
         const threshold = rule.unifiedScoring?.threshold || 0;
@@ -232,6 +258,7 @@ export class RulesMatcher {
                 actionVerb: verbScore > 0 ? 30 : 0,
                 codeIdentifier: idScore > 0 ? 20 : 0,
                 negativeSignal: negativeScore,
+                skillNameBonus,
                 total: totalScore,
                 threshold
             },

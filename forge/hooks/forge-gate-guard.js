@@ -163,6 +163,17 @@ function main() {
     isMcpExec = toolName.startsWith("mcp__") && (toolName.includes("execute") || toolName.includes("write") || toolName.includes("edit"));
     if (!CHECKED_TOOLS.includes(toolName) && !isMcpExec) { process.exit(0); }
 
+    // Meta-workflow exclusion: skill-creator manages its own quality process
+    const skillStateFile = path.join(STATE_DIR, `skill-required-${input.session_id || ""}.json`);
+    try {
+      if (fs.existsSync(skillStateFile)) {
+        const skillState = JSON.parse(fs.readFileSync(skillStateFile, "utf8"));
+        if (skillState.skill && /skill-creator/i.test(skillState.skill)) {
+          process.exit(0); // Allow — skill-creator has its own workflow
+        }
+      }
+    } catch {}
+
     state = findPipelineState();
 
     // If no active pipeline, block ALL code file edits (Edit/Write + Bash + MCP execute)

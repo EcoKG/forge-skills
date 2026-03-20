@@ -312,6 +312,13 @@
         {"id": "init", "order": 1, "actor": "pm", "exit_gate": {"state_value": "init_done"}, "next": "iterate"},
         {"id": "iterate", "order": 2, "actor": "agent", "agent_role": "ralph-executor", "agent_prompt": "prompts/ralph-executor.md", "model_key": "implementation", "max_iterations": 10, "entry_gate": {"required_state": "init_done"}, "exit_gate": {"state_value": "completed"}}
       ]
+    },
+    "analyze": {
+      "steps": [
+        {"id": "init", "order": 1, "actor": "pm", "entry_gate": null, "exit_gate": {"artifacts": ["meta.json"], "state_value": "init_done"}, "produces": ["meta.json"], "next": "analyze_search"},
+        {"id": "analyze_search", "order": 2, "actor": "agent", "agent_role": "analyzer", "agent_prompt": "prompts/analyzer.md", "model_key": "research", "entry_gate": {"required_state": "init_done", "required_artifacts": ["meta.json"]}, "exit_gate": {"artifacts": ["analysis.md"], "state_value": "analyzed"}, "next": "finalize"},
+        {"id": "finalize", "order": 3, "actor": "pm", "entry_gate": {"required_state": "analyzed"}, "exit_gate": {"artifacts": ["report.md"], "state_value": "finalized"}, "produces": ["report.md"]}
+      ]
     }
   },
   "model_profiles": {

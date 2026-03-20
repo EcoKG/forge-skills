@@ -78,7 +78,7 @@ echo "╔═══════════════════════�
 echo "║   Installation Complete                  ║"
 echo "╠══════════════════════════════════════════╣"
 echo "║                                          ║"
-echo "║  Skills: forge v7.1, creatework          ║"
+echo "║  Skills: forge v7.2, creatework          ║"
 echo "║  Hooks:  7 registered (all in settings)  ║"
 echo "║                                          ║"
 echo "║  Safe to delete the repo after install.  ║"

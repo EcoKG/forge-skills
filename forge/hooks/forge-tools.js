@@ -526,7 +526,8 @@ function engineInit(artifactDir, request, type, scale, options) {
   const pipelineName = (options?.trivial || pl === "trivial") ? "trivial" :
     (options?.quick || pl === "quick") ? "quick" :
     (options?.debug || pl === "debug") ? "debug" :
-    (options?.ralph || pl === "ralph") ? "ralph" : "standard";
+    (options?.ralph || pl === "ralph") ? "ralph" :
+    (options?.analyze || pl === "analyze") ? "analyze" : "standard";
   const pipelineDef = pipeline.pipelines[pipelineName] || pipeline.pipelines.standard;
 
   // Determine which steps to skip based on type
@@ -537,6 +538,7 @@ function engineInit(artifactDir, request, type, scale, options) {
   if (options?.direct) skippedSteps.push("research", "architect_guide", "plan_check");
   if (options?.no_research) skippedSteps.push("research");
   if (options?.quick || pl === "quick") skippedSteps.push("research", "architect_guide", "plan_check", "checkpoint", "branch");
+  if (options?.analyze || pl === "analyze") skippedSteps.push("research", "architect_guide", "plan", "plan_check", "checkpoint", "branch", "execute", "verify");
 
   const state = {
     session_id: path.basename(artifactDir),
