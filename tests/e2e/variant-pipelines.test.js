@@ -46,6 +46,10 @@ describe("Variant Pipelines E2E — Quick, Trivial, Debug", () => {
     return runForgeTools("engine-state", dir);
   }
 
+  function recordResult(dir, role, taskId, verdict) {
+    return runForgeTools("engine-record-result", dir, role, taskId, verdict);
+  }
+
   function writeArtifact(dir, filename, content) {
     fs.writeFileSync(
       path.join(dir, filename),
@@ -97,6 +101,12 @@ describe("Variant Pipelines E2E — Quick, Trivial, Debug", () => {
       state = getState(dir);
       expect(state.current_step).toBe("execute");
       expect(state.gates_passed).toContain("planned");
+
+      // Record task before leaving execute
+      recordResult(dir, "implementer", "task-1", "PASS");
+
+      // Record task before leaving execute
+      recordResult(dir, "implementer", "task-1", "PASS");
 
       // ── execute -> verify ─────────────────────────────────
       transitionTo(dir, "verify");
@@ -173,6 +183,12 @@ describe("Variant Pipelines E2E — Quick, Trivial, Debug", () => {
       transitionTo(dir, "execute");
       state = getState(dir);
       expect(state.current_step).toBe("execute");
+
+      // Record task before leaving execute
+      recordResult(dir, "implementer", "task-1", "PASS");
+
+      // Record task before leaving execute
+      recordResult(dir, "implementer", "task-1", "PASS");
 
       // ── execute -> cleanup (last step, auto-completes) ────
       transitionTo(dir, "cleanup");
@@ -276,6 +292,12 @@ describe("Variant Pipelines E2E — Quick, Trivial, Debug", () => {
       expect(state.gates_passed).toContain("hypothesis_tested");
       expect(state.allowed_transitions).toContain("verify_fix");
 
+      // Record task before leaving fix
+      recordResult(dir, "implementer", "fix-1", "PASS");
+
+      // Record task before leaving fix
+      recordResult(dir, "implementer", "fix-1", "PASS");
+
       // ── fix -> verify_fix (last step, auto-completes) ─────
       transitionTo(dir, "verify_fix");
       state = getState(dir);
@@ -291,6 +313,7 @@ describe("Variant Pipelines E2E — Quick, Trivial, Debug", () => {
       transitionTo(dir, "hypothesize");
       transitionTo(dir, "test_hypothesis");
       transitionTo(dir, "fix");
+      recordResult(dir, "implementer", "fix-1", "PASS");
       transitionTo(dir, "verify_fix");
 
       const raw = readRawState(dir);

@@ -31,6 +31,10 @@ describe("Engine Transitions — Full Lifecycle (Task 7.5)", () => {
     return result;
   }
 
+  function recordResult(dir, role, taskId, verdict) {
+    return runForgeTools("engine-record-result", dir, role, taskId, verdict);
+  }
+
   // Helper: get current state
   function getState(dir) {
     return runForgeTools("engine-state", dir);
@@ -111,6 +115,12 @@ describe("Engine Transitions — Full Lifecycle (Task 7.5)", () => {
       expect(state.current_step).toBe("execute");
       expect(state.gates_passed).toContain("branched");
 
+      // Record task before leaving execute
+      recordResult(dir, "implementer", "task-1", "PASS");
+
+      // Record task before leaving execute
+      recordResult(dir, "implementer", "task-1", "PASS");
+
       // execute → verify
       result = transitionTo(dir, "verify");
       expect(result.transitioned).toBe(true);
@@ -190,6 +200,9 @@ describe("Engine Transitions — Full Lifecycle (Task 7.5)", () => {
       state = getState(dir);
       expect(state.current_step).toBe("execute");
 
+      // Record task before leaving execute
+      recordResult(dir, "implementer", "task-1", "PASS");
+
       // execute → verify
       result = transitionTo(dir, "verify");
       expect(result.transitioned).toBe(true);
@@ -228,6 +241,12 @@ describe("Engine Transitions — Full Lifecycle (Task 7.5)", () => {
       expect(result.transitioned).toBe(true);
       state = getState(dir);
       expect(state.current_step).toBe("execute");
+
+      // Record task before leaving execute
+      recordResult(dir, "implementer", "task-1", "PASS");
+
+      // Record task before leaving execute
+      recordResult(dir, "implementer", "task-1", "PASS");
 
       // execute → cleanup (last step, auto-completes)
       result = transitionTo(dir, "cleanup");
@@ -290,6 +309,12 @@ describe("Engine Transitions — Full Lifecycle (Task 7.5)", () => {
       state = getState(dir);
       expect(state.current_step).toBe("fix");
       expect(state.allowed_transitions).toContain("verify_fix");
+
+      // Record task before leaving fix
+      recordResult(dir, "implementer", "fix-1", "PASS");
+
+      // Record task before leaving fix
+      recordResult(dir, "implementer", "fix-1", "PASS");
 
       // fix → verify_fix (last step, auto-completes)
       result = transitionTo(dir, "verify_fix");

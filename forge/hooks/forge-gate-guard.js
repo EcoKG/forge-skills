@@ -545,15 +545,19 @@ function main() {
     // Gate 5 is warning-only, fail-open
   }
 
-  // === GATE 5T: Trivial pipeline line limit ===
+  // === GATE 5T: Trivial pipeline line limit (per-edit + cumulative) ===
   try {
     if (state && state.pipeline === "trivial" && toolName === "Edit") {
       const oldStr = toolInput.old_string || "";
       const newStr = toolInput.new_string || "";
       const maxLines = Math.max(oldStr.split("\n").length, newStr.split("\n").length);
-      if (maxLines > 3) {
+      const TRIVIAL_PER_EDIT_LIMIT = 3;
+      const TRIVIAL_CUMULATIVE_LIMIT = 10;
+
+      // Per-edit limit
+      if (maxLines > TRIVIAL_PER_EDIT_LIMIT) {
         process.stderr.write(
-          `🚫 GATE 5T BLOCKED: Trivial pipeline allows max 3 lines per edit (got ${maxLines}).\n` +
+          `🚫 GATE 5T BLOCKED: Trivial pipeline allows max ${TRIVIAL_PER_EDIT_LIMIT} lines per edit (got ${maxLines}).\n` +
           "For larger changes, use:\n" +
           "  /forge --quick    (단일 파일, ≤50줄)\n" +
           "  /forge            (표준 파이프라인)"
@@ -561,6 +565,29 @@ function main() {
         writeAuditLog("Gate 5T", toolName, "", input.session_id);
         process.exit(2);
       }
+
+      // Cumulative limit — track total lines edited in this trivial session
+      const cumulativeTotal = (state.trivial_edit_lines || 0) + maxLines;
+      if (cumulativeTotal > TRIVIAL_CUMULATIVE_LIMIT) {
+        process.stderr.write(
+          `🚫 GATE 5T BLOCKED: Trivial pipeline cumulative limit exceeded (${cumulativeTotal}/${TRIVIAL_CUMULATIVE_LIMIT} lines).\n` +
+          "This change is too large for --trivial. Use:\n" +
+          "  /forge --quick    (단일 파일, ≤50줄)\n" +
+          "  /forge            (표준 파이프라인)"
+        );
+        writeAuditLog("Gate 5T-cumul", toolName, "", input.session_id);
+        process.exit(2);
+      }
+
+      // Update cumulative count in pipeline-state.json
+      try {
+        const artifactDir = findArtifactDir(state);
+        if (artifactDir) {
+          const statePath = path.join(artifactDir, "pipeline-state.json");
+          state.trivial_edit_lines = cumulativeTotal;
+          fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+        }
+      } catch {}
     }
   } catch (err) {
     process.stderr.write("forge-gate-guard: Gate 5T error: " + err.message + "\n");

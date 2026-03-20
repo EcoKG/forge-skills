@@ -31,6 +31,10 @@ describe("Engine Skip Chain & Revision Logic (Task 7.6)", () => {
     return result;
   }
 
+  function recordResult(dir, role, taskId, verdict) {
+    return runForgeTools("engine-record-result", dir, role, taskId, verdict);
+  }
+
   // Helper: get current state
   function getState(dir) {
     return runForgeTools("engine-state", dir);
@@ -196,6 +200,7 @@ describe("Engine Skip Chain & Revision Logic (Task 7.6)", () => {
       transitionTo(dir, "checkpoint");
       transitionTo(dir, "branch");
       transitionTo(dir, "execute");
+      recordResult(dir, "implementer", "task-1", "PASS");
       transitionTo(dir, "verify");
 
       const result = runForgeTools("engine-transition", dir, "plan");

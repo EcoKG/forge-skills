@@ -46,6 +46,10 @@ describe("Standard Pipeline E2E — Engine + Gate Guard", () => {
     return runForgeTools("engine-state", dir);
   }
 
+  function recordResult(dir, role, taskId, verdict) {
+    return runForgeTools("engine-record-result", dir, role, taskId, verdict);
+  }
+
   function writeArtifact(dir, filename, content) {
     fs.writeFileSync(
       path.join(dir, filename),
@@ -149,6 +153,12 @@ describe("Standard Pipeline E2E — Engine + Gate Guard", () => {
       new_string: "const a = 2",
     });
     expect(gg.exitCode).toBe(0);
+
+    // Record task result before leaving execute step
+    recordResult(dir, "implementer", "task-1", "PASS");
+
+    // Record task before leaving execute
+    recordResult(dir, "implementer", "task-1", "PASS");
 
     // ── Step 9: verify ──────────────────────────────────────────
     transitionTo(dir, "verify");
@@ -273,6 +283,7 @@ describe("Standard Pipeline E2E — Engine + Gate Guard", () => {
     transitionTo(dir, "checkpoint");
     transitionTo(dir, "branch");
     transitionTo(dir, "execute");
+    recordResult(dir, "implementer", "task-1", "PASS");
     transitionTo(dir, "verify");
     writeArtifact(dir, "verification.md", "# Verification\n\nContent here.\n");
     transitionTo(dir, "finalize");
@@ -310,6 +321,7 @@ describe("Standard Pipeline E2E — Engine + Gate Guard", () => {
     transitionTo(dir, "checkpoint");
     transitionTo(dir, "branch");
     transitionTo(dir, "execute");
+    recordResult(dir, "implementer", "task-1", "PASS");
     transitionTo(dir, "verify");
     writeArtifact(dir, "verification.md", "# Verification\n\nContent here.\n");
     transitionTo(dir, "finalize");

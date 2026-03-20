@@ -708,6 +708,16 @@ function engineTransition(artifactDir, targetStep) {
   const steps = resolveSteps(pipelineDef, pipeline);
   const targetStepDef = steps.find(s => s.id === targetStep);
 
+  // Enforce: execute/fix step must have at least one recorded task before leaving
+  const currentIsExecute = previousStep === "execute" || previousStep === "fix";
+  if (currentIsExecute && state.tasks_completed.length === 0) {
+    return {
+      allowed: false,
+      reason: `Cannot leave ${previousStep} step without recording at least one task result. ` +
+        `Call engine-record-result first.`
+    };
+  }
+
   // Record exit gate of current step as passed
   const currentStepDef = steps.find(s => s.id === state.current_step);
   if (currentStepDef?.exit_gate?.state_value) {
@@ -861,29 +871,57 @@ function engineRecordResult(artifactDir, role, taskId, verdict) {
   const commitStepDef = commitSteps.find(s => s.id === state.current_step);
   const isExecuteStep = commitStepDef?.id === "execute" || commitStepDef?.id === "fix";
   if (verdict === "PASS" && isExecuteStep && taskId) {
+    // Resolve project root from artifactDir: walk up to find .forge/ parent
+    let projectRoot = CWD;
+    try {
+      const absArtifact = path.resolve(CWD, artifactDir);
+      const forgeIdx = absArtifact.indexOf(path.sep + ".forge" + path.sep);
+      if (forgeIdx > 0) projectRoot = absArtifact.substring(0, forgeIdx);
+    } catch {}
+
     let isGitRepo = false;
     try {
-      execSync("git rev-parse --git-dir", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] });
+      execSync("git rev-parse --git-dir", { cwd: projectRoot, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] });
       isGitRepo = true;
     } catch {}
 
     if (isGitRepo) {
-      // Check if the most recent commit message contains the task_id
-      let lastCommitMsg = "";
+      const slug = state.session_id || "unknown";
+      const type = state.type || "feat";
+      const typeMap = { "code": "feat", "code-bug": "fix", "code-refactor": "refactor", "docs": "docs", "infra": "chore" };
+      const prefix = typeMap[type] || "feat";
+      // Session-scoped commit tag to prevent cross-session false matches
+      const commitTag = `${slug}/${taskId}`;
+
+      // Check 1: uncommitted changes must not exist
+      let uncommitted = "";
       try {
-        lastCommitMsg = execSync("git log -1 --format=%B", { cwd: CWD, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
+        uncommitted = execSync("git status --porcelain", { cwd: projectRoot, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
       } catch {}
 
-      if (!lastCommitMsg.includes(taskId)) {
-        const slug = state.session_id || "unknown";
-        const type = state.type || "feat";
-        const typeMap = { "code": "feat", "code-bug": "fix", "code-refactor": "refactor", "docs": "docs", "infra": "chore" };
-        const prefix = typeMap[type] || "feat";
+      if (uncommitted) {
+        const fileCount = uncommitted.split("\n").length;
         return {
           recorded: false,
-          reason: `Atomic commit required for task ${taskId}. ` +
-            `Commit your changes before recording PASS. ` +
-            `Format: git commit -m "${prefix}(${slug}/${taskId}): <task description>"`
+          reason: `Atomic commit required for ${commitTag}. ` +
+            `${fileCount} uncommitted file(s) detected. ` +
+            `Commit your changes first. ` +
+            `Format: git commit -m "${prefix}(${commitTag}): <task description>"`
+        };
+      }
+
+      // Check 2: last commit must contain session-scoped tag
+      let lastCommitMsg = "";
+      try {
+        lastCommitMsg = execSync("git log -1 --format=%B", { cwd: projectRoot, encoding: "utf8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] }).trim();
+      } catch {}
+
+      if (!lastCommitMsg.includes(commitTag)) {
+        return {
+          recorded: false,
+          reason: `Atomic commit required for ${commitTag}. ` +
+            `Last commit does not contain "${commitTag}". ` +
+            `Format: git commit -m "${prefix}(${commitTag}): <task description>"`
         };
       }
     }
