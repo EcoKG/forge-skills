@@ -19,7 +19,8 @@ const ACTION_VERBS_KO = [
   '넣어', '빼', '옮겨', '교체', '전환', '업그레이드', '업데이트',
   '하게', '되게', '시켜', '해줘',
   '손봐', '정리해', '잡아', '고장', '안돼', '안됨', '안 됨', '이상해', '죽어',
-  '느려', '깨져', '에러', '컴파일', '빌드'
+  '느려', '깨져', '에러', '컴파일', '빌드',
+  '진행', '시작', '다시', '이어서'
 ];
 
 const ACTION_VERBS_EN = [
@@ -55,6 +56,28 @@ const NEGATIVE_PATTERNS_KO = [
   /^(git\s+(log|status|diff|branch|stash|show|remote|fetch|pull)|npm\s+(install|test|start|run|ci)|yarn|pnpm|ls|cd|pwd|cat|head|tail|echo|which|env|node\s+--version|claude\s+--version|docker\s+(compose|build|run|ps|logs|pull)|kubectl\s+(get|describe|apply|logs)|terraform\s+(plan|apply|init|destroy)|cargo\s+(test|build|run|check)|make\b|cmake\b)\b/i,
   // Slash commands
   /^\//,
+  // Search/view requests — "찾아봐", "확인해봐", "봐봐", "열어봐"
+  /^.{0,30}(찾아봐|찾아보라고|확인해봐|확인해보라고|열어봐|봐봐|살펴봐|검색해봐|찾아줘|찾아보자|체크해봐|들여다봐)\s*$/,
+  // Korean ending-form questions — "~함?", "~했음?", "~됨?"
+  /^.{0,40}(함|했음|됨|인듯|한건가|된건가|했잖아|됐잖아|인가요|한가요|된가요)\s*[\?\？]?\s*$/,
+  // Status/progress checks — "어떻게 됐어?", "진행됐나?", "VPM도 진행한거지?"
+  /^.{0,30}(어떻게|어디까지|완료|됐|했어|했나|됐어|됐나|했는지|진행한거지|한거지|한거야).{0,20}[\?\？]?\s*$/,
+  // Continuation/procedural — "다음은?", "계속", "진행하자", "진행해"
+  /^(다음|계속|진행해|진행하자|진행할게|그럼 진행|이제 진행|그러면 계속|다음으로|다음은|계속해|계속하자|이어서).{0,15}[\?\？]?\s*$/,
+  // Confirmation/agreement — "그럼 이대로", "맞아", "오케이"
+  /^(그럼|그래|맞아|맞네|오케이|좋지|그렇지|됐다|그런데 좋아|그래 맞아|확인|동의|승인).{0,15}$/,
+  // Observation/hedging — "근데 이상한데", "어? 뭐지?"
+  /^(근데|그런데|어[\?\？\s\.]|음|잠깐|잠깐만|아 그런데|헉).{0,30}(이상|뭔가|뭐야|뭔지|구나|있는데|있네|그렇구나|신기하네)\s*$/,
+  // Simple checking/viewing — "내용 확인", "파일 봐", "상태 확인해줘"
+  /^.{0,15}(파일|내용|상태|로그|결과|목록|리스트|코드|함수).{0,10}(확인|봐|보기|보자|검토|다시)\s*$/,
+  // Meta-discussion about forge/hooks — "왜 forge 안 썼어?", "포지 필요한가?"
+  /^.{0,20}(forge|포지|hook|훅|스킬|skill|가드|guard).{0,30}(필요|왜|써야|안 썼|상태|확인|설정|안 함|동작|작동|발동)\s*[\?\？]?\s*$/,
+  // Questions about prior work — "그거 뭐 했어?", "왜 이렇게 했어?"
+  /^.{0,20}(이거|그거|이걸|저걸|이것|그것|여기|거기).{0,20}(했어|했나|가져온|만든|쓴|왜|뭘|뭐|어디서).{0,10}[\?\？]\s*$/,
+  // Conversational connectors — "응 맞아", "근데 말이야"
+  /^(응|근데|그런데|그래서|음|헉|잠깐만|아 그리고|하지만|그 다음|그리고|참고로|그나저나|아참).{0,20}$/,
+  // Verification/double-check — "맞나?", "제대로 한 거 맞아?"
+  /^.{0,20}(맞나|맞아|맞지|맞는거야|제대로|확실|됐나|한 거야|한거야|거지|거야)\s*[\?\？]?\s*$/,
 ];
 
 const NEGATIVE_PATTERNS_EN = [
@@ -74,6 +97,27 @@ const NEGATIVE_PATTERNS_EN = [
   /^(run|start|stop|restart|execute)\s+(the|my|a)\s/i,
   // Simple acknowledgments
   /^(ok|okay|thanks|thank you|got it|understood|sure|yes|no|yep|nope|sounds good|great|nice|cool|awesome|perfect|alright|right|agreed)\s*[!.]?\s*$/i,
+  // --- Phase 2 additions below ---
+  // Status checks — "How did that go?", "What's the status?", "Is it done?"
+  /^(how (did|does|is)|what('?s)?|is (it|that|this)).{0,30}(done|progress|status|yet|far|happen|go|complete|working|work out)/i,
+  // Continuation — "What's next?", "Shall we proceed?", "Let's continue"
+  /^(what('?s)?\s+(next|now)|shall we|let('?s)?\s+(proceed|move|continue|go)|continue|next\s+(step|one)|move\s+on|go\s+(ahead|forward)|proceed).{0,20}[\?\.]?\s*$/i,
+  // Confirmation/agreement — "Makes sense", "Fair point", "I agree"
+  /^(makes sense|fair point|i agree|sounds right|that('?s)?\s+(correct|right|true)|exactly|precisely|looks good|seems good|well done|good job).{0,15}$/i,
+  // Observation/feedback — "But that seems odd", "Wait, why?", "Something's off"
+  /^(but\s+that|wait|huh|hmm|something('?s)?|that('?s)?\s+(weird|odd|off|interesting|strange)|this seems|looks like).{0,30}[\?\.]?\s*$/i,
+  // Meta-system discussion — "Why didn't you use forge?", "Is forge needed?"
+  /^.{0,20}(forge|skill|hook|activation|trigger|guard).{0,30}(needed|why|should|use|status|check|required|set|fail|work|activate|fire)/i,
+  // Simple viewing/checking — "Let me check", "Show me the status"
+  /^(let me|let('?s)?|just|only)\s+(check|view|look|review|read|see|examine|inspect).{0,20}[\?\.]?\s*$/i,
+  // Questions about prior work — "Why did you add this?"
+  /^(why|what|where|how)\s+(did you|did we|have you|have we)\s/i,
+  // Conversational filler — "Okay so...", "But anyway...", "Right and..."
+  /^(okay|alright|right|so|but|anyway|and|uh|um|hmm|err|well)\s*(,|\.\.\.)\s*/i,
+  // Understanding confirmation — "I see", "Got it", "Understood"
+  /^(i see|i understand|i get it|copy that|roger|acknowledged|noted|fair enough).{0,10}$/i,
+  // What does this do? — "What does this do?", "What's this for?"
+  /^what (does|is|should|can) (this|that|it)\s/i,
 ];
 
 // Code identifier patterns

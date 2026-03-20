@@ -51,6 +51,14 @@ const FORGE_HOOKS = [
   },
   {
     event: "PreToolUse",
+    id: "skill-activation-guard",
+    script: path.join(HOOKS_DIR, "activation", "skill-activation-guard.js"),
+    matcher: "",
+    timeout: 5,
+    description: "Forge v7.0: blocks tools until Skill('forge') is invoked when required",
+  },
+  {
+    event: "PreToolUse",
     id: "forge-gate-guard",
     script: path.join(HOOKS_DIR, "forge-gate-guard.js"),
     matcher: "",
@@ -63,6 +71,14 @@ const FORGE_HOOKS = [
     script: path.join(HOOKS_DIR, "activation", "skill-activation.js"),
     timeout: 5,
     description: "Forge v7.0: prompt analysis + skill auto-activation (unified scoring)",
+  },
+  {
+    event: "Stop",
+    id: "skill-activation-stop",
+    script: path.join(HOOKS_DIR, "activation", "skill-activation-stop.js"),
+    matcher: "",
+    timeout: 5,
+    description: "Forge v7.0: blocks model from stopping until Skill('forge') is invoked when required",
   },
 ];
 

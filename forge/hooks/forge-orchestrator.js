@@ -221,7 +221,9 @@ function main() {
     const prompt = (input.prompt || "").trim();
     if (/^\/?(clear|compact)$/i.test(prompt)) {
       const flagPath = path.join(STATE_DIR, `forge-session-hello-${input.session_id || "default"}.json`);
+      const skillRequiredPath = path.join(STATE_DIR, `skill-required-${input.session_id || "default"}.json`);
       try { fs.unlinkSync(flagPath); } catch {}
+      try { fs.unlinkSync(skillRequiredPath); } catch {}
       process.exit(0);
       return;
     }
@@ -239,6 +241,17 @@ function main() {
       process.exit(0);
       return;
     }
+
+    // 0. Context Recovery — check if skill-required state file exists
+    // This helps maintain forge awareness after context compression
+    try {
+      const skillRequiredPath = path.join(STATE_DIR, `skill-required-${input.session_id || "default"}.json`);
+      const srContent = fs.readFileSync(skillRequiredPath, 'utf8');
+      const srData = JSON.parse(srContent);
+      if (srData.timestamp && (Date.now() - srData.timestamp) < 5 * 60 * 1000) {
+        output += `\n⚡ SKILL REQUIRED: ${srData.skill || 'forge'} — call Skill("${srData.skill || 'forge'}") before responding.\n`;
+      }
+    } catch {}
 
     // 1. Check for active pipeline
     const activePipeline = findActivePipeline(forgeDir);

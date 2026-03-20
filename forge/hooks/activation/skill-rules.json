@@ -100,7 +100,10 @@
           "work",
           "설계",
           "아키텍처",
-          "architecture"
+          "architecture",
+          "진행",
+          "시작",
+          "이어서"
         ],
         "intentPatterns": [
           "(create|add|implement|build|만들|구현|추가).*?(feature|기능|module|모듈|component|컴포넌트)",

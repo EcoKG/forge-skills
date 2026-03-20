@@ -137,6 +137,44 @@ async function main() {
         // Output
         const output = formatOutput(matches);
         if (output) {
+            // Write state file for PreToolUse guard when enforcement is 'block'
+            if (matches.length > 0 && input.session_id) {
+                const primary = matches[0];
+                if (primary.rule.enforcement === 'block') {
+                    try {
+                        const home = process.env['HOME'] || process.env['USERPROFILE'] || '';
+                        const stateDir = path.join(home, '.claude', 'hooks', 'state');
+                        const stateFile = path.join(stateDir, `skill-required-${input.session_id}.json`);
+                        // TTL check: don't overwrite if a recent state file already exists
+                        let shouldWrite = true;
+                        try {
+                            const existing = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+                            if (existing.timestamp && (Date.now() - existing.timestamp) < 5 * 60 * 1000) {
+                                shouldWrite = false; // Recent state file exists, skip
+                            }
+                        } catch {
+                            // File doesn't exist or is unreadable — proceed to write
+                        }
+                        if (shouldWrite) {
+                            fs.mkdirSync(stateDir, { recursive: true });
+                            fs.writeFileSync(stateFile, JSON.stringify({
+                                skill: primary.skillName,
+                                timestamp: Date.now(),
+                                prompt: input.prompt?.substring(0, 100)
+                            }));
+                        }
+                    } catch {
+                        // Fail-open: state file write failure should not block activation output
+                    }
+                }
+            }
+            // Use systemMessage JSON for better context budget efficiency
+            if (matches.length > 0 && matches[0].rule.enforcement === 'block') {
+                const skillName = matches[0].skillName;
+                process.stdout.write(JSON.stringify({
+                    systemMessage: `SKILL ACTIVATION: ${skillName} required — call Skill("${skillName}") first`
+                }) + '\n');
+            }
             process.stdout.write(output);
         }
     }

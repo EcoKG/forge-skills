@@ -296,7 +296,7 @@ function cleanupStaleStateFiles() {
   try {
     const entries = fs.readdirSync(STATE_DIR);
     for (const entry of entries) {
-      if (entry.startsWith("forge-invoked-") || entry.startsWith("forge-session-") || entry.startsWith("forge-ctx-")) {
+      if (entry.startsWith("forge-invoked-") || entry.startsWith("forge-session-") || entry.startsWith("forge-ctx-") || entry.startsWith("skill-required-")) {
         const filePath = path.join(STATE_DIR, entry);
         try {
           const stat = fs.statSync(filePath);
