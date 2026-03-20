@@ -521,7 +521,12 @@ function engineInit(artifactDir, request, type, scale, options) {
   const pipeline = loadPipeline();
   if (pipeline.error) return pipeline;
 
-  const pipelineName = options?.trivial ? "trivial" : options?.quick ? "quick" : options?.debug ? "debug" : options?.ralph ? "ralph" : "standard";
+  // Support both flag (--quick) and string (pipeline:"quick") option formats
+  const pl = options?.pipeline;
+  const pipelineName = (options?.trivial || pl === "trivial") ? "trivial" :
+    (options?.quick || pl === "quick") ? "quick" :
+    (options?.debug || pl === "debug") ? "debug" :
+    (options?.ralph || pl === "ralph") ? "ralph" : "standard";
   const pipelineDef = pipeline.pipelines[pipelineName] || pipeline.pipelines.standard;
 
   // Determine which steps to skip based on type
@@ -531,7 +536,7 @@ function engineInit(artifactDir, request, type, scale, options) {
   const skippedSteps = typeOverrides.skip || [];
   if (options?.direct) skippedSteps.push("research", "architect_guide", "plan_check");
   if (options?.no_research) skippedSteps.push("research");
-  if (options?.quick) skippedSteps.push("research", "architect_guide", "plan_check", "checkpoint", "branch");
+  if (options?.quick || pl === "quick") skippedSteps.push("research", "architect_guide", "plan_check", "checkpoint", "branch");
 
   const state = {
     session_id: path.basename(artifactDir),

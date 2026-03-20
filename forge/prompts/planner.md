@@ -107,12 +107,15 @@ For each task:
    - Include actual function names, actual parameter types, actual return types.
    - Include actual values for config keys, header names, status codes.
    - Include step-by-step numbered instructions.
-   - **FORBIDDEN phrases** (never use these in actions):
-     - "appropriately", "as needed", "align X with Y"
-     - "update accordingly", "ensure consistency"
-     - "handle edge cases", "add proper error handling"
-     - "follow existing patterns", "similar to X"
-   - Instead of "add proper error handling", write: "Return `fmt.Errorf("validate token: %w", err)` when token parsing fails. Caller in router.go:78 should respond with HTTP 401 and body `{"error": "invalid_token"}`."
+   - **FORBIDDEN** → always replace with specifics:
+
+     | Don't write | Write instead |
+     |---|---|
+     | "appropriately", "as needed" | Exact value, function name, line number |
+     | "handle edge cases" | Which edge case, what to return |
+     | "add proper error handling" | `Return fmt.Errorf("...: %w", err)`, caller responds 401 |
+     | "follow existing patterns" | Name the pattern, cite the file:line |
+     | "ensure consistency" | What must match what, specifically |
 7. Write `<verify>` — a single shell command that confirms the task is done.
 8. Write `<acceptance_criteria>` — each criterion must be a command that returns pass/fail:
    - `grep "func ValidateToken" src/auth/middleware.go` returns match
@@ -126,27 +129,19 @@ For each task:
 1. Tasks with NO dependencies → `wave="1"`.
 2. Tasks that depend on wave 1 outputs → `wave="2"`.
 3. Continue until all tasks are assigned.
-4. **Rule:** Tasks modifying the same file MUST be in different waves.
-5. **Rule:** Each wave should have 2-5 tasks. If a wave has 1 task, consider merging. If 6+, consider splitting.
+4. **Rule:** Tasks modifying the same file MUST be in different waves, UNLESS they touch non-overlapping sections (e.g., adding two independent functions to the same file).
+5. **Rule:** Target 2-5 tasks per wave. 1 task = consider merging with next wave. 6+ = split.
 6. Set `depends_on` for each task (comma-separated task IDs, or empty string for wave 1).
 
 ### Step 5: Write must_haves
 
-**truths** — User-observable behaviors (NOT technical jargon):
+**truths** — User-observable behaviors (not implementation details):
 - GOOD: "Authenticated users can access protected API endpoints"
-- GOOD: "Invalid login attempts return a 401 status with an error message"
-- BAD: "JWT validation middleware is implemented" (this is a task description, not a truth)
-- BAD: "RS256 algorithm is used for signing" (this is an implementation detail)
+- BAD: "JWT validation middleware is implemented" (task description, not truth)
 
-**artifacts** — Files that must exist after implementation:
-- `path`: absolute or project-relative file path
-- `min_lines`: minimum line count (use 70% of estimated final size)
-- `exports`: list of function/class/type names that must be exported
+**artifacts** — `{path, min_lines (70% of estimate), exports: [names]}`
 
-**key_links** — Wiring between modules:
-- `from`: the file that imports/uses
-- `to`: the file that exports/provides
-- `pattern`: regex that must match in `from` file (e.g., `"ValidateToken|ParseToken"`)
+**key_links** — `{from, to, pattern (regex matching import/usage in from)}`
 
 ### Step 6: Verify Plan Integrity
 

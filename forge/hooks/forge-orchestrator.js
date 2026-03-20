@@ -24,10 +24,18 @@ const HOOKS_DIR = __dirname;
 const BANNERS_PATH = path.join(__dirname, "..", "templates", "banners.json");
 try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
 
+// Cache banners at module load (read once, not per step)
+let _bannersCache = null;
+function loadBanners() {
+  if (_bannersCache) return _bannersCache;
+  try { _bannersCache = JSON.parse(fs.readFileSync(BANNERS_PATH, "utf8")); } catch { _bannersCache = {}; }
+  return _bannersCache;
+}
+
 // Load step banners from template
 function getStepBanner(step, state) {
   try {
-    const banners = JSON.parse(fs.readFileSync(BANNERS_PATH, "utf8"));
+    const banners = loadBanners();
     let banner = banners[step] || banners["init"];
     if (!banner) return null;
     // Replace placeholders
@@ -105,11 +113,12 @@ function findActivePipeline(forgeDir) {
 }
 
 // Find crashed executions (lock files without pipeline completion)
+// Only scans last 3 days to avoid slow scans on large .forge/ directories
 function findCrashedExecutions(forgeDir) {
   const crashes = [];
   try {
     const entries = fs.readdirSync(forgeDir);
-    const dateDirs = entries.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    const dateDirs = entries.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse().slice(0, 3);
     for (const dateDir of dateDirs) {
       const datePath = path.join(forgeDir, dateDir);
       try {

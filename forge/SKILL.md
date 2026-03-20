@@ -190,7 +190,7 @@ for each step in pipeline:
 ### Key Rules
 - **Never write pipeline-state.json directly** — only engine writes it
 - **Never skip a step** — engine-can-transition will reject it
-- **Gate guard will hard-block** if you try to violate (exit code 1)
+- **Gate guard will hard-block** if you try to violate (exit code 2)
 - **Always call engine-record-result** after agent dispatch
 
 ---
@@ -219,20 +219,23 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 
 ---
 
-## 6. Code Enforcement (6 Gates)
+## 6. Code Enforcement (9 Gates)
 
 `hooks/forge-gate-guard.js` (PreToolUse) enforces:
 
 | Gate | What It Blocks | How |
 |---|---|---|
-| **Gate 1** | plan.md Write without research.md | exit(1) — hard block |
-| **Gate 2** | Source code Edit/Write before plan_check PASS | exit(1) — hard block |
-| **Gate 3** | git commit with failed build/test | exit(1) — hard block |
-| **Gate 4** | report.md Write without verification.md | exit(1) — hard block |
+| **Gate 1** | plan.md Write without research.md | exit(2) — hard block |
+| **Gate 2** | Source code Edit/Write before execute step | exit(2) — hard block |
+| **Gate 2B** | Bash file-writing commands on code files before execute | exit(2) — hard block |
+| **Gate 3** | git commit with failed build/test | exit(2) — hard block |
+| **Gate 4** | report.md Write without verification.md | exit(2) — hard block |
 | **Gate 5** | Large edits (>500 chars) or overwrites (>100 lines) | warning (non-blocking) |
-| **Gate 6** | Secret/credential detection in code content | exit(1) — hard block |
+| **Gate 5T** | Trivial pipeline: >3 lines per edit or >10 cumulative | exit(2) — hard block |
+| **Gate 6** | Secret/credential detection in code content | exit(2) — hard block |
+| **Gate 7** | git push / gh pr create without VPM verification | exit(2) — hard block |
 
-**Gates 1-4 and 6 are hard blocks. You cannot bypass them. Gate 5 is a warning only.**
+**7 hard blocks (1, 2, 2B, 3, 4, 5T, 6, 7) + 2 warnings (5). No pipeline = all code edits blocked.**
 
 ---
 
@@ -241,13 +244,16 @@ Pipeline is defined in `templates/pipeline.json` (machine-readable, declarative)
 | Hook | Trigger | What It Does |
 |---|---|---|
 | **forge-orchestrator** | UserPromptSubmit | Injects pipeline state every turn |
-| **forge-gate-guard** | PreToolUse | 6 gates (5 hard blocks + 1 warning) |
-| **forge-tracker** | PostToolUse | Trace logging + build/test detection |
+| **skill-activation** | UserPromptSubmit | Prompt analysis + auto skill activation |
+| **skill-activation-guard** | PreToolUse | Blocks tools until Skill("forge") is invoked when required |
+| **forge-gate-guard** | PreToolUse | 9 gates (7 hard blocks + 2 warnings) |
+| **forge-tracker** | PostToolUse | Trace logging + build/test detection + type check |
 | **forge-statusline** | Notification | IDE status display |
+| **skill-activation-stop** | Stop | Blocks text-only response when skill is required |
 
 ---
 
-## 8. Agents (18 + custom)
+## 8. Agents (17 + custom)
 
 | # | Role | Prompt | When |
 |---|---|---|---|
@@ -296,7 +302,7 @@ Detailed rules: `references/context-engineering.md` (load only when needed)
 | L4.5 VPM Cross-Check | Prompt | Independent verification at wave boundary + final verify (goal-backward) |
 | L5 Goal-Backward | Prompt + **Code** | verifyArtifacts() + verifyKeyLinks() |
 | L6 Auto-Ralph | **Code** | Auto-enter Ralph on verify failure |
-| **L7 Gate Guard** | **Code** | 6 gates — 5 hard blocks + 1 warning (PreToolUse) |
+| **L7 Gate Guard** | **Code** | 9 gates — 7 hard blocks + 2 warnings (PreToolUse) |
 
 ---
 

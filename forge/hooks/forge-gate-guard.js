@@ -127,11 +127,11 @@ function writeAuditLog(gate, tool, file, sessionId) {
       session_id: sessionId || ""
     }) + "\n";
     fs.appendFileSync(auditPath, entry);
-    // Trim to 100 lines max — atomic write via .tmp + rename
+    // Trim to 200 lines max — only trim when significantly over to reduce I/O
     try {
       const content = fs.readFileSync(auditPath, "utf8");
       const lines = content.trim().split("\n");
-      if (lines.length > 100) {
+      if (lines.length > 200) {
         const tmpPath = auditPath + ".tmp." + process.pid;
         fs.writeFileSync(tmpPath, lines.slice(-100).join("\n") + "\n");
         fs.renameSync(tmpPath, auditPath);
@@ -532,7 +532,8 @@ function main() {
       }
 
       // Check content for secret patterns — HARD BLOCK
-      if (content.length > 0) {
+      // Skip very short content (< 8 chars can't contain meaningful secrets)
+      if (content.length >= 8) {
         for (const pattern of SECRET_PATTERNS) {
           if (pattern.test(content)) {
             process.stderr.write(

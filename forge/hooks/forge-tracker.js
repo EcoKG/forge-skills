@@ -28,7 +28,7 @@ try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
 const WARN_TOOL_COUNT = 120;
 const CRITICAL_TOOL_COUNT = 160;
 const DEBOUNCE_COUNT = 8;
-const TYPE_CHECK_DEBOUNCE_MS = 5000; // 5 seconds
+const TYPE_CHECK_DEBOUNCE_MS = 30000; // 30 seconds (was 5s — too aggressive per edit)
 
 // Build/test command patterns
 const BUILD_PATTERNS = [
@@ -268,7 +268,7 @@ function main() {
           const typeCheckCmd = detectCommand(TYPE_CHECK_MAP);
           if (typeCheckCmd) {
             state.lastTypeCheckAt = now;
-            const result = runQuickCheck(typeCheckCmd, 15000);
+            const result = runQuickCheck(typeCheckCmd, 5000);
             if (!result.pass) {
               output += `⚠ TYPE CHECK FAILED after editing ${path.basename(filePath)}:\n${result.output}\n`;
               // Signal type check failure

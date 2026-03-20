@@ -120,10 +120,14 @@ Grep("(export|exports|module\\.exports|pub fn|pub struct|public class|def |func 
 | TODO/FIXME | `TODO\|FIXME\|HACK\|XXX` | WARN (>0 matches) |
 | Placeholders | `placeholder\|lorem ipsum\|sample data\|dummy` (case insensitive) | WARN |
 | Stubs | `not implemented\|NotImplemented\|todo!\|unimplemented!\|throw new Error.*not implemented\|pass\\s*#\|\\.\\.\\.` | FAIL in production code |
-| Empty bodies (JS/TS) | `(=>\|{)\\s*}` | WARN |
-| Empty bodies (Go) | `func.*{\\s*}` | WARN |
+| Empty bodies (JS/TS) | `(=>\|{)\\s*}` | WARN (skip interfaces/type declarations) |
+| Empty bodies (Go) | `func.*{\\s*}` | WARN (skip interface implementations returning nil) |
 
-**Anti-pattern exclusions:** Files in `test/`, `tests/`, `__tests__/`, `*_test.*`, `*.spec.*` — `mock` and `stub` are acceptable. Files named `*.mock.*`, `*.fixture.*` — placeholder content is acceptable.
+**Anti-pattern exclusions:**
+- Files in `test/`, `tests/`, `__tests__/`, `*_test.*`, `*.spec.*` — ALL anti-patterns exempt
+- Files named `*.mock.*`, `*.fixture.*`, `*.stub.*` — placeholder content acceptable
+- `.d.ts` type declaration files — empty bodies are normal
+- Single-line arrow functions `() => {}` used as no-op callbacks — WARN only if >3 occurrences
 
 **Level 2 Verdict:** PASS (all exports defined, zero stubs) / WARN (exports ok but TODOs found) / FAIL (missing export OR stub found).
 
@@ -155,12 +159,10 @@ For each truth in `must_haves.truths`:
    - Python: `pytest path/to/test.py`
    - Test passes → strong evidence. Test fails → FAIL with output.
    - Runner not available → skip, note "test execution not available."
-3. **If no tests found, trace code path:**
-   - Find entry point (route, CLI command, event handler) that enables the truth
-   - Verify it connects through to the implementation
-   - Code path without test → WARN
+3. **If no tests found:** Grep for the truth's key concept in source code. If implementation code exists that clearly addresses the truth → WARN (no test coverage). If no relevant code found → FAIL.
+   - Do NOT attempt manual code path tracing — this is unreliable and time-consuming.
 
-**Truths Verdict:** PASS (all have test evidence) / WARN (code path only, no tests) / FAIL (no evidence).
+**Truths Verdict:** PASS (test evidence exists) / WARN (implementation exists but no tests) / FAIL (no evidence).
 
 ### Step 6: Compute Final Verdict
 
