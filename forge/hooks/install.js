@@ -11,7 +11,7 @@
  *   1. forge-tracker (PostToolUse) — context + agent + build/test tracking
  *   2. forge-statusline (Notification) — project status in statusline
  *   3. forge-orchestrator (UserPromptSubmit) — pipeline state injection
- *   4. forge-gate-guard (PreToolUse) — 10 gates — 9 hard blocks + 1 warning
+ *   4. forge-gate-guard (PreToolUse) — 9 gates — 8 hard blocks + 1 warning
  *   5. skill-activation (UserPromptSubmit) — prompt analysis + skill auto-activation
  */
 
@@ -63,7 +63,7 @@ const FORGE_HOOKS = [
     script: path.join(HOOKS_DIR, "forge-gate-guard.js"),
     matcher: "",
     timeout: 10,
-    description: "Forge v7.0: 10 gates — 9 hard blocks + 1 warning (catch-all matcher)",
+    description: "Forge v7.1: 9 gates — 8 hard blocks + 1 warning (catch-all matcher)",
   },
   {
     event: "UserPromptSubmit",

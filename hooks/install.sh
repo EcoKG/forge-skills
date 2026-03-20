@@ -1,6 +1,6 @@
 #!/bin/bash
 # Claude Code Hook Auto-Activation Installer
-# Registers the skill-activation hook in ~/.claude/settings.json
+# Registers the skill-activation hook (v1.1) in ~/.claude/settings.json
 # and copies skill-rules.json to ~/.claude/skills/
 
 set -euo pipefail
