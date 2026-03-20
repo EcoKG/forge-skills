@@ -148,15 +148,14 @@ function install() {
       console.log(`  🔄 ${hook.id} — upgrading (replacing old entry)`);
     }
 
-    // Use correct Claude Code hook format: {matcher, hooks: [...]}
-    // Quote paths to handle spaces in Windows/WSL paths
-    const nodeBin = process.execPath;
+    // Use `node` (PATH-resolved) instead of hardcoded binary path.
+    // This survives nvm version changes and cross-machine installs.
     settings.hooks[hook.event].push({
       matcher: hook.matcher || "",
       hooks: [
         {
           type: "command",
-          command: `"${nodeBin}" "${hook.script}"`,
+          command: `node "${hook.script}"`,
           timeout: hook.timeout || 5,
         },
       ],
@@ -215,14 +214,49 @@ function uninstall() {
   console.log(`\nDone: ${removed} removed`);
 }
 
+function verify() {
+  const settings = readSettings();
+  let ok = 0;
+  let fail = 0;
+
+  for (const hook of FORGE_HOOKS) {
+    const entries = settings.hooks?.[hook.event] || [];
+    const found = entries.some(
+      (entry) => entry.hooks?.some((h) => h.command?.includes(hook.id))
+    );
+    if (found) {
+      // Check script exists on disk
+      if (fs.existsSync(hook.script)) {
+        console.log(`  ✅ ${hook.id} — registered + script exists`);
+        ok++;
+      } else {
+        console.log(`  ❌ ${hook.id} — registered but script MISSING: ${hook.script}`);
+        fail++;
+      }
+    } else {
+      console.log(`  ❌ ${hook.id} — NOT registered in settings.json`);
+      fail++;
+    }
+  }
+
+  console.log(`\nVerify: ${ok} OK, ${fail} FAILED`);
+  if (fail > 0) {
+    console.log("Run: node install.js  (to fix)");
+    process.exit(1);
+  }
+}
+
 // CLI
 const action = process.argv[2] || "install";
 
-console.log(`\nForge Hooks ${action === "uninstall" ? "Uninstaller" : "Installer"}`);
+const labels = { install: "Installer", uninstall: "Uninstaller", verify: "Verifier" };
+console.log(`\nForge Hooks ${labels[action] || "Installer"}`);
 console.log("─".repeat(40));
 
 if (action === "uninstall") {
   uninstall();
+} else if (action === "verify") {
+  verify();
 } else {
   install();
 }

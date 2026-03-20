@@ -7,11 +7,6 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_DIR="$HOME/.claude/skills"
-SETTINGS_FILE="$HOME/.claude/settings.json"
-HOOKS_DIR="$REPO_DIR/hooks"
-ACTIVATION_SRC="$HOOKS_DIR/dist/src"
-ACTIVATION_DST="$SKILLS_DIR/forge/hooks/activation"
-RULES_SRC="$HOOKS_DIR/skill-rules.json"
 RULES_DST="$SKILLS_DIR/skill-rules.json"
 STATE_DIR="$HOME/.claude/hooks/state"
 
@@ -33,11 +28,10 @@ if ! command -v node &>/dev/null; then
   fi
 fi
 
-NODE_BIN=$(command -v node)
-echo "[1/7] Node.js: $NODE_BIN ($(node --version))"
+echo "[1/5] Node.js: $(command -v node) ($(node --version))"
 
 # ─── Step 2: Install Forge skill ───
-echo "[2/7] Installing forge skill..."
+echo "[2/5] Installing forge skill..."
 mkdir -p "$SKILLS_DIR/forge"
 cp -r "$REPO_DIR/forge/"* "$SKILLS_DIR/forge/"
 mkdir -p "$SKILLS_DIR/forge/hooks/shared" && echo "  → shared modules deployed"
@@ -48,144 +42,48 @@ mkdir -p "$SKILLS_DIR/forge/references"
 cp -r "$REPO_DIR/forge/references/"* "$SKILLS_DIR/forge/references/" 2>/dev/null || true
 
 # ─── Step 3: Install CreateWork skill ───
-echo "[3/7] Installing creatework skill..."
+echo "[3/5] Installing creatework skill..."
 mkdir -p "$SKILLS_DIR/creatework"
 cp -r "$REPO_DIR/creatework/"* "$SKILLS_DIR/creatework/"
 echo "  → $SKILLS_DIR/creatework/"
 
-# ─── Step 4: Build hook (TypeScript → JS) ───
-if [ ! -f "$ACTIVATION_SRC/skill-activation.js" ]; then
-  echo "[4/7] Building hook TypeScript..."
-  cd "$HOOKS_DIR"
-  npm install --silent 2>/dev/null
-  node ./node_modules/typescript/bin/tsc
-  cd "$REPO_DIR"
-else
-  echo "[4/7] Hook build already exists — skipping"
-fi
-
-# ─── Step 5: Deploy activation hook + rules ───
-echo "[5/7] Deploying activation hook + skill-rules.json..."
-# The activation JS files live in forge/hooks/activation/ (pre-built, not from TS)
-# Only use TS build as fallback if forge/hooks/activation/ doesn't exist
-mkdir -p "$ACTIVATION_DST"
-FORGE_ACTIVATION="$SKILLS_DIR/forge/hooks/activation"
-if [ -f "$FORGE_ACTIVATION/skill-activation.js" ]; then
-  # forge/hooks/activation/ already deployed by Step 2 — use it as source of truth
-  echo "  Activation files already installed via forge skill (Step 2)"
-else
-  # Fallback: copy from TS build output
-  cp "$ACTIVATION_SRC"/*.js "$ACTIVATION_DST/"
-fi
-echo '{ "type": "module" }' > "$ACTIVATION_DST/package.json"
-# Source of truth: forge/hooks/activation/skill-rules.json (deployed by Step 2)
-# Always use the forge skill's version — it has the latest scoring config
-if [ -f "$FORGE_ACTIVATION/skill-rules.json" ]; then
-  cp "$FORGE_ACTIVATION/skill-rules.json" "$RULES_DST"
-  echo "  Rules: using forge skill version (source of truth)"
-else
-  # Fallback: use repo root hooks/ version
-  cp "$RULES_SRC" "$RULES_DST"
-  cp "$RULES_SRC" "$ACTIVATION_DST/"
-  echo "  Rules: fallback to repo hooks/ version"
-fi
-mkdir -p "$STATE_DIR"
-echo "  → $ACTIVATION_DST/"
-echo "  → $RULES_DST"
-
-# ─── Step 6: Install forge workspace hooks (v7.1 — replaces legacy hooks) ───
-echo "[6/7] Installing forge workspace hooks..."
-# install.js automatically removes legacy hooks (context-monitor, session-init, pretool-gate)
-# and installs v7.1 hooks (gate-guard, orchestrator, tracker, statusline)
-"$NODE_BIN" "$SKILLS_DIR/forge/hooks/install.js" 2>/dev/null || echo "  (skipped — forge hooks install failed, non-critical)"
+# ─── Step 4: Register all hooks in settings.json ───
+echo "[4/5] Registering hooks in settings.json..."
+# install.js handles ALL hook registration:
+#   - Removes legacy hooks (context-monitor, session-init, pretool-gate)
+#   - Registers v7.1 hooks (gate-guard, orchestrator, tracker, statusline, activation)
+#   - Uses PATH-resolved `node` (no hardcoded binary path)
+#   - Idempotent: safe to run multiple times
+node "$SKILLS_DIR/forge/hooks/install.js" || echo "  (skipped — forge hooks install failed, non-critical)"
 # Remove legacy hook files that are no longer needed
 for LEGACY_FILE in forge-pretool-gate.js forge-session-init.js forge-context-monitor.js; do
   if [ -f "$SKILLS_DIR/forge/hooks/$LEGACY_FILE" ]; then
     rm "$SKILLS_DIR/forge/hooks/$LEGACY_FILE"
-    echo "  🗑 Removed legacy: $LEGACY_FILE"
+    echo "  Removed legacy: $LEGACY_FILE"
   fi
 done
-
-# ─── Step 7: Register activation hook in settings.json ───
-echo "[7/7] Registering activation hook in settings.json..."
-
-HOOK_CMD="\"$NODE_BIN\" \"$ACTIVATION_DST/skill-activation.js\""
-
-if [ ! -f "$SETTINGS_FILE" ]; then
-  mkdir -p "$(dirname "$SETTINGS_FILE")"
-  cat > "$SETTINGS_FILE" << ENDJSON
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": $HOOK_CMD,
-            "timeout": 5
-          }
-        ]
-      }
-    ]
-  }
-}
-ENDJSON
-  echo "  Created new settings.json"
-else
-  # Remove old entries, add with stable installed path
-  node -e "
-    const fs = require('fs');
-    const settings = JSON.parse(fs.readFileSync('$SETTINGS_FILE', 'utf-8'));
-    if (!settings.hooks) settings.hooks = {};
-    if (!settings.hooks.UserPromptSubmit) settings.hooks.UserPromptSubmit = [];
-
-    // Remove ANY existing skill-activation entries (old repo paths or previous installs)
-    settings.hooks.UserPromptSubmit = settings.hooks.UserPromptSubmit.filter(entry =>
-      !(entry.hooks?.some(h => h.command?.includes('skill-activation'))) &&
-      !(entry.command && entry.command.includes('skill-activation'))
-    );
-
-    // Add with stable installed path (quoted for spaces)
-    settings.hooks.UserPromptSubmit.push({
-      matcher: '',
-      hooks: [{
-        type: 'command',
-        command: '\"$NODE_BIN\" \"$ACTIVATION_DST/skill-activation.js\"',
-        timeout: 5
-      }]
-    });
-
-    fs.writeFileSync('$SETTINGS_FILE', JSON.stringify(settings, null, 2));
-    console.log('  Hook registered → $ACTIVATION_DST/skill-activation.js');
-  "
+# Deploy skill-rules.json to global skills directory
+FORGE_ACTIVATION="$SKILLS_DIR/forge/hooks/activation"
+if [ -f "$FORGE_ACTIVATION/skill-rules.json" ]; then
+  cp "$FORGE_ACTIVATION/skill-rules.json" "$RULES_DST"
 fi
+mkdir -p "$STATE_DIR"
+
+# ─── Step 5: Verify installation ───
+echo "[5/5] Verifying installation..."
+node "$SKILLS_DIR/forge/hooks/install.js" verify || echo "  Verification reported issues (see above)"
 
 echo ""
 echo "╔══════════════════════════════════════════╗"
 echo "║   Installation Complete                  ║"
 echo "╠══════════════════════════════════════════╣"
 echo "║                                          ║"
-echo "║  Skills installed:                       ║"
-echo "║    • forge v7.1  — /forge                ║"
-echo "║    • creatework  — /creatework           ║"
+echo "║  Skills: forge v7.1, creatework          ║"
+echo "║  Hooks:  7 registered (all in settings)  ║"
 echo "║                                          ║"
-echo "║  Hooks installed (v7.1):                 ║"
-echo "║    • forge-gate-guard (PreToolUse)       ║"
-echo "║    • forge-orchestrator (UserPromptSub)  ║"
-echo "║    • forge-tracker (PostToolUse)         ║"
-echo "║    • forge-statusline (Notification)     ║"
-echo "║    • skill-activation (UserPromptSub)    ║"
-echo "║    • skill-activation-guard (PreToolUse) ║"
-echo "║    • skill-activation-stop (Stop)        ║"
-echo "║                                          ║"
-echo "║  All hooks are in ~/.claude/skills/forge ║"
 echo "║  Safe to delete the repo after install.  ║"
 echo "║                                          ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 echo "Start a new Claude Code session to use."
-echo ""
-echo "Quick test:"
-echo "  echo '{\"session_id\":\"test\",\"prompt\":\"기능 구현\"}' | $NODE_BIN $ACTIVATION_DST/skill-activation.js"
 echo ""

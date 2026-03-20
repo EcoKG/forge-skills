@@ -13,7 +13,7 @@ const { execFileSync } = require("child_process");
 const INSTALL_SCRIPT = path.resolve(__dirname, "../../forge/hooks/install.js");
 const HOOKS_DIR = path.resolve(__dirname, "../../forge/hooks");
 
-const EXPECTED_EVENTS = ["PreToolUse", "PostToolUse", "UserPromptSubmit", "Notification"];
+const EXPECTED_EVENTS = ["PreToolUse", "PostToolUse", "UserPromptSubmit", "Notification", "Stop"];
 
 /**
  * Run install.js with a custom HOME directory.
@@ -69,7 +69,8 @@ describe("install.js — hook registration", () => {
       for (const event of EXPECTED_EVENTS) {
         expect(settings.hooks[event]).toBeDefined();
         expect(Array.isArray(settings.hooks[event])).toBe(true);
-        expect(settings.hooks[event]).toHaveLength(event === "UserPromptSubmit" ? 2 : 1);
+        const expectedCount = (event === "UserPromptSubmit" || event === "PreToolUse") ? 2 : 1;
+        expect(settings.hooks[event]).toHaveLength(expectedCount);
       }
     });
 
@@ -122,7 +123,8 @@ describe("install.js — hook registration", () => {
       const settings = env.readSettings();
 
       for (const event of EXPECTED_EVENTS) {
-        expect(settings.hooks[event]).toHaveLength(event === "UserPromptSubmit" ? 2 : 1);
+        const expectedCount = (event === "UserPromptSubmit" || event === "PreToolUse") ? 2 : 1;
+        expect(settings.hooks[event]).toHaveLength(expectedCount);
       }
     });
   });
@@ -305,24 +307,23 @@ describe("install.js — hook registration", () => {
       for (const event of EXPECTED_EVENTS) {
         for (const entry of settings.hooks[event]) {
           for (const hook of entry.hooks) {
-            // Command format: "<node_path>" "<script_path>"
-            // Extract the script path (second quoted string)
+            // Command format: node "<script_path>"
+            // Extract the script path (quoted string)
             const matches = hook.command.match(/"([^"]+)"/g);
             expect(matches).not.toBeNull();
-            expect(matches.length).toBeGreaterThanOrEqual(2);
+            expect(matches.length).toBeGreaterThanOrEqual(1);
 
-            // Second quoted string is the script path
-            const scriptPath = matches[1].replace(/"/g, "");
-            expect(
-              fs.existsSync(scriptPath),
-              `Script does not exist: ${scriptPath}`
-            ).toBe(true);
+            // First (and only) quoted string is the script path
+            const scriptPath = matches[0].replace(/"/g, "");
+            if (!fs.existsSync(scriptPath)) {
+              throw new Error(`Script does not exist: ${scriptPath}`);
+            }
           }
         }
       }
     });
 
-    it("hook commands reference the correct node binary", () => {
+    it("hook commands use PATH-resolved node (not hardcoded binary)", () => {
       env = createTempHome({});
       runInstall(env.tempHome);
 
@@ -331,13 +332,8 @@ describe("install.js — hook registration", () => {
       for (const event of EXPECTED_EVENTS) {
         for (const entry of settings.hooks[event]) {
           for (const hook of entry.hooks) {
-            const matches = hook.command.match(/"([^"]+)"/g);
-            const nodePath = matches[0].replace(/"/g, "");
-            // The node binary used in the command should exist
-            expect(
-              fs.existsSync(nodePath),
-              `Node binary does not exist: ${nodePath}`
-            ).toBe(true);
+            // Command should start with `node "` (PATH-resolved, not absolute path)
+            expect(hook.command).toMatch(/^node\s+"/);
           }
         }
       }

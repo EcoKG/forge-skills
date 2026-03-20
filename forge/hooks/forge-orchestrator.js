@@ -16,6 +16,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { findActivePipeline: findActivePipelineShared } = require("./shared/pipeline");
 
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
 const FORGE_TOOLS_PATH = path.join(__dirname, "forge-tools.js");
@@ -90,33 +91,17 @@ function readFileSafe(filePath) {
   try { return fs.readFileSync(filePath, "utf8"); } catch { return null; }
 }
 
-// Find the most recent active pipeline-state.json
+// Find the most recent active pipeline-state.json (delegates to shared module)
 function findActivePipeline(forgeDir) {
-  try {
-    const entries = fs.readdirSync(forgeDir);
-    const dateDirs = entries.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
-    for (const dateDir of dateDirs) {
-      const datePath = path.join(forgeDir, dateDir);
-      try {
-        const slugDirs = fs.readdirSync(datePath)
-          .filter(d => { try { return fs.statSync(path.join(datePath, d)).isDirectory(); } catch { return false; } })
-          .sort().reverse();
-        for (const slugDir of slugDirs) {
-          const statePath = path.join(datePath, slugDir, "pipeline-state.json");
-          if (fs.existsSync(statePath)) {
-            const state = readJsonSafe(statePath);
-            if (state && state.current_step !== "completed") {
-              state._dir = path.join(datePath, slugDir);
-              state._slug = slugDir;
-              state._date = dateDir;
-              return state;
-            }
-          }
-        }
-      } catch {}
-    }
-  } catch {}
-  return null;
+  const result = findActivePipelineShared(forgeDir);
+  if (!result) return null;
+  // Enrich state with path info for orchestrator's formatPipelineContext
+  const state = result.state;
+  state._dir = result.dir;
+  const dirParts = result.dir.split(path.sep);
+  state._slug = dirParts[dirParts.length - 1];
+  state._date = dirParts[dirParts.length - 2];
+  return state;
 }
 
 // Find crashed executions (lock files without pipeline completion)
