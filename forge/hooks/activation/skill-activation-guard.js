@@ -23,7 +23,7 @@ import * as fs from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { getSkillStateFilePath, hasActivePipeline } = require('../shared/pipeline.js');
+const { getSkillStateFilePath, getContextFilePath, hasActivePipeline } = require('../shared/pipeline.js');
 
 // Minimum score to enforce blocking (coordinates with skill-activation.js SCORE_THRESHOLD)
 const SCORE_THRESHOLD = 50;
@@ -85,24 +85,49 @@ function main() {
       process.exit(0);
     }
 
-    const stateFile = getSkillStateFilePath(sessionId);
-    if (!stateFile) {
-      process.exit(0);
+    // Try unified context file first, fallback to legacy state file
+    let stateData;
+    let stateFile;
+    let contextFile;
+
+    // 1. Try unified context file -> extract .skillState
+    contextFile = getContextFilePath(sessionId);
+    if (contextFile) {
+      try {
+        const ctxContent = fs.readFileSync(contextFile, 'utf8');
+        const ctx = JSON.parse(ctxContent);
+        if (ctx && ctx.skillState) {
+          stateData = ctx.skillState;
+          stateFile = contextFile;
+        }
+      } catch {
+        // Unified file missing or unreadable — try legacy
+      }
     }
 
-    // Check if state file exists
-    let stateData;
-    try {
-      const content = fs.readFileSync(stateFile, 'utf8');
-      stateData = JSON.parse(content);
-    } catch {
-      // No state file or unreadable -> no enforcement needed
-      process.exit(0);
+    // 2. Fallback to legacy skill-required-{id}.json
+    if (!stateData) {
+      stateFile = getSkillStateFilePath(sessionId);
+      if (!stateFile) {
+        process.exit(0);
+      }
+      try {
+        const content = fs.readFileSync(stateFile, 'utf8');
+        stateData = JSON.parse(content);
+      } catch {
+        // No state file or unreadable -> no enforcement needed
+        process.exit(0);
+      }
     }
 
     // TTL check — if state file is stale, remove it and allow
     if (stateData.timestamp && (Date.now() - stateData.timestamp) > STATE_TTL_MS) {
       try { fs.unlinkSync(stateFile); } catch {}
+      process.exit(0);
+    }
+
+    // ASK mode pass-through — graduated confidence mid-range should not block
+    if (stateData.confidence === 'ask') {
       process.exit(0);
     }
 
@@ -128,8 +153,28 @@ function main() {
       const inputValues = Object.values(toolInput).map(v => String(v).toLowerCase());
       const skillLower = requiredSkill.toLowerCase();
       if (inputValues.some(v => v === skillLower || v.includes(skillLower))) {
-        // Forge is being invoked — remove the lock
-        try { fs.unlinkSync(stateFile); } catch {}
+        // Forge is being invoked — remove the legacy lock
+        const legacyStateFile = getSkillStateFilePath(sessionId);
+        if (legacyStateFile) {
+          try { fs.unlinkSync(legacyStateFile); } catch {}
+        }
+        // Also clear skillState from unified context file
+        const ctxFile = getContextFilePath(sessionId);
+        if (ctxFile) {
+          try {
+            const ctxRaw = fs.readFileSync(ctxFile, 'utf8');
+            const ctx = JSON.parse(ctxRaw);
+            if (ctx && ctx.skillState) {
+              ctx.skillState = null;
+              ctx.updatedAt = Date.now();
+              const tmpPath = ctxFile + `.tmp.${process.pid}`;
+              fs.writeFileSync(tmpPath, JSON.stringify(ctx, null, 2));
+              fs.renameSync(tmpPath, ctxFile);
+            }
+          } catch {
+            // fail-open
+          }
+        }
       }
       // Always allow the Skill tool
       process.exit(0);

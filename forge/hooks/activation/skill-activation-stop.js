@@ -14,7 +14,7 @@ import * as path from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { getSkillStateFilePath, hasActivePipeline } = require('../shared/pipeline.js');
+const { getSkillStateFilePath, getContextFilePath, hasActivePipeline } = require('../shared/pipeline.js');
 
 // Minimum score to enforce blocking (coordinates with skill-activation.js SCORE_THRESHOLD)
 const SCORE_THRESHOLD = 50;
@@ -56,22 +56,41 @@ function main() {
       return;
     }
 
-    // Check state file
-    const stateFile = getSkillStateFilePath(sessionId);
-    if (!stateFile) {
-      writeDebugLog({ session_id: sessionId, decision: 'allow', reason: 'no state file path' });
-      process.exit(0);
-      return;
+    // Try unified context file first, fallback to legacy state file
+    let stateData;
+    let stateFile;
+
+    // 1. Try unified context file -> extract .skillState
+    const contextFile = getContextFilePath(sessionId);
+    if (contextFile) {
+      try {
+        const ctxContent = fs.readFileSync(contextFile, 'utf8');
+        const ctx = JSON.parse(ctxContent);
+        if (ctx && ctx.skillState) {
+          stateData = ctx.skillState;
+          stateFile = contextFile;
+        }
+      } catch {
+        // Unified file missing or unreadable — try legacy
+      }
     }
 
-    let stateData;
-    try {
-      stateData = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-    } catch {
-      // No state file -> allow stop
-      writeDebugLog({ session_id: sessionId, decision: 'allow', reason: 'no state file' });
-      process.exit(0);
-      return;
+    // 2. Fallback to legacy skill-required-{id}.json
+    if (!stateData) {
+      stateFile = getSkillStateFilePath(sessionId);
+      if (!stateFile) {
+        writeDebugLog({ session_id: sessionId, decision: 'allow', reason: 'no state file path' });
+        process.exit(0);
+        return;
+      }
+      try {
+        stateData = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+      } catch {
+        // No state file -> allow stop
+        writeDebugLog({ session_id: sessionId, decision: 'allow', reason: 'no state file' });
+        process.exit(0);
+        return;
+      }
     }
 
     // Compute state file age
@@ -81,6 +100,13 @@ function main() {
     if (stateAge > STATE_TTL_MS) {
       try { fs.unlinkSync(stateFile); } catch {}
       writeDebugLog({ session_id: sessionId, state_age_ms: stateAge, decision: 'allow', reason: 'state file expired' });
+      process.exit(0);
+      return;
+    }
+
+    // ASK mode pass-through — graduated confidence mid-range should not block stop
+    if (stateData.confidence === 'ask') {
+      writeDebugLog({ session_id: sessionId, state_age_ms: stateAge, decision: 'allow', reason: 'ask mode pass-through' });
       process.exit(0);
       return;
     }

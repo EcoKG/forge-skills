@@ -68,8 +68,21 @@ function getSkillStateFilePath(sessionId) {
   return path.join(home, ".claude", "hooks", "state", `skill-required-${sessionId}.json`);
 }
 
+/**
+ * Returns the path to the unified context state file for a given session.
+ * @param {string} sessionId
+ * @returns {string|null}
+ */
+function getContextFilePath(sessionId) {
+  const home = process.env.HOME || process.env.USERPROFILE || "";
+  if (!home || !sessionId) return null;
+  const safeId = (sessionId || "").replace(/[^a-zA-Z0-9\-_]/g, "_");
+  return path.join(home, ".claude", "hooks", "state", `context-${safeId}.json`);
+}
+
 module.exports = {
   findActivePipeline,
   hasActivePipeline,
   getSkillStateFilePath,
+  getContextFilePath,
 };
