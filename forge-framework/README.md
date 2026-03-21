@@ -187,9 +187,9 @@ Forge Framework v8.0 "Nova"는 Claude Code 위에서 동작하는 스킬 실행 
 
 ### 문서 링크
 
-- [시작하기](../docs/getting-started-ko.md) — 설치부터 첫 스킬 실행까지
-- [사용 시나리오](../docs/usage-scenarios-ko.md) — 실전 사용 예시
-- [스킬 개발 가이드](../docs/skill-developer-guide-ko.md) — Level 0~4 튜토리얼
+- [시작하기](docs/getting-started-ko.md) — 설치부터 첫 스킬 실행까지
+- [사용 시나리오](docs/usage-scenarios-ko.md) — 실전 사용 예시
+- [스킬 개발 가이드](docs/skill-developer-guide-ko.md) — Level 0~4 튜토리얼
 
 ### 설치
 
