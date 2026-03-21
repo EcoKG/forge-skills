@@ -171,6 +171,10 @@ forge-framework/
 
 ---
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
+
 ## License
 
-MIT — see LICENSE file for details.
+MIT — see [LICENSE](LICENSE) for details.

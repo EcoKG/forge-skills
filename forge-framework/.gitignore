@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# State files (session-specific, never commit)
+*.state.json
+~/.claude/hooks/state/
+
+# Forge pipeline artifacts (project-specific)
+.forge/
+
+# Eval workspace
+forge-eval-workspace/
+forge-workspace/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+build/
+coverage/
+
+# Logs
+*.log
+*.jsonl
