@@ -22,8 +22,8 @@
 
 const fs = require("fs");
 const path = require("path");
-const { CODE_EXTENSIONS, SKIP_PATHS, SENSITIVE_FILES, SAFE_BASH_COMMANDS, BASH_WRITE_PATTERNS } = require("./shared/constants");
-const { findActivePipeline } = require("./shared/pipeline");
+const { CODE_EXTENSIONS, SKIP_PATHS, SENSITIVE_FILES, SAFE_BASH_COMMANDS, BASH_WRITE_PATTERNS } = require("../shared/constants");
+const { findActivePipeline } = require("../shared/pipeline");
 const { loadContext, classifyFile } = require("./workspace-context");
 
 let CWD;

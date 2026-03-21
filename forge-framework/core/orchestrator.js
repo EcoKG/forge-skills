@@ -16,12 +16,12 @@
 
 const fs = require("fs");
 const path = require("path");
-const { findActivePipeline: findActivePipelineShared } = require("./shared/pipeline");
+const { findActivePipeline: findActivePipelineShared } = require("../shared/pipeline");
 
 const STATE_DIR = path.join(process.env.HOME || process.env.USERPROFILE, ".claude", "hooks", "state");
-const FORGE_TOOLS_PATH = path.join(__dirname, "forge-tools.js");
+const FORGE_TOOLS_PATH = path.join(__dirname, "pipeline-engine.js");
 const HOOKS_DIR = __dirname;
-const BANNERS_PATH = path.join(__dirname, "..", "templates", "banners.json");
+const BANNERS_PATH = path.join(__dirname, "..", "skills", "forge-dev", "templates", "banners.json");
 try { fs.mkdirSync(STATE_DIR, { recursive: true }); } catch {}
 
 // Cache banners at module load (read once, not per step)
@@ -58,7 +58,7 @@ function getSessionHealthCheck(sessionId) {
   // First prompt in session — run health check
   try { fs.writeFileSync(flagPath, JSON.stringify({ at: new Date().toISOString() })); } catch {}
 
-  const required = ["forge-gate-guard.js", "forge-tools.js", "forge-tracker.js", "forge-orchestrator.js"];
+  const required = ["gate-guard.js", "pipeline-engine.js", "tracker.js", "orchestrator.js"];
   const missing = required.filter(f => !fs.existsSync(path.join(HOOKS_DIR, f)));
 
   const lines = [
@@ -77,7 +77,7 @@ function getSessionHealthCheck(sessionId) {
 
   // Check gate-guard gates
   try {
-    const gg = fs.readFileSync(path.join(HOOKS_DIR, "forge-gate-guard.js"), "utf8");
+    const gg = fs.readFileSync(path.join(HOOKS_DIR, "gate-guard.js"), "utf8");
     const gateCount = (gg.match(/=== GATE/g) || []).length;
     lines.push(`║  Gates: ${gateCount} active (9 = nominal)        ║`);
   } catch {

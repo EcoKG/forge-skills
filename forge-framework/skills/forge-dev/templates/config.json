@@ -1,0 +1,72 @@
+{
+  "mode": "interactive",
+  "granularity": "standard",
+  "model": "balanced",
+  "review": "normal",
+  "git_branching": "none",
+  "skip_tests": false,
+  "auto_discuss": true,
+  "workflow": {
+    "research": true,
+    "plan_check": true,
+    "verifier": true,
+    "quick_mode": false,
+    "nyquist_validation": false
+  },
+  "parallelization": {
+    "enabled": true,
+    "max_concurrent_agents": 3
+  },
+  "safety": {
+    "always_confirm_destructive": true,
+    "always_confirm_external_services": true
+  },
+  "atomic_commits": {
+    "enabled": true,
+    "message_format": "{type}({slug}/{task_id}): {task_name}"
+  },
+  "crash_recovery": {
+    "enabled": true,
+    "lock_file": "execution-lock.json"
+  },
+  "stuck_detection": {
+    "read_threshold_warn": 5,
+    "read_threshold_force": 7,
+    "same_file_threshold": 3,
+    "error_repeat_threshold": 3
+  },
+  "token_tracking": {
+    "enabled": true,
+    "trace_dispatches": true
+  },
+  "backpressure": {
+    "enabled": true,
+    "checks": {
+      "build": true,
+      "test": true,
+      "lint": false
+    },
+    "max_retries": 6,
+    "strategy_change_after": 3,
+    "test_scope": "related",
+    "lint_scope": "changed_files"
+  },
+  "ralph": {
+    "max_iterations": 10,
+    "completion_promise": "auto",
+    "cost_limit": null,
+    "commit_per_iteration": true,
+    "stuck_threshold": 3
+  },
+  "disclosure_mode": "standard",
+  "plugins": {
+    "enabled": true,
+    "directory": ".forge/agents",
+    "auto_suggest": true
+  },
+  "knowledge_transfer": {
+    "enabled": true,
+    "min_quality_score": 0.8,
+    "global_path": "~/.forge/knowledge"
+  }
+}

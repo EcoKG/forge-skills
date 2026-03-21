@@ -1,0 +1,336 @@
+{
+  "version": "6.0",
+  "description": "Forge pipeline definition — machine-readable, code-enforced",
+  "pipelines": {
+    "standard": {
+      "steps": [
+        {
+          "id": "init",
+          "order": 1,
+          "required": true,
+          "actor": "pm",
+          "entry_gate": null,
+          "exit_gate": {
+            "artifacts": ["meta.json"],
+            "state_value": "init_done"
+          },
+          "loads": ["SKILL.md"],
+          "produces": ["meta.json"],
+          "next": "research"
+        },
+        {
+          "id": "research",
+          "order": 2,
+          "required": true,
+          "skippable_by": ["direct", "no_research", "quick"],
+          "actor": "agent",
+          "agent_role": "researcher",
+          "agent_prompt": "prompts/researcher.md",
+          "model_key": "research",
+          "entry_gate": {
+            "required_state": "init_done",
+            "required_artifacts": ["meta.json"]
+          },
+          "exit_gate": {
+            "artifacts": ["research.md"],
+            "min_lines": {"research.md": 20},
+            "state_value": "researched"
+          },
+          "loads": ["resources/type-guides.md"],
+          "produces": ["research.md"],
+          "next": "architect_guide"
+        },
+        {
+          "id": "architect_guide",
+          "order": 3,
+          "required": false,
+          "skippable_by": ["direct", "quick"],
+          "actor": "agent",
+          "agent_role": "architect",
+          "agent_prompt": "prompts/architect.md",
+          "model_key": "architecture",
+          "entry_gate": {
+            "required_state": "researched",
+            "required_artifacts": ["research.md"]
+          },
+          "exit_gate": {
+            "artifacts": ["design-guide.md"],
+            "state_value": "arch_guided"
+          },
+          "loads": [],
+          "produces": ["design-guide.md"],
+          "next": "plan"
+        },
+        {
+          "id": "plan",
+          "order": 4,
+          "required": true,
+          "skippable_by": [],
+          "actor": "agent",
+          "agent_role": "planner",
+          "agent_prompt": "prompts/planner.md",
+          "model_key": "planning",
+          "entry_gate": {
+            "required_state": "arch_guided",
+            "required_artifacts": ["research.md"]
+          },
+          "exit_gate": {
+            "artifacts": ["plan.md"],
+            "required_sections": ["must_haves", "Tasks"],
+            "state_value": "planned"
+          },
+          "loads": ["templates/plan.md"],
+          "produces": ["plan.md"],
+          "next": "plan_check"
+        },
+        {
+          "id": "plan_check",
+          "order": 5,
+          "required": true,
+          "skippable_by": ["direct", "quick"],
+          "actor": "agent",
+          "agent_role": "plan-checker",
+          "agent_prompt": "prompts/plan-checker.md",
+          "model_key": "plan_check",
+          "entry_gate": {
+            "required_state": "planned",
+            "required_artifacts": ["plan.md"]
+          },
+          "exit_gate": {
+            "state_value": "plan_checked"
+          },
+          "revision_loop": {
+            "target_step": "plan",
+            "max_iterations": 3,
+            "escalate_to": "user"
+          },
+          "next": "checkpoint"
+        },
+        {
+          "id": "checkpoint",
+          "order": 6,
+          "required": true,
+          "actor": "pm",
+          "entry_gate": {
+            "required_state": "plan_checked"
+          },
+          "exit_gate": {
+            "state_value": "approved"
+          },
+          "next": "branch"
+        },
+        {
+          "id": "branch",
+          "order": 7,
+          "required": false,
+          "actor": "pm",
+          "skip_when": ["type in docs,analysis,analysis-security,design"],
+          "entry_gate": {
+            "required_state": "approved"
+          },
+          "exit_gate": {
+            "state_value": "branched"
+          },
+          "next": "execute"
+        },
+        {
+          "id": "execute",
+          "order": 8,
+          "required": true,
+          "actor": "agent",
+          "agent_role": "implementer",
+          "agent_prompt": "prompts/implementer.md",
+          "model_key": "implementation",
+          "review_agent": {
+            "role": "code-reviewer",
+            "prompt": "prompts/code-reviewer.md",
+            "model_key": "code_review"
+          },
+          "qa_agent": {
+            "role": "qa-inspector",
+            "prompt": "prompts/qa-inspector.md",
+            "model_key": "qa_inspection",
+            "trigger": "wave_boundary"
+          },
+          "wave_execution": true,
+          "backpressure": {
+            "build": true,
+            "test": true,
+            "lint": false,
+            "max_retries": 6
+          },
+          "entry_gate": {
+            "required_state": "approved",
+            "required_artifacts": ["plan.md"]
+          },
+          "exit_gate": {
+            "state_value": "executed"
+          },
+          "revision_limits": {
+            "code_minor": 5,
+            "code_major": 3,
+            "reject": 2,
+            "qa_retry": 2
+          },
+          "next": "verify"
+        },
+        {
+          "id": "verify",
+          "order": 9,
+          "required": true,
+          "skippable_by": ["quick"],
+          "actor": "agent",
+          "agent_role": "verification-pm",
+          "agent_prompt": "prompts/verification-pm.md",
+          "model_key": "verification",
+          "entry_gate": {
+            "required_state": "executed",
+            "required_artifacts": ["plan.md"]
+          },
+          "exit_gate": {
+            "artifacts": ["verification.md"],
+            "state_value": "verified"
+          },
+          "gap_fix": {
+            "max_cycles": 2
+          },
+          "next": "finalize"
+        },
+        {
+          "id": "finalize",
+          "order": 10,
+          "required": true,
+          "actor": "pm",
+          "entry_gate": {
+            "required_state": "verified"
+          },
+          "exit_gate": {
+            "artifacts": ["report.md"],
+            "state_value": "finalized"
+          },
+          "produces": ["report.md"],
+          "next": "cleanup"
+        },
+        {
+          "id": "cleanup",
+          "order": 11,
+          "required": false,
+          "skippable_by": ["quick"],
+          "actor": "pm",
+          "entry_gate": {
+            "required_state": "finalized"
+          },
+          "exit_gate": {
+            "state_value": "completed"
+          }
+        }
+      ]
+    },
+    "quick": {
+      "inherits": "standard",
+      "only_steps": ["init", "plan", "execute", "verify", "finalize"],
+      "overrides": {
+        "plan": {"agent_role": "planner", "entry_gate": {"required_state": "init_done", "required_artifacts": ["meta.json"]}},
+        "execute": {"review_agent": null, "qa_agent": null, "entry_gate": {"required_state": "planned", "required_artifacts": ["plan.md"]}, "backpressure": {"build": true, "test": true, "lint": false}},
+        "verify": {"agent_role": "verification-pm", "agent_prompt": "prompts/verification-pm.md"}
+      }
+    },
+    "trivial": {
+      "inherits": "standard",
+      "only_steps": ["init", "execute", "cleanup"],
+      "overrides": {
+        "execute": {
+          "entry_gate": null,
+          "revision_limits": {"code_minor": 1, "code_major": 0},
+          "backpressure": {"build": false, "test": false, "lint": false}
+        },
+        "cleanup": {
+          "entry_gate": null
+        }
+      }
+    },
+    "debug": {
+      "steps": [
+        {
+          "id": "reproduce",
+          "order": 1,
+          "actor": "agent",
+          "agent_role": "debugger",
+          "agent_prompt": "prompts/debugger.md",
+          "model_key": "implementation",
+          "entry_gate": null,
+          "exit_gate": {"state_value": "reproduced"},
+          "next": "hypothesize"
+        },
+        {
+          "id": "hypothesize",
+          "order": 2,
+          "actor": "agent",
+          "agent_role": "debugger",
+          "agent_prompt": "prompts/debugger.md",
+          "model_key": "planning",
+          "entry_gate": {"required_state": "reproduced"},
+          "exit_gate": {"state_value": "hypothesized"},
+          "next": "test_hypothesis"
+        },
+        {
+          "id": "test_hypothesis",
+          "order": 3,
+          "actor": "agent",
+          "agent_role": "debugger",
+          "agent_prompt": "prompts/debugger.md",
+          "model_key": "implementation",
+          "entry_gate": {"required_state": "hypothesized"},
+          "exit_gate": {"state_value": "hypothesis_tested"},
+          "next": "fix"
+        },
+        {
+          "id": "fix",
+          "order": 4,
+          "actor": "agent",
+          "agent_role": "implementer",
+          "agent_prompt": "prompts/implementer.md",
+          "model_key": "implementation",
+          "entry_gate": {"required_state": "hypothesis_tested"},
+          "exit_gate": {"state_value": "fixed"},
+          "next": "verify_fix"
+        },
+        {
+          "id": "verify_fix",
+          "order": 5,
+          "actor": "agent",
+          "agent_role": "verification-pm",
+          "agent_prompt": "prompts/verification-pm.md",
+          "model_key": "verification",
+          "entry_gate": {"required_state": "fixed"},
+          "exit_gate": {"state_value": "verified"}
+        }
+      ]
+    },
+    "ralph": {
+      "steps": [
+        {"id": "init", "order": 1, "actor": "pm", "exit_gate": {"state_value": "init_done"}, "next": "iterate"},
+        {"id": "iterate", "order": 2, "actor": "agent", "agent_role": "ralph-executor", "agent_prompt": "prompts/ralph-executor.md", "model_key": "implementation", "max_iterations": 10, "entry_gate": {"required_state": "init_done"}, "exit_gate": {"state_value": "completed"}}
+      ]
+    },
+    "analyze": {
+      "steps": [
+        {"id": "init", "order": 1, "actor": "pm", "entry_gate": null, "exit_gate": {"artifacts": ["meta.json"], "state_value": "init_done"}, "produces": ["meta.json"], "next": "analyze_search"},
+        {"id": "analyze_search", "order": 2, "actor": "agent", "agent_role": "analyzer", "agent_prompt": "prompts/analyzer.md", "model_key": "research", "entry_gate": {"required_state": "init_done", "required_artifacts": ["meta.json"]}, "exit_gate": {"artifacts": ["analysis.md"], "state_value": "analyzed"}, "next": "finalize"},
+        {"id": "finalize", "order": 3, "actor": "pm", "entry_gate": {"required_state": "analyzed"}, "exit_gate": {"artifacts": ["report.md"], "state_value": "finalized"}, "produces": ["report.md"]}
+      ]
+    }
+  },
+  "model_profiles": {
+    "quality": {"research": "sonnet", "planning": "opus", "plan_check": "opus", "implementation": "opus", "code_review": "opus", "qa_inspection": "sonnet", "verification": "opus", "architecture": "opus"},
+    "balanced": {"research": "haiku", "planning": "sonnet", "plan_check": "sonnet", "implementation": "sonnet", "code_review": "sonnet", "qa_inspection": "sonnet", "verification": "sonnet", "architecture": "opus"},
+    "budget": {"research": "haiku", "planning": "sonnet", "plan_check": "haiku", "implementation": "sonnet", "code_review": "haiku", "qa_inspection": "haiku", "verification": "sonnet", "architecture": "sonnet"}
+  },
+  "type_step_overrides": {
+    "code-bug": {"plan_check": {"dimensions": ["D1","D2","D5","D7"]}, "verify": {"level": "light"}},
+    "docs": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"agent_role": "doc-reviewer", "agent_prompt": "prompts/doc-reviewer.md"}},
+    "analysis": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"report_only": true}},
+    "analysis-security": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"], "research": {"model_override": "opus"}},
+    "design": {"skip": ["architect_guide", "plan", "plan_check", "checkpoint", "branch", "verify"], "execute": {"report_only": true, "agent_role": "architect", "agent_prompt": "prompts/architect.md", "model_key": "architecture"}}
+  }
+}

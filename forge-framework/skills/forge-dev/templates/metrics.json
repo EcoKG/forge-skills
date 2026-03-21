@@ -1,0 +1,22 @@
+{
+  "version": "2.0",
+  "project": "",
+  "executions": [],
+  "dispatches": [],
+  "averages": {
+    "quality_score": 0,
+    "revision_rate": 0,
+    "tasks_per_execution": 0,
+    "tokens_per_task": 0
+  },
+  "token_summary": {
+    "total_input": 0,
+    "total_output": 0,
+    "by_model": {
+      "haiku": { "input": 0, "output": 0, "dispatches": 0 },
+      "sonnet": { "input": 0, "output": 0, "dispatches": 0 },
+      "opus": { "input": 0, "output": 0, "dispatches": 0 }
+    },
+    "by_agent": {}
+  }
+}

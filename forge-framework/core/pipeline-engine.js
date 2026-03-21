@@ -519,7 +519,7 @@ function getIterationCount(artifactDir) {
 function loadPipeline() {
   // Try project-local first, then skill default
   const localPath = path.join(FORGE_DIR, "pipeline.json");
-  const defaultPath = path.join(__dirname, "..", "templates", "pipeline.json");
+  const defaultPath = path.join(__dirname, "..", "skills", "forge-dev", "templates", "pipeline.json");
   try {
     const data = fs.existsSync(localPath)
       ? JSON.parse(fs.readFileSync(localPath, "utf8"))
@@ -924,7 +924,7 @@ function engineDispatchSpec(artifactDir, role, taskId) {
     // Fallback: use profile's implementation model instead of hardcoded "sonnet"
     model = modelProfile?.implementation || "sonnet";
     try {
-      const absPath = path.isAbsolute(promptPath) ? promptPath : path.join(__dirname, "..", promptPath);
+      const absPath = path.isAbsolute(promptPath) ? promptPath : path.join(__dirname, "..", "skills", "forge-dev", promptPath);
       const content = fs.readFileSync(absPath, "utf8");
       const fmMatch = content.match(/^---\n[\s\S]*?model:\s*(\w+)[\s\S]*?\n---/);
       if (fmMatch) model = fmMatch[1];
@@ -933,7 +933,7 @@ function engineDispatchSpec(artifactDir, role, taskId) {
 
   // Resolve relative prompt_path to absolute using skill directory
   if (promptPath && !path.isAbsolute(promptPath)) {
-    promptPath = path.join(__dirname, "..", promptPath);
+    promptPath = path.join(__dirname, "..", "skills", "forge-dev", promptPath);
   }
 
   // Verify prompt file exists

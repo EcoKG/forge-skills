@@ -1,0 +1,56 @@
+{
+  "version": "2.1.0",
+  "name": "{project_name}",
+  "description": "{project_description}",
+  "created": "{ISO_8601_timestamp}",
+  "core_value": "{the ONE thing that matters most}",
+  "config": {
+    "mode": "interactive",
+    "granularity": "standard",
+    "model": "balanced",
+    "git_branching": "none",
+    "auto_discuss": true
+  },
+  "current_milestone": 1,
+  "current_phase": 1,
+  "milestones": [
+    {
+      "id": 1,
+      "name": "{milestone_name}",
+      "phases": [1, 2, 3],
+      "status": "in_progress"
+    }
+  ],
+  "stats": {
+    "total_phases": 0,
+    "completed_phases": 0,
+    "total_tasks": 0,
+    "completed_tasks": 0
+  }
+}
+
+// RULES
+// -----
+// config.mode:
+//   - "interactive": confirm each step with user before proceeding
+//   - "autonomous": auto-proceed through phases without confirmation
+//
+// config.granularity:
+//   - "coarse": 3-5 phases per milestone (large, high-level phases)
+//   - "standard": 5-8 phases per milestone (balanced)
+//   - "fine": 8-12 phases per milestone (small, detailed phases)
+//
+// config.model:
+//   - "quality": use highest-capability model for all agents
+//   - "balanced": sonnet for most agents, opus for critical decisions
+//   - "budget": use most cost-efficient model for all agents
+//
+// config.git_branching:
+//   - "none": all work on current branch (default)
+//   - "phase": create a branch per phase, merge after phase verification
+//   - "milestone": create a branch per milestone, merge after milestone completion
+//
+// milestone.status / phase status values:
+//   - "pending": not yet started
+//   - "in_progress": currently being worked on
+//   - "completed": finished and verified
