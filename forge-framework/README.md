@@ -178,3 +178,23 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
+
+---
+
+## 한국어 문서
+
+Forge Framework v8.0 "Nova"는 Claude Code 위에서 동작하는 스킬 실행 플랫폼으로, Gatekeeper가 의도를 분류하고 Pipeline Engine이 실행하며 Gate Guard가 품질을 강제합니다.
+
+### 문서 링크
+
+- [시작하기](../docs/getting-started-ko.md) — 설치부터 첫 스킬 실행까지
+- [사용 시나리오](../docs/usage-scenarios-ko.md) — 실전 사용 예시
+- [스킬 개발 가이드](../docs/skill-developer-guide-ko.md) — Level 0~4 튜토리얼
+
+### 설치
+
+```bash
+git clone https://github.com/EcoKG/forge-skills.git ~/.claude/skills/forge-skills
+node ~/.claude/skills/forge-skills/forge-framework/core/install.js
+# Claude Code 재시작 — 완료!
+```
