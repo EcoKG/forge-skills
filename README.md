@@ -46,6 +46,12 @@ Autonomous development framework for Claude Code.
 
 ### Quick Start
 
+**One-line install (curl):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/EcoKG/forge-skills/main/forge-framework/setup.sh | bash
+```
+
+**Or manual install:**
 ```bash
 # 1. Clone
 git clone https://github.com/EcoKG/forge-skills.git ~/.claude/skills/forge-skills

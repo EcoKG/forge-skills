@@ -56,12 +56,18 @@ Forge Framework v8.0 "Nova" is a paradigm shift from v7.0: where the old `forge`
 
 ## Quick Start
 
+**One-line install:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/EcoKG/forge-skills/main/forge-framework/setup.sh | bash
+```
+
+**Or manual:**
 ```bash
 # 1. Clone
-git clone https://github.com/your-org/forge-framework ~/.claude/skills/forge-framework
+git clone https://github.com/EcoKG/forge-skills.git ~/.claude/skills/forge-skills
 
 # 2. Install hooks
-node ~/.claude/skills/forge-framework/core/install.js
+node ~/.claude/skills/forge-skills/forge-framework/core/install.js
 
 # 3. Restart Claude Code
 # That's it! Gatekeeper + Gate Guard are now active.

@@ -99,7 +99,25 @@ Git이 없다면 [git-scm.com](https://git-scm.com) 에서 설치하세요.
 
 ## 3. 설치
 
-총 4단계입니다. 순서대로 따라하면 됩니다.
+### 원라인 설치 (권장)
+
+아래 명령 하나로 다운로드 + 설치 + 검증까지 한 번에 완료됩니다:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/EcoKG/forge-skills/main/forge-framework/setup.sh | bash
+```
+
+이 스크립트가 자동으로:
+1. Node.js / Git / Claude Code 설치 여부를 확인합니다
+2. 리포지토리를 `~/.claude/skills/forge-skills/`에 클론합니다
+3. Hook을 settings.json에 등록합니다
+4. 설치를 검증합니다
+
+설치 완료 후 Claude Code를 재시작(`/clear`)하면 바로 사용할 수 있습니다.
+
+### 수동 설치 (단계별)
+
+원라인 설치가 안 되거나 각 단계를 직접 확인하고 싶으면 아래를 따르세요.
 
 ---
 
