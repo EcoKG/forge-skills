@@ -25,7 +25,10 @@ const SETTINGS_PATH = path.join(
   "settings.json"
 );
 
-const HOOKS_DIR = path.dirname(__filename);
+// Auto-detect script directory (works from any cwd)
+const HOOKS_DIR = __dirname;
+const FRAMEWORK_DIR = path.dirname(HOOKS_DIR); // forge-framework/
+const SKILLS_DIR = path.join(FRAMEWORK_DIR, 'skills'); // forge-framework/skills/
 
 const FORGE_HOOKS = [
   // v7.0 Bastion hooks
@@ -168,6 +171,8 @@ function install() {
   console.log(
     `\nDone: ${installed} installed, ${skipped} skipped (already present)`
   );
+  console.log(`\nInstalled to: ${HOOKS_DIR}`);
+  console.log(`Framework:    ${FRAMEWORK_DIR}`);
   return { installed, skipped };
 }
 

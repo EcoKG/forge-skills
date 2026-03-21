@@ -185,70 +185,53 @@ function readSkillCatalog(sessionId) {
 // ---------------------------------------------------------------------------
 
 /**
- * Classify prompt using Anthropic Haiku via child process.
+ * Classify prompt using claude -p (pipe mode) with haiku model.
+ * Works with Claude subscription — no API key needed.
  * Only called when GATEKEEPER_LLM_ENABLED=true.
  * @param {string} prompt
  * @param {string} skillCatalog
- * @returns {Promise<{ category: string, skill: string|null, confidence: number, reason: string }|null>}
+ * @returns {{ category: string, skill: string|null, confidence: number, reason: string }|null}
  */
-async function classifyWithLLM(prompt, skillCatalog) {
+function classifyWithLLM(prompt, skillCatalog) {
   try {
-    const promptsPath = path.join(__dirname, '..', 'prompts', 'gatekeeper.md');
-    let systemPrompt = fs.readFileSync(promptsPath, 'utf8');
-    systemPrompt = systemPrompt.replace('{SKILL_CATALOG}', skillCatalog);
+    const gatekeeperPromptPath = path.join(__dirname, '..', 'prompts', 'gatekeeper.md');
+    let systemPrompt = '';
+    try {
+      systemPrompt = fs.readFileSync(gatekeeperPromptPath, 'utf8');
+      if (skillCatalog) {
+        systemPrompt = systemPrompt.replace('{SKILL_CATALOG}', skillCatalog);
+      }
+    } catch {
+      return null; // No prompt file → fall back to local
+    }
 
-    const { execFile } = require('child_process');
+    // Use claude -p (pipe mode) with haiku model
+    // Works with subscription — no API key needed
+    const { execSync } = require('child_process');
+    const escapedSystem = systemPrompt.replace(/'/g, "'\\''");
+    const escapedPrompt = prompt.replace(/'/g, "'\\''");
 
-    const script = `
-      const Anthropic = require('@anthropic-ai/sdk');
-      const client = new Anthropic();
-      (async () => {
-        try {
-          const msg = await client.messages.create({
-            model: 'claude-haiku-4-5',
-            max_tokens: 256,
-            system: ${JSON.stringify(systemPrompt)},
-            messages: [{ role: 'user', content: ${JSON.stringify(prompt)} }],
-          });
-          const text = msg.content[0].text;
-          const match = text.match(/\\{[^}]+\\}/s);
-          if (match) {
-            process.stdout.write(match[0]);
-          }
-        } catch (e) {
-          process.exit(1);
-        }
-      })();
-    `;
+    const result = execSync(
+      `echo '${escapedPrompt}' | claude -p --model haiku --system-prompt '${escapedSystem}' 2>/dev/null`,
+      { timeout: 5000, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    );
 
-    return await new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        try { child.kill(); } catch {}
-        resolve(null);
-      }, 3000);
+    // Parse JSON from response
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
 
-      const child = execFile(process.execPath, ['-e', script], { timeout: 3500 }, (err, stdout) => {
-        clearTimeout(timeout);
-        if (err || !stdout) return resolve(null);
-        try {
-          const parsed = JSON.parse(stdout.trim());
-          if (parsed.category) {
-            resolve({
-              category: parsed.category,
-              skill: parsed.skill || null,
-              confidence: parsed.confidence || 0.8,
-              reason: parsed.reason || 'llm classification',
-            });
-          } else {
-            resolve(null);
-          }
-        } catch {
-          resolve(null);
-        }
-      });
-    });
-  } catch {
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (parsed.category) {
+      return {
+        category: parsed.category,
+        skill: parsed.skill || null,
+        confidence: parsed.confidence || 0.8,
+        reason: parsed.reason || 'LLM classification',
+      };
+    }
     return null;
+  } catch {
+    return null; // Timeout, parse error, or claude not available → fall back to local
   }
 }
 
@@ -281,7 +264,7 @@ async function main() {
   // LLM fallback when enabled and local confidence is low
   if (GATEKEEPER_LLM_ENABLED && result.confidence < CONFIDENCE_THRESHOLD) {
     const catalog = readSkillCatalog(session_id || 'default');
-    const llmResult = await classifyWithLLM(prompt, catalog);
+    const llmResult = classifyWithLLM(prompt, catalog);
     if (llmResult) {
       result = llmResult;
     }
