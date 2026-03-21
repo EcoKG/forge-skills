@@ -71,7 +71,7 @@ const ROUTING_TABLE = {
   },
   'meta': {
     skill: null,
-    en: ['/clear', '/compact', 'hello', 'hi', 'thanks', 'thank you', 'ok', 'got it', 'sure', 'bye'],
+    en: ['/clear', '/compact', 'hello', 'thanks', 'thank you', 'got it', 'bye'],
     ko: ['안녕', '감사', '고마워', '알겠', 'ㅇㅋ'],
   },
 };
@@ -100,7 +100,16 @@ function classifyLocal(prompt) {
     if (keywords.length === 0) continue;
     let hits = 0;
     for (const kw of keywords) {
-      if (lower.includes(kw.toLowerCase())) hits += 1;
+      const kwLower = kw.toLowerCase();
+      // For very short ASCII-only keywords (≤2 chars like "hi", "ok"), use word boundary
+      // to avoid substring false positives. Korean keywords are always substring-matched.
+      const isAsciiOnly = /^[a-z0-9 /]+$/i.test(kwLower);
+      if (isAsciiOnly && kwLower.length <= 2) {
+        const re = new RegExp(`(?:^|\\W)${kwLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:$|\\W)`, 'i');
+        if (re.test(lower)) hits += 1;
+      } else {
+        if (lower.includes(kwLower)) hits += 1;
+      }
     }
     hitsByCategory[category] = hits;
   }

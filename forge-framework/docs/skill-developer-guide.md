@@ -254,6 +254,24 @@ Gate Guard runs on every `Edit`, `Write`, and `Bash` tool call. It loads `worksp
 
 If there is no active pipeline context, Gate Guard falls back to a conservative `isCodeFile` check. Any code modification without an active pipeline is blocked.
 
+### Workspace Context API
+
+The framework provides these functions in `core/workspace-context.js`:
+
+| Function | Purpose |
+|---|---|
+| `createContext(root, stackProfile, artifactDir)` | Creates `workspace-context.json` during `engine-init` |
+| `loadContext(artifactDir, cwd)` | Reads workspace context for an active pipeline |
+| `classifyFile(absFilePath, context)` | Returns `"scope"`, `"readonly"`, `"ignore"`, `"external"`, or `"out-of-scope"` |
+| `expandScope(artifactDir, cwd, pattern, reason, step)` | Appends to `scope_expansions` at runtime |
+
+You typically don't call these directly — the pipeline engine and Gate Guard use them internally. But they're useful for debugging:
+
+```bash
+# Expand scope at runtime (e.g., skill needs to create migration files)
+node core/pipeline-engine.js engine-expand-scope .forge/2026-03-21/my-session "migrations/**" "new migration needed" "execute"
+```
+
 ### Auto-scope from detect-stack
 
 You can skip manual scope declaration and let the engine detect it:
