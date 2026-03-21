@@ -23,35 +23,14 @@ description: |
 ## 1. How Forge Framework Works
 
 ```
-User: /forge "implement JWT auth"
-  │
-  ▼
-Gatekeeper (Haiku subagent)
-  → classifies intent: code-modify
-  → routes to skill: forge-dev
-  → emits config: { mode: "standard", type: "code", scale: "medium" }
-  │
-  ▼
-Skill: forge-dev activated
-  → engine-init → creates workspace-context.json + pipeline-state.json
-  │
-  ▼
-Pipeline Engine (pipeline-engine.js)
-  → step-by-step execution with gate validation
-  → agent dispatch → result recording → transition
-  │
-  ▼
-Gate Guard (PreToolUse hook)
-  → 9 gates enforced — 7 hard blocks (exit 2) + 2 warnings
-  → workspace-context.json defines allowed file scope
-  │
-  ▼
-... pipeline runs to completion → report.md + git finalize
+User → Gatekeeper (Haiku) → classifies intent → routes to skill
+  → engine-init → workspace-context.json + pipeline-state.json
+  → Pipeline Engine: step-by-step with gate validation
+  → Gate Guard (PreToolUse): 9 gates, 7 hard blocks
+  → ... until completed → report.md + git finalize
 ```
 
-**Architecture shift from v7.0:**
-- v7.0: forge = a single skill with its own hooks
-- v8.0: Forge Framework = the platform on which skills run
+**Architecture shift:** v7.0 forge = one skill. v8.0 Forge Framework = the platform skills run on.
 
 ---
 

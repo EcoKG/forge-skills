@@ -207,29 +207,46 @@ function classifyWithLLM(prompt, skillCatalog) {
 
     // Use claude -p (pipe mode) with haiku model
     // Works with subscription — no API key needed
+    // Write both system prompt and user prompt to temp files to avoid shell quoting issues
+    // Note: execSync `input` option is not compatible with claude -p; use cat pipe instead
     const { execSync } = require('child_process');
-    const escapedSystem = systemPrompt.replace(/'/g, "'\\''");
-    const escapedPrompt = prompt.replace(/'/g, "'\\''");
+    const os = require('os');
+    const crypto = require('crypto');
+    const tmpId = crypto.randomBytes(6).toString('hex');
+    const systemPromptFile = path.join(os.tmpdir(), `gatekeeper-sys-${tmpId}.txt`);
+    const userPromptFile = path.join(os.tmpdir(), `gatekeeper-prompt-${tmpId}.txt`);
 
-    const result = execSync(
-      `echo '${escapedPrompt}' | claude -p --model haiku --system-prompt '${escapedSystem}' 2>/dev/null`,
-      { timeout: 5000, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-    );
+    try {
+      fs.writeFileSync(systemPromptFile, systemPrompt, 'utf8');
+      fs.writeFileSync(userPromptFile, prompt, 'utf8');
 
-    // Parse JSON from response
-    const jsonMatch = result.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
+      const result = execSync(
+        `cat '${userPromptFile}' | claude -p --model haiku --system-prompt-file '${systemPromptFile}' 2>/dev/null`,
+        {
+          timeout: 5000,
+          encoding: 'utf8',
+          env: process.env,
+        }
+      );
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    if (parsed.category) {
-      return {
-        category: parsed.category,
-        skill: parsed.skill || null,
-        confidence: parsed.confidence || 0.8,
-        reason: parsed.reason || 'LLM classification',
-      };
+      // Parse JSON from response
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return null;
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.category) {
+        return {
+          category: parsed.category,
+          skill: parsed.skill || null,
+          confidence: parsed.confidence || 0.8,
+          reason: parsed.reason || 'LLM classification',
+        };
+      }
+      return null;
+    } finally {
+      try { fs.unlinkSync(systemPromptFile); } catch {}
+      try { fs.unlinkSync(userPromptFile); } catch {}
     }
-    return null;
   } catch {
     return null; // Timeout, parse error, or claude not available → fall back to local
   }
